@@ -2,7 +2,7 @@
   "mcpServers": {
     "mcpfabric": {
       "command": "node",
-      "args": ["D:/Projects/mcpfabric/mcp-server/dist/index.js"],
+      "args": ["/absolute/path/to/mcpfabric/mcp-server/dist/index.js"],
       "env": {
         "MCPFABRIC_URL": "http://127.0.0.1:25599",
         "MCPFABRIC_TOKEN": "PASTE_TOKEN_FROM_MOD_LOG"

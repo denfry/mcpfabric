@@ -35,7 +35,7 @@ public final class PlayerAdminHandlers {
 
 		router.register("players.teleport", ctx -> onServer(server -> {
 			ServerPlayer p = require(server, ctx.getString("player"));
-			String name = p.getGameProfile().getName();
+			String name = playerName(p);
 			double x = ctx.getDouble("x"), y = ctx.getDouble("y"), z = ctx.getDouble("z");
 			StringBuilder tp = new StringBuilder("teleport ").append(name).append(' ')
 					.append(x).append(' ').append(y).append(' ').append(z);
@@ -52,14 +52,14 @@ public final class PlayerAdminHandlers {
 		router.register("players.setGameMode", ctx -> onServer(server -> {
 			ServerPlayer p = require(server, ctx.getString("player"));
 			String mode = ctx.getString("mode");
-			return CommandRunner.run(server, "gamemode " + mode + " " + p.getGameProfile().getName()).toJson();
+			return CommandRunner.run(server, "gamemode " + mode + " " + playerName(p)).toJson();
 		}));
 
 		router.register("players.give", ctx -> onServer(server -> {
 			ServerPlayer p = require(server, ctx.getString("player"));
 			String item = ctx.getString("itemId") + ctx.optString("nbt", "");
 			int count = ctx.optInt("count", 1);
-			return CommandRunner.run(server, "give " + p.getGameProfile().getName() + " " + item + " " + count).toJson();
+			return CommandRunner.run(server, "give " + playerName(p) + " " + item + " " + count).toJson();
 		}));
 
 		router.register("players.applyEffect", ctx -> onServer(server -> {
@@ -69,7 +69,7 @@ public final class PlayerAdminHandlers {
 			int amplifier = ctx.optInt("amplifier", 0);
 			boolean hideParticles = !ctx.optBool("showParticles", true);
 			String cmd = String.format("effect give %s %s %d %d %b",
-					p.getGameProfile().getName(), effect, seconds, amplifier, hideParticles);
+					playerName(p), effect, seconds, amplifier, hideParticles);
 			return CommandRunner.run(server, cmd).toJson();
 		}));
 
@@ -80,7 +80,7 @@ public final class PlayerAdminHandlers {
 			if (target.equalsIgnoreCase("@all") || target.equals("@a")) {
 				selector = "@a";
 			} else {
-				selector = require(server, target).getGameProfile().getName();
+				selector = playerName(require(server, target));
 			}
 			JsonObject component = new JsonObject();
 			component.addProperty("text", text);
@@ -91,9 +91,17 @@ public final class PlayerAdminHandlers {
 		router.register("players.kick", ctx -> onServer(server -> {
 			ServerPlayer p = require(server, ctx.getString("player"));
 			String reason = ctx.optString("reason", null);
-			String cmd = "kick " + p.getGameProfile().getName() + (reason != null ? " " + reason : "");
+			String cmd = "kick " + playerName(p) + (reason != null ? " " + reason : "");
 			return CommandRunner.run(server, cmd).toJson();
 		}));
+	}
+
+	/** The player's profile name. authlib's {@code GameProfile} became a record ({@code name()}) in 1.21.9. */
+	private static String playerName(ServerPlayer p) {
+		//? if <1.21.9 {
+		return p.getGameProfile().getName();
+		//?} else
+		/*return p.getGameProfile().name();*/
 	}
 
 	private static ServerPlayer require(MinecraftServer server, String ref) throws RpcException {
@@ -113,14 +121,17 @@ public final class PlayerAdminHandlers {
 
 	private static JsonObject describe(ServerPlayer p) {
 		JsonObject o = new JsonObject();
-		o.addProperty("name", p.getGameProfile().getName());
+		o.addProperty("name", playerName(p));
 		o.addProperty("uuid", p.getUUID().toString());
 		o.addProperty("x", p.getX());
 		o.addProperty("y", p.getY());
 		o.addProperty("z", p.getZ());
 		o.addProperty("yaw", p.getYRot());
 		o.addProperty("pitch", p.getXRot());
+		//? if <1.21.11 {
 		o.addProperty("dimension", p.level().dimension().location().toString());
+		//?} else
+		/*o.addProperty("dimension", p.level().dimension().identifier().toString());*/
 		o.addProperty("health", p.getHealth());
 		o.addProperty("maxHealth", p.getMaxHealth());
 		o.addProperty("food", p.getFoodData().getFoodLevel());

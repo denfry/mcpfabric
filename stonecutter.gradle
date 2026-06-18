@@ -1,0 +1,19 @@
+// Stonecutter controller (root project). The per-version mod build lives in build.gradle,
+// which Stonecutter applies to every version node declared in settings.gradle.
+plugins {
+	id 'dev.kikugie.stonecutter'
+	// Both Loom plugins are put on the classpath (apply false) so each version node can apply the
+	// right one without repeating the version: -remap for obfuscated Minecraft (<=1.21.11), plain
+	// fabric-loom for unobfuscated Minecraft (26.1+). Loom 1.17.x covers the whole range.
+	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}" apply false
+	id 'net.fabricmc.fabric-loom' version "${loom_version}" apply false
+}
+
+stonecutter.active('1.21.8') /* [SC] DO NOT EDIT */
+
+// `./gradlew chiseledBuild` builds every declared version node in one go (used by CI).
+tasks.register('chiseledBuild') {
+	group = 'project'
+	description = 'Builds every supported Minecraft version'
+	dependsOn(stonecutter.tasks.named('build'))
+}

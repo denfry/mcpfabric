@@ -5,6 +5,10 @@ remappedSrc/
 .fabric/
 run/
 
+# Stonecutter (generated per-version build output and caches; versions/<v>/gradle.properties is tracked)
+versions/*/build/
+.stonecutter/
+
 # IDE
 .idea/
 *.iml
@@ -16,6 +20,9 @@ run/
 .project
 bin/
 
+# Claude Code / local agent tooling (per-developer, may contain local paths)
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -24,7 +31,6 @@ Thumbs.db
 node_modules/
 dist/
 *.log
-.env
 
 # mcpfabric runtime config (contains auth token)
 mcpfabric.config.json

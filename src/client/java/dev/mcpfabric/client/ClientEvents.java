@@ -20,7 +20,10 @@ public final class ClientEvents {
 			JsonObject d = new JsonObject();
 			d.addProperty("text", message.getString());
 			if (sender != null) {
+				//? if <1.21.9 {
 				d.addProperty("sender", sender.getName());
+				//?} else
+				/*d.addProperty("sender", sender.name());*/
 			}
 			events.emit("chat", d);
 		});

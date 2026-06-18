@@ -1,84 +1,101 @@
 # mcpfabric
 
-**Полное наблюдение и управление Minecraft (Fabric 1.21.8) для ИИ через MCP.**
+**Full observation and control of Minecraft (Fabric) for AI agents via the [Model Context Protocol](https://modelcontextprotocol.io).**
 
-`mcpfabric` состоит из двух частей:
+`mcpfabric` has two parts:
 
-1. **Fabric-мод** — встраивает внутрь Minecraft локальный HTTP-мост и даёт доступ к чтению и
-   управлению игрой. Работает универсально: на клиенте управляет вашим игроком как ботом и видит
-   всё, что видит клиент (включая скриншоты); на выделенном/встроенном сервере даёт режим
-   администратора над миром, сущностями и всеми игроками.
-2. **MCP-сервер** (TypeScript) — подключается к мосту мода по HTTP и публикует ~50 инструментов
-   через [Model Context Protocol](https://modelcontextprotocol.io), чтобы любой MCP-клиент
-   (Claude Desktop, Claude Code и т.д.) мог наблюдать и управлять игрой.
+1. **A Fabric mod** that embeds a local HTTP bridge inside Minecraft and exposes read & control
+   access to the game. It works universally: on the **client** it drives your own player as a bot
+   and sees everything the client sees (including screenshots); on a **dedicated/integrated server**
+   it acts as an operator over the world, entities, and all players.
+2. **An MCP server** (TypeScript) that connects to the mod's bridge over HTTP and publishes ~50
+   tools, so any MCP client (Claude Desktop, Claude Code, etc.) can observe and control the game.
 
 ```
-Claude / любой MCP-клиент
-        │  MCP (stdio или streamable HTTP)
-   mcp-server  (Node/TypeScript)
-        │  HTTP  POST /rpc (JSON-RPC) + GET /events (SSE),  Bearer-токен, только 127.0.0.1
-   Fabric-мод "mcpfabric"  (встроенный HttpServer внутри Minecraft)
-        │  весь доступ к игре — через main-thread executor (server.execute / Minecraft.execute)
+Claude / any MCP client
+        │  MCP (stdio or streamable HTTP)
+   mcp-server  (Node / TypeScript)
+        │  HTTP  POST /rpc (JSON-RPC) + GET /events (SSE),  bearer token, 127.0.0.1 only
+   Fabric mod "mcpfabric"  (HTTP server embedded in Minecraft)
+        │  all game access goes through the main-thread executor (server.execute / Minecraft.execute)
    ┌── common (env *) ─────────────┐   ┌── client (env client) ─────────────────┐
    │ info  world  entities         │   │ player  control  interact               │
-   │ players  command  chat events │   │ inventory  vision  navigation  chat      │
-   └───────────────────────────────┘   └──────────────────────────────────────────┘
+   │ players  command  chat events │   │ inventory  vision  navigation  chat     │
+   └───────────────────────────────┘   └─────────────────────────────────────────┘
 ```
 
-Чтения реализованы через нативный API Minecraft (структурированные данные), записи
-(`setblock`/`summon`/`give`/`tp`/эффекты/погода/время) — через диспетчер команд с перехватом
-вывода. Управление игроком сделано через `KeyMapping` (интеграция со штатным input-пайплайном),
-скриншот — через штатный `Screenshot`/`NativeImage`, навигация — собственный A\*.
+Reads use Minecraft's native API (structured data); writes (`setblock` / `summon` / `give` / `tp` /
+effects / weather / time) go through the command dispatcher with output capture. Player control uses
+`KeyMapping` (integrating with the vanilla input pipeline), screenshots use the vanilla
+`Screenshot` / `NativeImage`, and navigation is a custom A\*.
 
 ---
 
-## Требования
+## Supported Minecraft versions
 
-- **Java 21** (Minecraft 1.21.8).
-- **Minecraft 1.21.8** + **Fabric Loader ≥ 0.19.3** + **Fabric API 0.136.1+1.21.8**.
-- **Node.js ≥ 20** для MCP-сервера.
+A single source tree targets many Minecraft versions using
+[Stonecutter](https://stonecutter.kikugie.dev/). Each version below ships its own jar:
+
+| Line     | Versions (one jar each)                                          | Java |
+|----------|-----------------------------------------------------------------|------|
+| 1.21.x   | 1.21.1, 1.21.2, 1.21.3, 1.21.4, 1.21.5, 1.21.6, 1.21.7, 1.21.8, 1.21.9, 1.21.10, 1.21.11 | 21 |
+| 26.x     | 26.1.2 (installs on 26.1–26.1.2), 26.2                           | 25   |
+
+13 jars are produced, each named `mcpfabric-<modVersion>+<mcVersion>.jar` (e.g.
+`mcpfabric-0.2.0+1.21.8.jar`). The 26.1.2 jar declares compatibility with the whole 26.1 line.
+Requires **Fabric Loader ≥ 0.19.3** and the matching **Fabric API** build, plus **Node.js ≥ 20**
+for the MCP server.
 
 ---
 
-## 1. Сборка мода
+## 1. Build the mod
 
 ```bash
-# из корня репозитория
-./gradlew build
-# Windows:
-gradlew.bat build
+# Build a single version (the one currently active in stonecutter.gradle)
+./gradlew build           # Windows: gradlew.bat build
+
+# Build a specific version
+./gradlew ":1.21.8:build"
+
+# Build every supported version at once
+./gradlew chiseledBuild
 ```
 
-Готовый мод: `build/libs/mcpfabric-0.1.0.jar`.
+Per-version jars land in `versions/<mcVersion>/build/libs/`.
 
-> **Примечание про сеть.** Если первая сборка падает с `Remote host terminated the handshake`
-> при скачивании зависимостей с `maven.fabricmc.net` (так бывает с антивирусами/файрволами,
-> инспектирующими TLS), в `gradle.properties` уже включён обход: TLS 1.2 + последовательные
-> загрузки. При обрыве просто перезапустите сборку — кэш скачанного сохраняется.
+> **JDK note.** 1.21.x builds need **JDK 21**; the 26.x line needs **JDK 25**. Loom requires the
+> Gradle daemon to run on a JDK at least as new as the Minecraft version, so to build 26.x (or
+> `chiseledBuild`) run Gradle on JDK 25 with JDK 21 also installed. See
+> [CONTRIBUTING.md](CONTRIBUTING.md#jdk-requirements).
 
-### Установка
+> **Network note.** If the first build fails with `Remote host terminated the handshake` while
+> downloading dependencies from `maven.fabricmc.net` (this happens behind TLS-inspecting
+> antivirus/firewalls), `gradle.properties` already pins TLS 1.2 and sequential downloads. Just
+> re-run the build — the download cache persists.
 
-Положите `mcpfabric-0.1.0.jar` вместе с **Fabric API** в папку `mods/`:
+### Install
 
-- **Клиент** (ИИ играет за вас): `mods/` вашего Fabric-инстанса (PrismLauncher/CurseForge/обычный лаунчер).
-- **Сервер** (ИИ как админ): `mods/` выделенного Fabric-сервера.
-- Можно ставить с обеих сторон одновременно.
+Drop the jar for your Minecraft version, together with **Fabric API**, into your `mods/` folder:
 
-При первом запуске мод создаёт `config/mcpfabric.config.json` и печатает в лог строку вида:
+- **Client** (AI plays as you): the `mods/` folder of your Fabric instance.
+- **Server** (AI as admin): the `mods/` folder of your dedicated Fabric server.
+- Both sides at once is fine.
+
+On first launch the mod creates `config/mcpfabric.config.json` and logs a line like:
 
 ```
 [mcpfabric] ready — bridge http://127.0.0.1:25599  token=ab12cd...
 ```
 
-Скопируйте `token` — он понадобится MCP-серверу.
+Copy the `token` — the MCP server needs it.
 
-### Конфиг мода (`config/mcpfabric.config.json`)
+### Mod config (`config/mcpfabric.config.json`)
 
 ```json
 {
   "host": "127.0.0.1",
   "port": 25599,
-  "token": "сгенерируется автоматически",
+  "token": "generated automatically",
   "requireAuth": true,
   "callTimeoutMs": 8000,
   "enableWorldWrite": true,
@@ -88,52 +105,54 @@ gradlew.bat build
 }
 ```
 
-Флаги `enable*` позволяют отключить опасные группы возможностей. `host` держите на `127.0.0.1`,
-если только вы точно не понимаете последствий — мост даёт права уровня оператора.
+The `enable*` flags let you switch off dangerous capability groups. `requireAuth` (default `true`)
+gates every request behind the bearer token — only set it to `false` if you understand that it
+removes the sole authentication on an operator-level bridge. Keep `host` on `127.0.0.1` unless you
+fully understand the consequences — the bridge grants operator-level power.
 
 ---
 
-## 2. MCP-сервер
+## 2. MCP server
 
 ```bash
 cd mcp-server
 npm install
-npm run build      # компиляция в dist/
+npm run build      # compiles to dist/
 ```
 
-Запуск (обычно его запускает MCP-клиент сам, см. ниже):
+Usually your MCP client launches it for you (see below). Manually:
 
 ```bash
-MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<токен> node dist/index.js
+MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
 ```
 
-### Переменные окружения
+### Environment variables
 
-| Переменная             | По умолчанию              | Описание                                            |
-|------------------------|---------------------------|-----------------------------------------------------|
-| `MCPFABRIC_URL`        | `http://127.0.0.1:25599`  | Адрес HTTP-моста мода.                               |
-| `MCPFABRIC_TOKEN`      | —                         | Bearer-токен из конфига мода (обязателен по умолчанию). |
-| `MCPFABRIC_TIMEOUT_MS` | `15000`                   | Таймаут одного вызова к мосту.                      |
-| `MCPFABRIC_TRANSPORT`  | `stdio`                   | `stdio` или `http`.                                 |
-| `MCPFABRIC_HTTP_PORT`  | `25600`                   | Порт для транспорта `http` (`/mcp`).                |
+| Variable               | Default                  | Description                                       |
+|------------------------|--------------------------|---------------------------------------------------|
+| `MCPFABRIC_URL`        | `http://127.0.0.1:25599` | Address of the mod's HTTP bridge.                 |
+| `MCPFABRIC_TOKEN`      | —                        | Bearer token from the mod config (required by default). |
+| `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge.                   |
+| `MCPFABRIC_TRANSPORT`  | `stdio`                  | `stdio` or `http`.                                |
+| `MCPFABRIC_HTTP_PORT`  | `25600`                  | Port for the `http` transport (`/mcp`).           |
 
 ---
 
-## 3. Подключение к Claude
+## 3. Connect to Claude
 
 ### Claude Desktop
 
-`claude_desktop_config.json` (см. `examples/claude_desktop_config.json`):
+`claude_desktop_config.json` (see `examples/claude_desktop_config.json`):
 
 ```json
 {
   "mcpServers": {
     "mcpfabric": {
       "command": "node",
-      "args": ["D:/Projects/mcpfabric/mcp-server/dist/index.js"],
+      "args": ["/absolute/path/to/mcpfabric/mcp-server/dist/index.js"],
       "env": {
         "MCPFABRIC_URL": "http://127.0.0.1:25599",
-        "MCPFABRIC_TOKEN": "вставьте-токен-из-лога-мода"
+        "MCPFABRIC_TOKEN": "paste-the-token-from-the-mod-log"
       }
     }
   }
@@ -142,77 +161,83 @@ MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<токен> node dist/inde
 
 ### Claude Code
 
-Файл `.mcp.json` в корне проекта (см. `examples/mcp.json`) либо команда:
+Use the `.mcp.json` in the project root (see `examples/mcp.json`) or:
 
 ```bash
-claude mcp add mcpfabric -- node D:/Projects/mcpfabric/mcp-server/dist/index.js
+claude mcp add mcpfabric -- node /absolute/path/to/mcpfabric/mcp-server/dist/index.js
 ```
 
-После добавления укажите `MCPFABRIC_TOKEN` в окружении сервера.
+Then set `MCPFABRIC_TOKEN` in the server's environment.
 
 ---
 
-## Инструменты (≈50)
+## Tools (50+)
 
 **info** — `get_status`, `list_capabilities`
-**world (чтение)** — `get_block`, `get_blocks_region`, `find_blocks`, `get_time_and_weather`, `list_dimensions`, `raycast`
-**world (запись)** — `set_block`, `fill_blocks`, `set_time`, `set_weather`
+**world (read)** — `get_block`, `get_blocks_region`, `find_blocks`, `get_time_and_weather`, `list_dimensions`, `raycast`
+**world (write)** — `set_block`, `fill_blocks`, `set_time`, `set_weather`
 **entities** — `query_entities`, `get_entity`, `summon_entity`, `remove_entity`
-**players (админ)** — `list_players`, `get_player`, `teleport_player`, `set_gamemode`, `give_item`, `apply_effect`, `message_player`, `kick_player`
-**command** — `run_command` (любая команда уровня оператора с перехватом вывода)
+**players (admin)** — `list_players`, `get_player`, `teleport_player`, `set_gamemode`, `give_item`, `apply_effect`, `message_player`, `kick_player`
+**command** — `run_command` (any operator-level command, with output capture)
 **chat** — `send_chat`, `get_recent_chat`
-**player (локальный, клиент)** — `get_self`, `get_inventory`, `get_equipment`, `get_status_effects`
-**control (клиент)** — `set_movement`, `stop_movement`, `look`, `look_at`, `jump`, `start_using_item`, `stop_using_item`
-**interact (клиент)** — `break_block`, `place_block`, `use_item`, `attack_entity`, `use_entity`, `drop_held_item`
-**inventory (клиент)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
-**vision (клиент)** — `screenshot` (PNG для vision-моделей), `describe_scene`
-**navigation (клиент)** — `navigate_to` (A\*), `navigation_status`, `stop_navigation`
-**events** — `poll_events` (буфер последних событий: урон, смерти, чат, спавны, вход/выход игроков)
+**player (local, client)** — `get_self`, `get_inventory`, `get_equipment`, `get_status_effects`
+**control (client)** — `set_movement`, `stop_movement`, `look`, `look_at`, `jump`, `start_using_item`, `stop_using_item`
+**interact (client)** — `break_block`, `place_block`, `use_item`, `attack_entity`, `use_entity`, `drop_held_item`
+**inventory (client)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
+**vision (client)** — `screenshot` (PNG for vision models), `describe_scene`
+**navigation (client)** — `navigate_to` (A\*), `navigation_status`, `stop_navigation`
+**events** — `poll_events` (recent damage, deaths, chat, spawns, player join/leave)
 
-Серверные инструменты требуют запущенного сервера (встроенного на клиенте или выделенного).
-Клиентские (`control`/`interact`/`vision`/`navigation`/`player`/`inventory`) работают только на стороне клиента.
-Вызовите `get_status` первым — он сообщит, на какой вы стороне и какие группы доступны.
-
----
-
-## Примеры сценариев
-
-- «Осмотрись и опиши, что вокруг» → `get_self` + `describe_scene` (+ `screenshot` для vision-модели).
-- «Дойди до координат и добудь алмазы» → `find_blocks` → `navigate_to` → `break_block`.
-- «Что происходит на сервере» → `list_players` + `poll_events`.
-- «Построй стену» → `fill_blocks` или серия `set_block` / `run_command`.
+Server tools require a running server (integrated on the client or dedicated). Client tools
+(`control` / `interact` / `vision` / `navigation` / `player` / `inventory`) only work on the client.
+Call `get_status` first — it reports which side you are on and which groups are available.
 
 ---
 
-## Безопасность
+## Example prompts
 
-- Мост слушает **только `127.0.0.1`** и требует **Bearer-токен**.
-- Возможности уровня оператора (`run_command`, запись мира, управление игроками) включены по
-  умолчанию — это даёт ИИ полный контроль. Отключайте группы флагами `enable*`, если нужно.
-- Не выставляйте `host` наружу без понимания рисков и без реверс-прокси с аутентификацией.
+- "Look around and describe what's nearby" → `get_self` + `describe_scene` (+ `screenshot` for a vision model).
+- "Walk to these coordinates and mine diamonds" → `find_blocks` → `navigate_to` → `break_block`.
+- "What's happening on the server" → `list_players` + `poll_events`.
+- "Build a wall" → `fill_blocks` or a series of `set_block` / `run_command`.
 
 ---
 
-## Структура проекта
+## Security
+
+- The bridge listens on **`127.0.0.1` only** and requires a **bearer token**.
+- Operator-level capabilities (`run_command`, world writes, player control) are **on by default** —
+  this gives the AI full control. Turn off groups with the `enable*` flags if you need to.
+- Do not expose `host` externally without understanding the risk and putting an authenticated
+  reverse proxy in front of it. See [SECURITY.md](SECURITY.md).
+
+---
+
+## Project structure
 
 ```
 mcpfabric/
-├─ build.gradle, settings.gradle, gradle.properties   # Fabric Loom (loom-remap), Mojmap, split source sets
-├─ src/main/java/dev/mcpfabric/                        # common (env *): мост + серверные хендлеры
+├─ settings.gradle, stonecutter.gradle, build.gradle   # Stonecutter multi-version + Fabric Loom
+├─ gradle.properties                                   # shared build config
+├─ versions/<mc>/gradle.properties                     # per-version Minecraft + Fabric API
+├─ src/main/java/dev/mcpfabric/                         # common (env *): bridge + server handlers
 │  ├─ McpFabric.java, ServerHolder.java
 │  ├─ bridge/      (HttpBridgeServer, RpcRouter, MainThread, SseHub, Json, ...)
 │  ├─ config/      (McpConfig)
 │  ├─ events/      (EventBus, GameEvent)
 │  └─ handlers/    (Info/World/Entity/PlayerAdmin/Command/Chat + support/CommandRunner, Levels)
-├─ src/client/java/dev/mcpfabric/client/               # client (env client): бот + клиентские хендлеры
+├─ src/client/java/dev/mcpfabric/client/                # client (env client): bot + client handlers
 │  ├─ McpFabricClient.java, ClientMc.java, BotController.java, ClientEvents.java
 │  ├─ nav/AStarPathfinder.java
 │  └─ handlers/    (LocalPlayer/Control/Interact/Inventory/Vision/Nav/ClientChat)
-└─ mcp-server/                                         # MCP-сервер (TypeScript)
+└─ mcp-server/                                          # MCP server (TypeScript)
    ├─ src/index.ts, bridge.ts, tools.ts, config.ts
    └─ package.json, tsconfig.json
 ```
 
-## Лицензия
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the multi-version workflow and how to add a Minecraft
+version.
 
-MIT.
+## License
+
+[MIT](LICENSE).

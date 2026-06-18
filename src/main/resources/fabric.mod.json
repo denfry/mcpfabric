@@ -8,8 +8,8 @@
 		"dabinayo"
 	],
 	"contact": {
-		"homepage": "https://github.com/dabinayo/mcpfabric",
-		"sources": "https://github.com/dabinayo/mcpfabric"
+		"homepage": "https://github.com/denfry/mcpfabric",
+		"sources": "https://github.com/denfry/mcpfabric"
 	},
 	"license": "MIT",
 	"environment": "*",
@@ -23,8 +23,8 @@
 	},
 	"depends": {
 		"fabricloader": ">=${loader_version}",
-		"minecraft": "~${minecraft_version}",
-		"java": ">=21",
+		"minecraft": "${minecraft_dep}",
+		"java": ">=${java_dep}",
 		"fabric-api": "*"
 	}
 }

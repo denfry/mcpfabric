@@ -1,0 +1,15 @@
+# Normalize line endings: keep the repo LF, let Git handle the working-tree conversion.
+* text=auto eol=lf
+
+# Windows-only scripts must stay CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# The Gradle wrapper script must stay LF so it runs under sh on Linux/macOS/CI.
+gradlew text eol=lf
+
+# Binary assets — never normalize.
+*.jar binary
+*.png binary
+*.zip binary
+gradle/wrapper/gradle-wrapper.jar binary

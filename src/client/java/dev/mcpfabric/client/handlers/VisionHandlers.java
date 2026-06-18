@@ -2,6 +2,8 @@ package dev.mcpfabric.client.handlers;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.platform.NativeImage;
 import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
@@ -18,6 +20,7 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
@@ -41,25 +44,24 @@ public final class VisionHandlers {
 			CompletableFuture<JsonObject> future = new CompletableFuture<>();
 			mc.execute(() -> {
 				try {
-					Screenshot.takeScreenshot(mc.getMainRenderTarget(), image -> {
+					//? if >=1.21.5 {
+					Screenshot.takeScreenshot(mainRenderTarget(mc), image -> {
 						try {
-							Path tmp = Files.createTempFile("mcpfabric_shot", ".png");
-							image.writeToFile(tmp);
-							byte[] bytes = Files.readAllBytes(tmp);
-							Files.deleteIfExists(tmp);
-							JsonObject o = new JsonObject();
-							o.addProperty("format", "png");
-							o.addProperty("width", image.getWidth());
-							o.addProperty("height", image.getHeight());
-							o.addProperty("bytes", bytes.length);
-							o.addProperty("base64", Base64.getEncoder().encodeToString(bytes));
-							future.complete(o);
+							future.complete(imageToJson(image));
 						} catch (Exception e) {
 							future.completeExceptionally(e);
 						} finally {
 							image.close();
 						}
 					});
+					//?} else {
+					/*NativeImage image = Screenshot.takeScreenshot(mainRenderTarget(mc));
+					try {
+						future.complete(imageToJson(image));
+					} finally {
+						image.close();
+					}
+					*///?}
 				} catch (Throwable t) {
 					future.completeExceptionally(t);
 				}
@@ -126,6 +128,29 @@ public final class VisionHandlers {
 			o.add("rays", grid);
 			return o;
 		}));
+	}
+
+	/** The main framebuffer. {@code Minecraft.getMainRenderTarget()} moved to {@code gameRenderer.mainRenderTarget()} in 26.2. */
+	private static RenderTarget mainRenderTarget(Minecraft mc) {
+		//? if <26.2 {
+		return mc.getMainRenderTarget();
+		//?} else
+		/*return mc.gameRenderer.mainRenderTarget();*/
+	}
+
+	/** Encode a captured frame as a PNG base64 payload. */
+	private static JsonObject imageToJson(NativeImage image) throws IOException {
+		Path tmp = Files.createTempFile("mcpfabric_shot", ".png");
+		image.writeToFile(tmp);
+		byte[] bytes = Files.readAllBytes(tmp);
+		Files.deleteIfExists(tmp);
+		JsonObject o = new JsonObject();
+		o.addProperty("format", "png");
+		o.addProperty("width", image.getWidth());
+		o.addProperty("height", image.getHeight());
+		o.addProperty("bytes", bytes.length);
+		o.addProperty("base64", Base64.getEncoder().encodeToString(bytes));
+		return o;
 	}
 
 	private static JsonObject stepRay(ClientLevel level, Vec3 start, Vec3 dir, double maxDistance) {

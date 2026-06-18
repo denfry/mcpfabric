@@ -43,8 +43,11 @@ public final class LocalPlayerHandlers {
 			o.addProperty("sprinting", p.isSprinting());
 			o.addProperty("sneaking", p.isShiftKeyDown());
 			o.addProperty("usingItem", p.isUsingItem());
-			o.addProperty("selectedSlot", p.getInventory().getSelectedSlot());
-			o.addProperty("dimension", p.level().dimension().location().toString());
+			o.addProperty("selectedSlot", selectedSlot(p.getInventory()));
+			//? if <1.21.11 {
+				o.addProperty("dimension", p.level().dimension().location().toString());
+				//?} else
+				/*o.addProperty("dimension", p.level().dimension().identifier().toString());*/
 			var gm = ClientMc.mc().gameMode;
 			o.addProperty("gameMode", gm != null ? gm.getPlayerMode().getName() : "unknown");
 			return o;
@@ -53,9 +56,12 @@ public final class LocalPlayerHandlers {
 		router.register("player.getInventory", ctx -> ClientMc.call(() -> {
 			LocalPlayer p = ClientMc.player();
 			Inventory inv = p.getInventory();
+			//? if >=1.21.5 {
 			var items = inv.getNonEquipmentItems(); // 0-8 hotbar, 9-35 main
+			//?} else
+			/*var items = inv.items;*/
 			JsonObject o = new JsonObject();
-			o.addProperty("selectedSlot", inv.getSelectedSlot());
+			o.addProperty("selectedSlot", selectedSlot(inv));
 
 			JsonArray hotbar = new JsonArray();
 			for (int i = 0; i <= 8 && i < items.size(); i++) addItem(hotbar, i, items.get(i));
@@ -107,6 +113,14 @@ public final class LocalPlayerHandlers {
 			o.add("effects", effects);
 			return o;
 		}));
+	}
+
+	/** The selected hotbar slot. The accessor replaced the public {@code selected} field in 1.21.5. */
+	private static int selectedSlot(Inventory inv) {
+		//? if >=1.21.5 {
+		return inv.getSelectedSlot();
+		//?} else
+		/*return inv.selected;*/
 	}
 
 	private static void addItem(JsonArray arr, int slot, ItemStack stack) {

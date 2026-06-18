@@ -141,13 +141,13 @@ public final class WorldHandlers {
 
 		router.register("world.getTimeAndWeather", ctx -> onServer(server -> {
 			ServerLevel level = Levels.resolve(server, ctx.optString("dimension", null));
-			long dayTime = level.getDayTime() % 24000L;
+			long dayTime = Levels.dayTime(level) % 24000L;
 			if (dayTime < 0) dayTime += 24000L;
 			JsonObject o = new JsonObject();
 			o.addProperty("dimension", Levels.dimensionId(level));
 			o.addProperty("dayTime", dayTime);
 			o.addProperty("gameTime", level.getGameTime());
-			o.addProperty("day", level.getDayTime() / 24000L);
+			o.addProperty("day", Levels.dayTime(level) / 24000L);
 			o.addProperty("raining", level.isRaining());
 			o.addProperty("thundering", level.isThundering());
 			return o;

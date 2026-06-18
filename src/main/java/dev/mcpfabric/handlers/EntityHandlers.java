@@ -39,7 +39,7 @@ public final class EntityHandlers {
 			if (c != null) {
 				center = new Vec3(c.get("x").getAsDouble(), c.get("y").getAsDouble(), c.get("z").getAsDouble());
 			} else {
-				var spawn = level.getSharedSpawnPos();
+				var spawn = Levels.spawnPos(level);
 				center = new Vec3(spawn.getX() + 0.5, spawn.getY() + 0.5, spawn.getZ() + 0.5);
 			}
 			boolean includePlayers = ctx.optBool("includePlayers", true);

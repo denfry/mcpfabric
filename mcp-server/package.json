@@ -1,6 +1,6 @@
 {
   "name": "mcpfabric-mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server that bridges AI agents to the mcpfabric Minecraft mod, exposing full read & control of the game as MCP tools.",
   "type": "module",
   "bin": {

@@ -91,7 +91,10 @@ public final class InteractHandlers {
 			MultiPlayerGameMode gm = ClientMc.gameMode();
 			LocalPlayer p = ClientMc.player();
 			Entity e = findEntity(ctx.getString("uuid"));
+			//? if <26.1 {
 			InteractionResult result = gm.interact(p, e, InteractionHand.MAIN_HAND);
+			//?} else
+			/*InteractionResult result = gm.interact(p, e, new net.minecraft.world.phys.EntityHitResult(e), InteractionHand.MAIN_HAND);*/
 			JsonObject o = new JsonObject();
 			o.addProperty("result", String.valueOf(result));
 			return o;

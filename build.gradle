@@ -1,18 +1,28 @@
+// Per-version mod build. Stonecutter applies this script to every version node declared in
+// settings.gradle; `project.minecraft_version` / `project.fabric_api_version` come from that
+// node's versions/<version>/gradle.properties.
 plugins {
-	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
 	id 'maven-publish'
 }
 
-version = project.mod_version
+// Minecraft 26.1+ ships unobfuscated: it uses the non-remap Loom plugin and needs no mappings.
+// Older versions are obfuscated and use the remap plugin + official Mojang mappings. Both plugins
+// are put on the classpath (apply false) by the controller, so the node applies the right one.
+boolean unobfuscated = project.minecraft_version.startsWith('26.')
+apply plugin: unobfuscated ? 'net.fabricmc.fabric-loom' : 'net.fabricmc.fabric-loom-remap'
+
+// Fabric-style versioned jar name, e.g. mcpfabric-0.2.0+1.21.8.jar.
+version = "${project.mod_version}+${project.minecraft_version}"
 group = project.maven_group
 
 base {
 	archivesName = project.archives_base_name
 }
 
-repositories {
-	// Loom adds the essential maven repositories to download Minecraft and libraries automatically.
-}
+// Minecraft's required Java version rises across the supported range (21 for 1.21.x; 25 for the
+// 26.x line). Each node declares java_version; the foojay resolver in settings.gradle provisions
+// the matching JDK automatically.
+def javaVersion = (project.findProperty("java_version") ?: "21") as int
 
 loom {
 	splitEnvironmentSourceSets()
@@ -27,13 +37,24 @@ loom {
 
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings loom.officialMojangMappings()
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	if (unobfuscated) {
+		// Unobfuscated Minecraft: no mappings, and mod deps need no remapping (plain implementation).
+		implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+		implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	} else {
+		mappings loom.officialMojangMappings()
+		modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+		modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	}
 }
 
 processResources {
-	def props = ["version": version, "minecraft_version": project.minecraft_version, "loader_version": project.loader_version]
+	def props = [
+		"version"         : version,
+		"minecraft_dep"   : project.minecraft_dep,
+		"loader_version"  : project.loader_version,
+		"java_dep"        : javaVersion
+	]
 	inputs.properties props
 
 	filesMatching("fabric.mod.json") {
@@ -41,20 +62,20 @@ processResources {
 	}
 }
 
+java {
+	withSourcesJar()
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(javaVersion)
+	}
+}
+
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+	it.options.release = javaVersion
 	it.options.encoding = "UTF-8"
 }
 
-java {
-	withSourcesJar()
-
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
-}
-
 jar {
-	def projectName = project.name
+	def projectName = rootProject.name
 	inputs.property "projectName", projectName
 
 	from("LICENSE") {
@@ -65,9 +86,11 @@ jar {
 publishing {
 	publications {
 		create("mavenJava", MavenPublication) {
+			artifactId = "${project.archives_base_name}-mc${project.minecraft_version}"
 			from components.java
 		}
 	}
 	repositories {
+		// Add a target repository here to publish (e.g. GitHub Packages); left empty by default.
 	}
 }

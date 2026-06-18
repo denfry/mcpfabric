@@ -38,10 +38,13 @@ public final class CommandRunner {
 		};
 		CommandSourceStack source = new CommandSourceStack(
 				capture,
-				Vec3.atLowerCornerOf(level.getSharedSpawnPos()),
+				Vec3.atLowerCornerOf(Levels.spawnPos(level)),
 				Vec2.ZERO,
 				level,
+				//? if <1.21.11 {
 				4,
+				//?} else
+				/*net.minecraft.server.permissions.LevelBasedPermissionSet.OWNER,*/
 				"mcpfabric",
 				Component.literal("mcpfabric"),
 				server,
