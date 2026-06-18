@@ -1,0 +1,30 @@
+{
+	"schemaVersion": 1,
+	"id": "mcpfabric",
+	"version": "${version}",
+	"name": "MCP Fabric",
+	"description": "Exposes full read & control access to Minecraft through an embedded HTTP bridge, designed to be driven by an MCP server so AI agents can observe and control the game.",
+	"authors": [
+		"dabinayo"
+	],
+	"contact": {
+		"homepage": "https://github.com/dabinayo/mcpfabric",
+		"sources": "https://github.com/dabinayo/mcpfabric"
+	},
+	"license": "MIT",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"dev.mcpfabric.McpFabric"
+		],
+		"client": [
+			"dev.mcpfabric.client.McpFabricClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=${loader_version}",
+		"minecraft": "~${minecraft_version}",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}

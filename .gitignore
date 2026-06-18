@@ -1,0 +1,30 @@
+# Gradle / Loom
+.gradle/
+build/
+remappedSrc/
+.fabric/
+run/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (mcp-server)
+node_modules/
+dist/
+*.log
+.env
+
+# mcpfabric runtime config (contains auth token)
+mcpfabric.config.json
