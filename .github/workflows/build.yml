@@ -25,7 +25,7 @@ jobs:
             25
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Build every supported Minecraft version
         # The daemon runs on JDK 25 (last setup-java entry); tell Gradle where both JDKs live so the
