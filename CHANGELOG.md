@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-19
+
 ### Added
 - **Multi-version support** via [Stonecutter](https://stonecutter.kikugie.dev/): the mod now builds
   for Minecraft 1.21.1–1.21.11 and the 26.x line (26.1.x, 26.2) from a single source tree.
@@ -13,7 +15,9 @@ All notable changes to this project are documented here. The format is based on
 - `./gradlew chiseledBuild` to build every supported version; per-version configuration lives in
   `versions/<mcVersion>/gradle.properties`.
 - GitHub Actions CI building all versions and type-checking the MCP server.
-- `CONTRIBUTING.md`, `SECURITY.md`, issue/PR templates.
+- Automated releases: pushing a `v*` tag builds every supported version, publishes them to Modrinth
+  (one version per Minecraft release), and creates a GitHub Release with all jars attached.
+- `CONTRIBUTING.md`, `SECURITY.md`, `docs/RELEASING.md`, issue/PR templates, Dependabot config.
 
 ### Changed
 - Build upgraded to Fabric Loom 1.17.x and Gradle 9.5.x.
