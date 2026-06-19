@@ -3,6 +3,9 @@
 // node's versions/<version>/gradle.properties.
 plugins {
 	id 'maven-publish'
+	// Modrinth publishing (declared apply false in stonecutter.gradle). Each node gets its own
+	// `modrinth` task; the root `publishMods` task fans them out across every Minecraft version.
+	id 'com.modrinth.minotaur'
 }
 
 // Minecraft 26.1+ ships unobfuscated: it uses the non-remap Loom plugin and needs no mappings.
@@ -93,4 +96,62 @@ publishing {
 	repositories {
 		// Add a target repository here to publish (e.g. GitHub Packages); left empty by default.
 	}
+}
+
+// === Modrinth publishing (minotaur) ===
+// Applied to every Stonecutter node. The root `./gradlew publishMods` task fans the per-node
+// `modrinth` task across all supported Minecraft versions; each node uploads its own jar as a
+// separate Modrinth version (e.g. 0.2.0+1.21.8), targeting exactly the version(s) it was built for.
+//
+// Before the first real publish (see docs/RELEASING.md):
+//   1. Create the project on https://modrinth.com and put its ID or slug in `modrinth_id`.
+//   2. Expose a write-scoped token as the MODRINTH_TOKEN env var (a GitHub Actions secret in CI).
+// Without MODRINTH_TOKEN the task runs in debug mode: it builds and validates but uploads nothing.
+
+// Pull the section for the current mod version out of CHANGELOG.md (Keep a Changelog format), so the
+// Modrinth version notes track the changelog automatically.
+def changelogForVersion = { String v ->
+	def file = rootProject.file('CHANGELOG.md')
+	if (!file.exists()) return ''
+	def text = file.text
+	int header = text.indexOf("## [${v}]")
+	if (header < 0) return "Release ${v} — see CHANGELOG.md for details."
+	int bodyStart = text.indexOf('\n', header)
+	if (bodyStart < 0) return ''
+	int next = text.indexOf('\n## [', bodyStart + 1)
+	if (next < 0) next = text.length()
+	return text.substring(bodyStart, next).trim()
+}
+
+// Each node ships its own Minecraft version; a node may declare extra API-compatible versions via
+// `extra_game_versions` (comma-separated) in versions/<version>/gradle.properties.
+def releaseGameVersions = [project.minecraft_version as String]
+if (project.hasProperty('extra_game_versions') && project.extra_game_versions?.trim()) {
+	releaseGameVersions += project.extra_game_versions.split(',')*.trim().findAll { it }
+}
+
+def modrinthToken = System.getenv('MODRINTH_TOKEN')
+
+modrinth {
+	token.set(modrinthToken ?: '')
+	projectId.set((project.findProperty('modrinth_id') ?: 'CHANGEME') as String)
+
+	versionNumber.set(version as String)                                  // 0.2.0+1.21.8 — unique per node
+	versionName.set("${project.archives_base_name} ${version}" as String)
+	versionType.set((project.findProperty('publish_type') ?: 'release') as String)
+
+	uploadFile.set(tasks.findByName('remapJar') ?: tasks.named('jar').get())
+
+	gameVersions.set(releaseGameVersions)
+	loaders.set(['fabric'])
+	detectLoaders.set(false)
+
+	changelog.set(changelogForVersion(project.mod_version as String))
+
+	dependencies {
+		required.project('fabric-api')
+	}
+
+	// No token (e.g. a local run, or CI without the secret) -> do everything except the upload.
+	debugMode.set(modrinthToken == null || modrinthToken.isEmpty())
 }
