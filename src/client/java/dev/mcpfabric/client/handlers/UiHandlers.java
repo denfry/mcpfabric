@@ -131,6 +131,19 @@ public final class UiHandlers {
 			return o;
 		}));
 
+		// Screens that draw their own tabs and rows have no widgets to find; a click at a point in the
+		// screen's own (GUI-scaled) coordinates is what a mouse would do there.
+		router.register("ui.clickAt", ctx -> ClientMc.call(() -> {
+			requireControl();
+			Screen screen = requireScreen();
+			double x = ctx.getDouble("x");
+			double y = ctx.getDouble("y");
+			GuiInput.click(screen, x, y, ctx.optInt("button", 0));
+			JsonObject o = Json.ok("clicked at " + x + ", " + y);
+			o.addProperty("screenNow", ClientCompat.screenName(ClientMc.mc()));
+			return o;
+		}));
+
 		router.register("ui.focus", ctx -> ClientMc.call(() -> {
 			requireControl();
 			Screen screen = requireScreen();

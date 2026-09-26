@@ -645,6 +645,18 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "click_at",
+    method: "ui.clickAt",
+    title: "Click a point of the screen",
+    description:
+      "Client-only. Click at a point in the open screen's own GUI-scaled coordinates (width/height from get_screen). For screens that draw their own tabs and rows instead of widgets, where click_widget finds nothing.",
+    inputSchema: {
+      x: z.number().describe("X in GUI-scaled screen coordinates."),
+      y: z.number().describe("Y in GUI-scaled screen coordinates."),
+      button: z.number().int().min(0).max(2).optional().default(0).describe("Mouse button: 0 left, 1 right, 2 middle."),
+    },
+  },
+  {
     name: "click_slot",
     method: "ui.clickSlot",
     title: "Click a container slot",
