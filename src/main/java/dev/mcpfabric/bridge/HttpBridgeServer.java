@@ -10,6 +10,7 @@ import dev.mcpfabric.events.EventBus;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
@@ -33,6 +34,9 @@ public final class HttpBridgeServer {
 	private final EventBus events;
 	private final SseHub sse;
 
+	/** How many ports after the configured one are tried when it is already in use. */
+	private static final int PORT_FALLBACKS = 10;
+
 	private HttpServer http;
 
 	public HttpBridgeServer(McpConfig cfg, RpcRouter router, EventBus events, SseHub sse) {
@@ -43,7 +47,7 @@ public final class HttpBridgeServer {
 	}
 
 	public void start() throws IOException {
-		http = HttpServer.create(new InetSocketAddress(cfg.host, cfg.port), 0);
+		http = bind();
 
 		AtomicInteger n = new AtomicInteger();
 		ThreadFactory tf = r -> {
@@ -60,6 +64,30 @@ public final class HttpBridgeServer {
 		http.start();
 
 		McpFabric.LOGGER.info("[mcpfabric] HTTP bridge listening on http://{}:{}", cfg.host, cfg.port);
+	}
+
+	/**
+	 * Binds the configured port, or the next free one of the following {@link #PORT_FALLBACKS} when it
+	 * is taken (another dev agent in the same pack may default to the same port). A fallback port is
+	 * written back to the config so the log line and the file agree on where the bridge listens.
+	 */
+	private HttpServer bind() throws IOException {
+		int configured = cfg.port;
+		for (int i = 0; ; i++) {
+			int port = configured + i;
+			try {
+				HttpServer server = HttpServer.create(new InetSocketAddress(cfg.host, port), 0);
+				if (port != configured) {
+					cfg.port = port;
+					cfg.save();
+					McpFabric.LOGGER.warn("[mcpfabric] port {} was busy; using {} (written to {})", configured, port, cfg.source);
+				}
+				return server;
+			} catch (BindException e) {
+				if (i >= PORT_FALLBACKS) throw e;
+				McpFabric.LOGGER.warn("[mcpfabric] port {} busy, trying {}", port, port + 1);
+			}
+		}
 	}
 
 	public void stop() {
