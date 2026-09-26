@@ -1,7 +1,7 @@
 # mcpfabric MCP server
 
 Bridges an MCP client (Claude Desktop / Claude Code / any MCP host) to the in-game HTTP bridge
-exposed by the **mcpfabric** Fabric mod, publishing ~50 tools to observe and control Minecraft.
+exposed by the **mcpfabric** Fabric mod, publishing 75 tools to observe and control Minecraft.
 
 ## Install & build
 

@@ -51,6 +51,21 @@ const playerRef = {
     .describe('Target player by name or UUID. Use "@all" where broadcasting is meaningful.'),
 };
 
+const faceEnum = z.enum(["up", "down", "north", "south", "east", "west"]);
+
+const sneakOpt = {
+  sneak: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Hold shift for this interaction only (sneak + right-click), released right after. Atomic: no separate set_movement call."),
+};
+
+const widgetRef = {
+  index: z.number().int().min(0).optional().describe("Widget index as listed by get_screen."),
+  label: z.string().optional().describe("Widget label (visible text). Matched exactly first, then case-insensitively as a substring."),
+};
+
 const READ = { readOnlyHint: true } as const;
 const WRITE = { destructiveHint: true } as const;
 
@@ -139,15 +154,30 @@ export const TOOLS: ToolDef[] = [
     method: "world.raycast",
     title: "Raycast from a point",
     description:
-      "Cast a ray and report the first block and/or entity it hits. Provide either an explicit direction vector or yaw/pitch angles. Great for 'what am I looking at' and line-of-sight checks.",
+      "Cast a ray and report the first block and/or entity it hits. Origin defaults to the player's eyes and the direction to where the player looks, so a call with no arguments answers 'what is in front of me' (get_target gives the exact crosshair hit). Otherwise provide a direction vector or yaw/pitch angles.",
     inputSchema: {
-      origin: z.object(vec3()).describe("Ray start position (usually an eye position)."),
-      direction: z.object(vec3()).optional().describe("Ray direction vector (need not be normalized). Use this OR yaw/pitch."),
+      origin: z.object(vec3()).optional().describe("Ray start position. Defaults to the player's eye position."),
+      player: z.string().optional().describe("Player (name or UUID) whose eyes/look are the defaults. Optional when exactly one player is online."),
+      direction: z.object(vec3()).optional().describe("Ray direction vector (need not be normalized). Use this OR yaw/pitch; defaults to the player's look direction."),
       yaw: z.number().optional().describe("Yaw in degrees (Minecraft convention). Use with pitch instead of direction."),
       pitch: z.number().optional().describe("Pitch in degrees (-90 up .. 90 down)."),
       maxDistance: z.number().min(0.1).max(256).optional().default(32).describe("Maximum ray length in blocks."),
       includeFluids: z.boolean().optional().default(false).describe("Treat fluids as hittable."),
       includeEntities: z.boolean().optional().default(true).describe("Also test entities along the ray."),
+      ...dimensionOpt,
+    },
+    annotations: READ,
+  },
+
+  {
+    name: "get_block_inventory",
+    method: "world.getBlockInventory",
+    title: "Read a block's inventory",
+    description:
+      "List the slots of a block's item inventory through the loader's item-handler capability (NeoForge item handler / Fabric Transfer API), so it also works for modded devices that expose no vanilla container. side selects the face the handler is queried from (omit for the block's unsided view). Requires a server.",
+    inputSchema: {
+      ...vec3(),
+      side: faceEnum.optional().describe("Face to query the item handler from; omit for the unsided handler."),
       ...dimensionOpt,
     },
     annotations: READ,
@@ -173,6 +203,22 @@ export const TOOLS: ToolDef[] = [
       from: z.object(vec3()),
       to: z.object(vec3()),
       blockId: z.string().describe("Block id to fill with."),
+      ...dimensionOpt,
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "insert_item",
+    method: "world.insertItem",
+    title: "Insert items into a block",
+    description:
+      "Insert items into a block's inventory through the loader's item-handler capability, the way a hopper would (works for modded devices such as TerraFirmaCraft pots and barrels, where /item replace block fails). Returns how many were inserted. Requires a server.",
+    inputSchema: {
+      ...vec3(),
+      item: z.string().describe('Item id, e.g. "minecraft:coal".'),
+      count: z.number().int().min(1).max(6400).optional().default(1).describe("How many items to insert."),
+      side: faceEnum.optional().describe("Face to insert from (e.g. up for a furnace's input); omit for the unsided handler."),
+      simulate: z.boolean().optional().default(false).describe("Only report how many would fit; change nothing."),
       ...dimensionOpt,
     },
     annotations: WRITE,
@@ -377,6 +423,28 @@ export const TOOLS: ToolDef[] = [
     annotations: READ,
   },
   {
+    name: "get_tooltip",
+    method: "player.getTooltip",
+    title: "Get item tooltip",
+    description:
+      "Client-only. The tooltip of an item as plain text lines, including the lines mods add (quality, composition, decay dates, ...). Address the item by player inventory slot, or by menu slot of the open container screen (as listed by get_screen).",
+    inputSchema: {
+      slot: z.number().int().min(0).max(40).optional().describe("Player inventory slot (0-8 hotbar, 9-35 main, 36-39 armor, 40 offhand). Defaults to the selected hotbar slot."),
+      menuSlot: z.number().int().min(0).optional().describe("Slot index in the open container screen, instead of a player inventory slot."),
+      advanced: z.boolean().optional().default(false).describe("Advanced tooltips (as with F3+H): item id, durability, component count."),
+    },
+    annotations: READ,
+  },
+  {
+    name: "get_target",
+    method: "player.getTarget",
+    title: "What the crosshair hits",
+    description:
+      "Client-only. What the crosshair is on right now: a block (position, face, id, state properties, hit point) or an entity (uuid, type, name, position), or nothing within reach.",
+    inputSchema: {},
+    annotations: READ,
+  },
+  {
     name: "get_status_effects",
     method: "player.getStatusEffects",
     title: "Get active effects",
@@ -466,16 +534,40 @@ export const TOOLS: ToolDef[] = [
     method: "interact.placeBlock",
     title: "Place held block",
     description:
-      "Client-only. Place the currently held block against the given position/face (must be reachable). Equip the desired block first with select_hotbar_slot.",
-    inputSchema: { ...vec3(), face: z.enum(["up", "down", "north", "south", "east", "west"]).optional().default("up") },
+      "Client-only. Right-click the given block face with the held item (must be reachable): places a held block, or uses the block / item on it (open a GUI, fill a bucket, ...). Equip the desired item first with select_hotbar_slot. sneak: true makes it a shift-right-click in one call.",
+    inputSchema: { ...vec3(), face: faceEnum.optional().default("up"), ...sneakOpt },
     annotations: WRITE,
   },
   {
     name: "use_item",
     method: "interact.useItem",
     title: "Use item / right-click",
-    description: "Client-only. Perform a right-click use with the held item on whatever is under the crosshair (or in air).",
-    inputSchema: {},
+    description: "Client-only. Right-click with the held item in the air (throw, start eating or drinking, ...). sneak: true makes it a shift-right-click.",
+    inputSchema: { ...sneakOpt },
+  },
+  {
+    name: "hold_use",
+    method: "interact.holdUse",
+    title: "Hold right-click on a block",
+    description:
+      "Client-only. Aim at a block face and hold right-click on it for a number of ticks, exactly like a player holding the button (repeated uses, charging, stirring, ...). Blocks until done (at most 200 ticks = 10 s) and reports what changed: the target block, the held item, food and saturation. No screen may be open.",
+    inputSchema: {
+      ...vec3(),
+      face: faceEnum.optional().default("up").describe("Block face to aim at."),
+      ticks: z.number().int().min(1).max(200).describe("How long to hold, in ticks (20 per second)."),
+      ...sneakOpt,
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "consume_held",
+    method: "interact.consumeHeld",
+    title: "Eat / drink the held item",
+    description:
+      "Client-only. Use the held item until it is consumed (eat, drink, ...) or the timeout passes, then release. Reports whether it completed and what changed: food, saturation and the item left in hand.",
+    inputSchema: {
+      timeoutTicks: z.number().int().min(1).max(240).optional().default(100).describe("Give up after this many ticks (20 per second)."),
+    },
   },
   {
     name: "attack_entity",
@@ -521,6 +613,159 @@ export const TOOLS: ToolDef[] = [
     title: "Swap two inventory slots",
     description: "Client-only. Swap the items in two inventory slots via container clicks (player inventory must be the active screen-less context).",
     inputSchema: { slotA: z.number().int().min(0).max(45), slotB: z.number().int().min(0).max(45) },
+  },
+
+  // ===== ui / input (client) =================================================================
+  {
+    name: "get_screen",
+    method: "ui.getScreen",
+    title: "Read the open screen",
+    description:
+      "Client-only. Describe the open screen (menu, GUI, container): class name, title, every widget (index, type, label, x/y/width/height in GUI pixels, active, visible, focused, text-field value) and, for container screens, every menu slot (index, item id, count, name, x/y relative to the container's top-left) plus the stack on the cursor. screen is null in-game with no screen open.",
+    inputSchema: {},
+    annotations: READ,
+  },
+  {
+    name: "close_screen",
+    method: "ui.closeScreen",
+    title: "Close the open screen",
+    description:
+      "Client-only. Close the open screen the way Esc does (a container is also closed on the server). Some screens ignore Esc (e.g. a mandatory name prompt); force: true closes them anyway.",
+    inputSchema: { force: z.boolean().optional().default(false).describe("Close even a screen that ignores Esc.") },
+  },
+  {
+    name: "click_widget",
+    method: "ui.clickWidget",
+    title: "Click a screen widget",
+    description:
+      "Client-only. Click a button, checkbox, tab or text field of the open screen by index or label (see get_screen): a real mouse click at the widget's centre.",
+    inputSchema: {
+      ...widgetRef,
+      button: z.number().int().min(0).max(2).optional().default(0).describe("Mouse button: 0 left, 1 right, 2 middle."),
+    },
+  },
+  {
+    name: "click_slot",
+    method: "ui.clickSlot",
+    title: "Click a container slot",
+    description:
+      "Client-only. Click a slot of the open container screen (slot index from get_screen) as the player would: pick up, put down or split a stack, or shift-click to move it to the other inventory. Returns the slot and cursor contents afterwards.",
+    inputSchema: {
+      slot: z.number().int().min(-999).describe("Menu slot index; -999 clicks outside the window (drops the cursor stack)."),
+      button: z.number().int().min(0).max(1).optional().default(0).describe("0 left (whole stack), 1 right (half / one)."),
+      shift: z.boolean().optional().default(false).describe("Shift-click (quick-move)."),
+    },
+  },
+  {
+    name: "type_text",
+    method: "ui.typeText",
+    title: "Type text",
+    description:
+      "Client-only. Type text into the focused text field of the open screen, character by character (focus one first with focus_widget or click_widget). enter: true presses Enter afterwards.",
+    inputSchema: {
+      text: z.string().describe("Text to type (any Unicode)."),
+      enter: z.boolean().optional().default(false).describe("Press Enter after typing."),
+    },
+  },
+  {
+    name: "focus_widget",
+    method: "ui.focus",
+    title: "Focus a widget",
+    description: "Client-only. Give keyboard focus to a widget of the open screen (usually a text field) by index or label.",
+    inputSchema: { ...widgetRef },
+  },
+  {
+    name: "press_key",
+    method: "input.pressKey",
+    title: "Press a key",
+    description:
+      'Client-only. Press a keyboard key as the player would: in-game (e opens the inventory, f1 hides the HUD, f3 toggles the debug screen, 1-9 select hotbar slots) and on any open screen (escape closes it; enter / tab in text fields). Key names follow GLFW: "escape", "enter", "tab", "backspace", "space", "e", "f3", "1", "up", "left.shift", ... A key-binding name such as "key.inventory" presses whatever key it is bound to.',
+    inputSchema: {
+      key: z.string().describe('Key name, e.g. "escape", "e", "f1", "1", "enter", or a key binding like "key.inventory".'),
+      holdTicks: z.number().int().min(0).max(1200).optional().default(0).describe("Keep the key down this many ticks before releasing (0 = tap). Returns at once; the release is scheduled."),
+      modifiers: z.array(z.enum(["shift", "ctrl", "alt"])).optional().describe("Modifier keys held with it."),
+    },
+  },
+
+  // ===== singleplayer worlds (client) ========================================================
+  {
+    name: "list_saves",
+    method: "world.listSaves",
+    title: "List singleplayer worlds",
+    description: "Client-only. List the singleplayer saves: folder id, display name, last played time, game mode, cheats, and whether it is locked (open elsewhere).",
+    inputSchema: {},
+    annotations: READ,
+  },
+  {
+    name: "join_world",
+    method: "world.joinSingleplayer",
+    title: "Open a singleplayer world",
+    description:
+      "Client-only. Load a singleplayer world by folder id or display name (see list_saves). Leave the current world first. Returns once loading has started; poll get_status until the player is in the world, and get_screen in case a confirmation prompt needs a click.",
+    inputSchema: { name: z.string().describe("World folder id or display name.") },
+  },
+  {
+    name: "create_world",
+    method: "world.create",
+    title: "Create a singleplayer world",
+    description:
+      'Client-only. Create and enter a new singleplayer world. levelType is any world-preset id from the registry, modded ones included ("minecraft:normal", "minecraft:flat", "minecraft:large_biomes", "tfc:overworld", ...). Leave the current world first. Returns once creation has started; poll get_status until in the world, and get_screen in case a warning (e.g. experimental features) needs a click.',
+    inputSchema: {
+      name: z.string().describe("World name."),
+      seed: z.string().optional().describe("Seed (number or text); random when omitted."),
+      gameMode: z.enum(["survival", "creative", "hardcore"]).optional().describe("Game mode; the screen's default when omitted."),
+      cheats: z.boolean().optional().describe("Allow commands (cheats)."),
+      levelType: z.string().optional().describe('World preset id, e.g. "minecraft:flat" or "tfc:overworld".'),
+    },
+  },
+  {
+    name: "leave_world",
+    method: "world.leave",
+    title: "Leave the world",
+    description:
+      "Client-only. Save and quit to the title screen (singleplayer) or disconnect (multiplayer), like the pause menu button. Returns once scheduled; poll get_screen for the title screen.",
+    inputSchema: {},
+  },
+
+  // ===== client window & options =============================================================
+  {
+    name: "set_window",
+    method: "client.setWindow",
+    title: "Resize the game window",
+    description: "Client-only. Resize the game window (leaving fullscreen first). For layout checks at several sizes.",
+    inputSchema: {
+      width: z.number().int().min(320).max(7680).describe("Window width in pixels."),
+      height: z.number().int().min(240).max(4320).describe("Window height in pixels."),
+    },
+  },
+  {
+    name: "set_gui_scale",
+    method: "client.setGuiScale",
+    title: "Set GUI scale",
+    description: "Client-only. Set the GUI scale (0 = auto; a value larger than the window allows falls back to the largest that fits). Reports the effective scale and the scaled screen size.",
+    inputSchema: { scale: z.number().int().min(0).max(10) },
+  },
+  {
+    name: "set_language",
+    method: "client.setLanguage",
+    title: "Set language",
+    description: 'Client-only. Switch the game language (e.g. "en_us", "ru_ru") and reload resources. Returns once the reload has started; it takes a few seconds.',
+    inputSchema: { code: z.string().describe('Language code, e.g. "en_us".') },
+  },
+  {
+    name: "set_hud_hidden",
+    method: "client.setHudHidden",
+    title: "Hide / show the HUD",
+    description: "Client-only. Hide the HUD (like F1) for clean screenshots, or show it again.",
+    inputSchema: { hidden: z.boolean() },
+  },
+  {
+    name: "set_pause_on_lost_focus",
+    method: "client.setPauseOnLostFocus",
+    title: "Pause on focus loss",
+    description:
+      "Client-only. Whether the game opens the pause menu when its window loses focus. The bridge already turns this off for the session on its first call (config keepRunningUnfocused), so screenshots of a background window show the game, not the pause menu.",
+    inputSchema: { enabled: z.boolean() },
   },
 
   // ===== vision (client) =====================================================================
