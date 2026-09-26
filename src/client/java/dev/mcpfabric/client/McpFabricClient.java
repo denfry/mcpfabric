@@ -3,12 +3,15 @@ package dev.mcpfabric.client;
 import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.client.handlers.ClientChatHandlers;
+import dev.mcpfabric.client.handlers.ClientOptionHandlers;
 import dev.mcpfabric.client.handlers.ControlHandlers;
 import dev.mcpfabric.client.handlers.InteractHandlers;
 import dev.mcpfabric.client.handlers.InventoryHandlers;
 import dev.mcpfabric.client.handlers.LocalPlayerHandlers;
 import dev.mcpfabric.client.handlers.NavHandlers;
+import dev.mcpfabric.client.handlers.UiHandlers;
 import dev.mcpfabric.client.handlers.VisionHandlers;
+import dev.mcpfabric.client.handlers.WorldLifecycleHandlers;
 import net.minecraft.client.Minecraft;
 
 /**
@@ -34,13 +37,18 @@ public final class McpFabricClient {
 		VisionHandlers.register(router);
 		NavHandlers.register(router);
 		ClientChatHandlers.register(router); // client variant of chat.send (speaks as local player)
+		UiHandlers.register(router);
+		WorldLifecycleHandlers.register(router);
+		ClientOptionHandlers.register(router);
+		router.setBeforeDispatch(method -> ClientOptionHandlers.onBridgeCall());
 
 		McpFabric.LOGGER.info("[mcpfabric] client handlers registered");
 	}
 
-	/** End of every client tick: drives the {@link BotController}. */
+	/** End of every client tick: drives the {@link BotController} and multi-tick {@link ClientTasks}. */
 	public static void onClientTick(Minecraft client) {
 		BotController.get().onClientTick(client);
+		ClientTasks.tick(client);
 	}
 
 	/** The game is closing: stop the bridge so the JVM can exit (issue #24). */

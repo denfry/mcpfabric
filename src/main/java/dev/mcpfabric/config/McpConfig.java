@@ -34,6 +34,12 @@ public final class McpConfig {
 	public boolean enablePlayerControl = true;
 	public boolean enableVision = true;
 
+	/**
+	 * Client only: once the bridge is used, stop the game from pausing when its window loses focus,
+	 * so a background window keeps running and screenshots show the game, not the pause menu.
+	 */
+	public boolean keepRunningUnfocused = true;
+
 	public transient Path source;
 
 	public static McpConfig load() {

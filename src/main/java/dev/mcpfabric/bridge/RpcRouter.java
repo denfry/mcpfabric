@@ -8,6 +8,7 @@ import dev.mcpfabric.McpFabric;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * Registry + dispatcher for RPC methods. Thread-safe: handlers can be registered from both the
@@ -15,6 +16,12 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class RpcRouter {
 	private final Map<String, RpcHandler> handlers = new ConcurrentHashMap<>();
+	private volatile Consumer<String> beforeDispatch = method -> {};
+
+	/** Runs before every dispatched call (on the HTTP worker thread); the client uses it to adapt the game once driven. */
+	public void setBeforeDispatch(Consumer<String> hook) {
+		this.beforeDispatch = hook;
+	}
 
 	public void register(String method, RpcHandler handler) {
 		if (handlers.putIfAbsent(method, handler) != null) {
@@ -43,6 +50,7 @@ public final class RpcRouter {
 			return Json.envelopeError("unknown_method", "No such method: " + method, null);
 		}
 		try {
+			beforeDispatch.accept(method);
 			JsonElement result = handler.handle(new RpcContext(method, params));
 			return Json.envelopeOk(result);
 		} catch (RpcException e) {

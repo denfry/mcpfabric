@@ -2,17 +2,30 @@ package dev.mcpfabric.client.handlers;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.client.ClientMc;
+import dev.mcpfabric.handlers.support.Levels;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
-/** Read-only state of the local player: position/vitals, inventory, equipment, effects. */
+/** Read-only state of the local player: position/vitals, inventory, tooltips, crosshair target, effects. */
 public final class LocalPlayerHandlers {
 	private LocalPlayerHandlers() {}
 
@@ -97,6 +110,56 @@ public final class LocalPlayerHandlers {
 			return o;
 		}));
 
+		router.register("player.getTooltip", ctx -> ClientMc.call(() -> {
+			LocalPlayer p = ClientMc.player();
+			ItemStack stack;
+			if (ctx.has("menuSlot")) {
+				// The open container's menu (the player's own inventory menu when no screen is open).
+				AbstractContainerMenu menu = p.containerMenu;
+				int i = ctx.getInt("menuSlot");
+				if (i < 0 || i >= menu.slots.size()) throw RpcException.badRequest("menuSlot out of range (0-" + (menu.slots.size() - 1) + ").");
+				stack = menu.slots.get(i).getItem();
+			} else {
+				stack = inventoryItem(p, ctx.optInt("slot", selectedSlot(p.getInventory())));
+			}
+			JsonObject o = itemJson(stack);
+			JsonArray lines = new JsonArray();
+			if (!stack.isEmpty()) {
+				TooltipFlag flag = ctx.optBool("advanced", false) ? TooltipFlag.ADVANCED : TooltipFlag.NORMAL;
+				for (Component line : stack.getTooltipLines(Item.TooltipContext.of(p.level()), p, flag)) {
+					lines.add(line.getString());
+				}
+			}
+			o.add("lines", lines);
+			return o;
+		}));
+
+		router.register("player.getTarget", ctx -> ClientMc.call(() -> {
+			Minecraft mc = ClientMc.mc();
+			LocalPlayer p = ClientMc.player();
+			HitResult hit = mc.hitResult;
+			JsonObject o = new JsonObject();
+			if (hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
+				BlockPos pos = bhr.getBlockPos();
+				o.addProperty("type", "block");
+				o.add("block", Levels.describeBlock(p.level(), pos, p.level().getBlockState(pos)));
+				o.addProperty("face", bhr.getDirection().getName());
+			} else if (hit instanceof EntityHitResult ehr) {
+				Entity e = ehr.getEntity();
+				o.addProperty("type", "entity");
+				o.addProperty("uuid", e.getUUID().toString());
+				o.addProperty("entityType", BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString());
+				o.addProperty("name", e.getName().getString());
+				o.add("pos", vec(e.position()));
+			} else {
+				o.addProperty("type", "none");
+				return o;
+			}
+			o.add("hit", vec(hit.getLocation()));
+			o.addProperty("distance", p.getEyePosition().distanceTo(hit.getLocation()));
+			return o;
+		}));
+
 		router.register("player.getStatusEffects", ctx -> ClientMc.call(() -> {
 			LocalPlayer p = ClientMc.player();
 			JsonArray effects = new JsonArray();
@@ -121,6 +184,30 @@ public final class LocalPlayerHandlers {
 		return inv.getSelectedSlot();
 		//?} else
 		/*return inv.selected;*/
+	}
+
+	/**
+	 * A player inventory slot in this API's numbering: 0-8 hotbar, 9-35 main, 36-39 armor from helmet
+	 * to boots, 40 offhand.
+	 */
+	private static ItemStack inventoryItem(LocalPlayer p, int slot) throws RpcException {
+		if (slot >= 0 && slot <= 35) return p.getInventory().getItem(slot);
+		return switch (slot) {
+			case 36 -> p.getItemBySlot(EquipmentSlot.HEAD);
+			case 37 -> p.getItemBySlot(EquipmentSlot.CHEST);
+			case 38 -> p.getItemBySlot(EquipmentSlot.LEGS);
+			case 39 -> p.getItemBySlot(EquipmentSlot.FEET);
+			case 40 -> p.getOffhandItem();
+			default -> throw RpcException.badRequest("Inventory slot out of range (0-40): " + slot);
+		};
+	}
+
+	private static JsonObject vec(Vec3 v) {
+		JsonObject o = new JsonObject();
+		o.addProperty("x", v.x);
+		o.addProperty("y", v.y);
+		o.addProperty("z", v.z);
+		return o;
 	}
 
 	private static void addItem(JsonArray arr, int slot, ItemStack stack) {

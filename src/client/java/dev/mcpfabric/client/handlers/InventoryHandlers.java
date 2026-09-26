@@ -33,7 +33,7 @@ public final class InventoryHandlers {
 			MultiPlayerGameMode gm = ClientMc.gameMode();
 			int menuSlot = toMenuSlot(ctx.getInt("slot"));
 			boolean whole = ctx.optBool("wholeStack", true);
-			containerClick(gm, p.inventoryMenu.containerId, menuSlot, whole ? 1 : 0, true, p);
+			click(gm, p.inventoryMenu.containerId, menuSlot, whole ? 1 : 0, Click.THROW, p);
 			return Json.ok("dropped slot");
 		}));
 
@@ -43,22 +43,25 @@ public final class InventoryHandlers {
 			int a = toMenuSlot(ctx.getInt("slotA"));
 			int b = toMenuSlot(ctx.getInt("slotB"));
 			int id = p.inventoryMenu.containerId;
-			containerClick(gm, id, a, 0, false, p);
-			containerClick(gm, id, b, 0, false, p);
-			containerClick(gm, id, a, 0, false, p);
+			click(gm, id, a, 0, Click.PICKUP, p);
+			click(gm, id, b, 0, Click.PICKUP, p);
+			click(gm, id, a, 0, Click.PICKUP, p);
 			return Json.ok("swapped");
 		}));
 	}
+
+	/** The container click kinds the handlers use (vanilla's {@code ClickType}, renamed in 26.1). */
+	public enum Click { PICKUP, QUICK_MOVE, THROW }
 
 	/**
 	 * Click a container slot. {@code handleInventoryMouseClick(..., ClickType, ...)} became
 	 * {@code handleContainerInput(..., ContainerInput, ...)} in 26.1 (same constant names).
 	 */
-	private static void containerClick(MultiPlayerGameMode gm, int containerId, int slot, int button, boolean throwItem, LocalPlayer p) {
+	public static void click(MultiPlayerGameMode gm, int containerId, int slot, int button, Click click, LocalPlayer p) {
 		//? if <26.1 {
-		gm.handleInventoryMouseClick(containerId, slot, button, throwItem ? ClickType.THROW : ClickType.PICKUP, p);
+		gm.handleInventoryMouseClick(containerId, slot, button, ClickType.valueOf(click.name()), p);
 		//?} else
-		/*gm.handleContainerInput(containerId, slot, button, throwItem ? net.minecraft.world.inventory.ContainerInput.THROW : net.minecraft.world.inventory.ContainerInput.PICKUP, p);*/
+		/*gm.handleContainerInput(containerId, slot, button, net.minecraft.world.inventory.ContainerInput.valueOf(click.name()), p);*/
 	}
 
 	/**

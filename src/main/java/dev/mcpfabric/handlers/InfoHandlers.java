@@ -51,6 +51,8 @@ public final class InfoHandlers {
 			groups.addProperty("chat", true);
 			groups.addProperty("vision", client && McpFabric.config().enableVision);
 			groups.addProperty("navigation", client && McpFabric.config().enablePlayerControl);
+			groups.addProperty("ui", client && McpFabric.config().enablePlayerControl);
+			groups.addProperty("worlds", client);
 			groups.addProperty("events", true);
 
 			JsonObject o = new JsonObject();
@@ -78,7 +80,9 @@ public final class InfoHandlers {
 				a.add("control");
 				a.add("interact");
 				a.add("navigation");
+				a.add("ui");
 			}
+			a.add("worlds");
 			if (McpFabric.config().enableVision) a.add("vision");
 		}
 		return a;
