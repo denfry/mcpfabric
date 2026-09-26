@@ -164,6 +164,7 @@ public final class InteractHandlers {
 				mc.options.keyUse.setDown(true);
 				int[] elapsed = {0};
 				int[] settle = {-1};
+				int[] lastRemaining = {p.getUseItemRemainingTicks()};
 				ClientTasks.add(client -> {
 					LocalPlayer pl = client.player;
 					if (pl == null) {
@@ -172,7 +173,18 @@ public final class InteractHandlers {
 					}
 					if (settle[0] < 0) {
 						elapsed[0]++;
-						if (pl.isUsingItem() && elapsed[0] < timeout) return false;
+						int remaining = pl.isUsingItem() ? pl.getUseItemRemainingTicks() : -1;
+						// With the use key held, vanilla starts the next item in the very tick the first one
+						// finishes, so the player never stops "using": a jump in the remaining ticks is the
+						// next item, and it is released before it is eaten too.
+						boolean nextStarted = remaining > lastRemaining[0];
+						lastRemaining[0] = remaining;
+						if (pl.isUsingItem() && !nextStarted && elapsed[0] < timeout) return false;
+						if (nextStarted) {
+							client.options.keyUse.setDown(false);
+							if (client.gameMode != null) client.gameMode.releaseUsingItem(pl);
+							elapsed[0]--;
+						}
 						// Released before the next tick, or the held key would start on the next item.
 						client.options.keyUse.setDown(false);
 						if (pl.isUsingItem()) pl.stopUsingItem();
