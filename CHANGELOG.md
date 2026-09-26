@@ -6,6 +6,48 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+Version 0.5.0 (not released yet). Driven by [docs/WISHLIST.md](docs/WISHLIST.md): what was missing
+when an agent drove a NeoForge 1.21.1 modpack client.
+
+### Added
+- **Screens and input.** `ui.getScreen` (screen class, title, widgets with type / label / bounds /
+  active / visible / focus / text value, container slots with stacks, the cursor stack),
+  `ui.closeScreen` (Esc behaviour, `force` for screens that ignore Esc), `ui.clickWidget` (by index
+  or label), `ui.clickSlot` (slot, mouse button, shift-click), `ui.typeText` (into the focused text
+  field, optional Enter), `ui.focus`, and `input.pressKey` (GLFW key names or key-binding names,
+  modifiers, `holdTicks`), which works in-game and on any screen, modded ones included.
+- **Singleplayer worlds.** `world.listSaves`, `world.joinSingleplayer`, `world.create` (name, seed,
+  game mode, cheats, and any world preset from the registry, e.g. `tfc:overworld`) and
+  `world.leave`, so an agent can get from the title screen into a world and back.
+- `player.getTooltip` returns an item's tooltip as text lines (mod-added lines included), by
+  inventory slot or open-container slot, normal or advanced.
+- `player.getTarget` reports what the crosshair is on (block with face and state, or entity).
+- `sneak: true` on `interact.placeBlock` and `interact.useItem`: a shift-right-click in one call.
+- `interact.holdUse` holds right-click on a block face for a number of ticks, and
+  `interact.consumeHeld` eats or drinks the held item to completion; both report what changed
+  (food, saturation, held item, target block).
+- `world.getBlockInventory` and `world.insertItem` go through the loader's item-handler capability
+  (NeoForge item handler, Fabric Transfer API), so they work on modded devices without a vanilla
+  container.
+- `client.setWindow`, `client.setGuiScale`, `client.setLanguage` (with resource reload),
+  `client.setHudHidden` and `client.setPauseOnLostFocus`.
+- MCP tools for all of the above: `get_screen`, `close_screen`, `click_widget`, `click_slot`,
+  `type_text`, `focus_widget`, `press_key`, `list_saves`, `join_world`, `create_world`,
+  `leave_world`, `get_tooltip`, `get_target`, `hold_use`, `consume_held`, `get_block_inventory`,
+  `insert_item`, `set_window`, `set_gui_scale`, `set_language`, `set_hud_hidden`,
+  `set_pause_on_lost_focus`.
+
+### Changed
+- `world.raycast` defaults its origin to the player's eyes and its direction to where the player
+  looks (optional `player` on a server with several players).
+- The client no longer pauses when its window loses focus once the bridge is in use (config
+  `keepRunningUnfocused`, default on).
+- NeoForge jars declare the first build of their NeoForge line as the minimum (e.g. `[21.1.0,)`
+  for 1.21.1) instead of the build they were compiled against, so packs pinned to an older build
+  of the same line load them.
+- If the bridge port is taken, the next ten ports are tried; the log says which one was used and
+  the config is updated to it.
+
 ## [0.4.1] - 2026-09-25
 
 This is the first Fabric release since 0.3.0, so it also includes the 0.4.0 changes (see the 0.4.0

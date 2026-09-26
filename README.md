@@ -3,7 +3,7 @@
 
 # MCP Fabric — AI control for Minecraft
 
-**Let Claude and other MCP clients see, understand, and play Minecraft through 50+ tools.**
+**Let Claude and other MCP clients see, understand, and play Minecraft through 75 tools.**
 
 [![Build](https://github.com/Etoryx/mcpfabric/actions/workflows/build.yml/badge.svg)](https://github.com/Etoryx/mcpfabric/actions/workflows/build.yml)
 [![Modrinth downloads](https://img.shields.io/modrinth/dt/eA63YgUh?logo=modrinth&label=Modrinth)](https://modrinth.com/mod/mcpfabric)
@@ -85,23 +85,25 @@ They require **Fabric Loader ≥ 0.19.5** and the matching **Fabric API** build.
 13 NeoForge jars cover the same versions except 1.21.2 (NeoForge only shipped two abandoned betas
 for it), each named `mcpfabric-neoforge-<modVersion>+<mcVersion>.jar`:
 
-| Minecraft | Minimum NeoForge |
-|-----------|------------------|
-| 1.21.1    | 21.1.251         |
-| 1.21.3    | 21.3.97          |
-| 1.21.4    | 21.4.157         |
-| 1.21.5    | 21.5.98          |
-| 1.21.6    | 21.6.20-beta     |
-| 1.21.7    | 21.7.25-beta     |
-| 1.21.8    | 21.8.54          |
-| 1.21.9    | 21.9.16-beta     |
-| 1.21.10   | 21.10.64         |
-| 1.21.11   | 21.11.45         |
-| 26.1.2    | 26.1.2.109       |
-| 26.2      | 26.2.0.88        |
-| 26.3      | 26.3.0.10-beta   |
+| Minecraft | Built against    | Accepts NeoForge |
+|-----------|------------------|------------------|
+| 1.21.1    | 21.1.251         | 21.1.0 and later |
+| 1.21.3    | 21.3.97          | 21.3.0 and later |
+| 1.21.4    | 21.4.157         | 21.4.0 and later |
+| 1.21.5    | 21.5.98          | 21.5.0 and later |
+| 1.21.6    | 21.6.20-beta     | 21.6.0-beta and later |
+| 1.21.7    | 21.7.25-beta     | 21.7.0-beta and later |
+| 1.21.8    | 21.8.54          | 21.8.0 and later |
+| 1.21.9    | 21.9.16-beta     | 21.9.0-beta and later |
+| 1.21.10   | 21.10.64         | 21.10.0 and later |
+| 1.21.11   | 21.11.45         | 21.11.0 and later |
+| 26.1.2    | 26.1.2.109       | 26.1.2.0 and later |
+| 26.2      | 26.2.0.88        | 26.2.0.0 and later |
+| 26.3      | 26.3.0.10-beta   | 26.3.0.0-beta and later |
 
-NeoForge for 1.21.6, 1.21.7, 1.21.9 and 26.3 only exists as beta builds.
+The declared requirement is the first build of each line, so modpacks pinned to an older NeoForge
+build of the same line load the jar. NeoForge for 1.21.6, 1.21.7, 1.21.9 and 26.3 only exists as
+beta builds.
 
 The MCP server needs **Node.js ≥ 20**.
 
@@ -163,11 +165,16 @@ printed to logs.
   "enableWorldWrite": true,
   "enableCommands": true,
   "enablePlayerControl": true,
-  "enableVision": true
+  "enableVision": true,
+  "keepRunningUnfocused": true
 }
 ```
 
-The `enable*` flags let you switch off dangerous capability groups. `requireAuth` (default `true`)
+The `enable*` flags let you switch off dangerous capability groups. `keepRunningUnfocused` (client
+only) turns off "pause on lost focus" once the bridge is first used, so a background window keeps
+running and screenshots show the game rather than the pause menu. If `port` is taken, the bridge
+tries the next ten ports, logs `port 25599 busy, trying 25600`, and writes the port it got back to
+the config. `requireAuth` (default `true`)
 gates every request behind the bearer token — only set it to `false` if you understand that it
 removes the sole authentication on an operator-level bridge. Keep `host` on `127.0.0.1` unless you
 fully understand the consequences — the bridge grants operator-level power.
@@ -233,25 +240,28 @@ Then set `MCPFABRIC_TOKEN` in the server's environment.
 
 ---
 
-## Tools (50+)
+## Tools (75)
 
 **info** — `get_status`, `list_capabilities`
-**world (read)** — `get_block`, `get_blocks_region`, `find_blocks`, `get_time_and_weather`, `list_dimensions`, `raycast`
-**world (write)** — `set_block`, `fill_blocks`, `set_time`, `set_weather`
+**world (read)** — `get_block`, `get_blocks_region`, `find_blocks`, `get_time_and_weather`, `list_dimensions`, `raycast` (defaults to the player's eyes), `get_block_inventory`
+**world (write)** — `set_block`, `fill_blocks`, `set_time`, `set_weather`, `insert_item` (through the loader's item-handler capability, so modded devices work)
 **entities** — `query_entities`, `get_entity`, `summon_entity`, `remove_entity`
 **players (admin)** — `list_players`, `get_player`, `teleport_player`, `set_gamemode`, `give_item`, `apply_effect`, `message_player`, `kick_player`
 **command** — `run_command` (any operator-level command, with output capture)
 **chat** — `send_chat`, `get_recent_chat`
-**player (local, client)** — `get_self`, `get_inventory`, `get_equipment`, `get_status_effects`
+**player (local, client)** — `get_self`, `get_inventory`, `get_equipment`, `get_tooltip`, `get_target`, `get_status_effects`
 **control (client)** — `set_movement`, `stop_movement`, `look`, `look_at`, `jump`, `start_using_item`, `stop_using_item`
-**interact (client)** — `break_block`, `place_block`, `use_item`, `attack_entity`, `use_entity`, `drop_held_item`
+**interact (client)** — `break_block`, `place_block` / `use_item` (both with `sneak`), `hold_use`, `consume_held`, `attack_entity`, `use_entity`, `drop_held_item`
+**ui / input (client)** — `get_screen`, `close_screen`, `click_widget`, `click_slot`, `type_text`, `focus_widget`, `press_key`
+**singleplayer worlds (client)** — `list_saves`, `join_world`, `create_world` (any world preset, modded ones included), `leave_world`
+**client window & options** — `set_window`, `set_gui_scale`, `set_language`, `set_hud_hidden`, `set_pause_on_lost_focus`
 **inventory (client)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
 **vision (client)** — `screenshot` (PNG for vision models), `describe_scene`
 **navigation (client)** — `navigate_to` (A\*), `navigation_status`, `stop_navigation`
 **events** — `poll_events` (recent damage, deaths, chat, spawns, player join/leave)
 
 Server tools require a running server (integrated on the client or dedicated). Client tools
-(`control` / `interact` / `vision` / `navigation` / `player` / `inventory`) only work on the client.
+(`control` / `interact` / `vision` / `navigation` / `player` / `inventory` / `ui` / worlds / window & options) only work on the client.
 Call `get_status` first — it reports which side you are on and which groups are available.
 
 ---
