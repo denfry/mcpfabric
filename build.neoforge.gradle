@@ -61,11 +61,22 @@ neoForge {
 	}
 }
 
+// The declared NeoForge requirement is a low floor, not the version we compile against: modpacks pin
+// older builds of the same line (a pack on 21.1.249 refused a jar asking for [21.1.251,)). The floor
+// is the first build of the line, e.g. 21.1.251 -> [21.1.0,), 26.2.0.88 -> [26.2.0.0,) and, for
+// beta-only lines, 21.6.20-beta -> [21.6.0-beta,) (a -beta build sorts below its release). A node can
+// override it with `neoforge_dep` in its gradle.properties.
+def neoforgeFloor = { String v ->
+	def suffix = v.contains('-') ? v.substring(v.indexOf('-')) : ''
+	def parts = v.replaceFirst(/-.*$/, '').tokenize('.')
+	"[${(parts.dropRight(1) + '0').join('.')}${suffix},)"
+}
+
 processResources {
 	def props = [
 		"version"          : version,
 		"minecraft_dep"    : project.minecraft_dep,
-		"neoforge_version" : project.neoforge_version,
+		"neoforge_dep"     : project.findProperty('neoforge_dep') ?: neoforgeFloor(project.neoforge_version as String),
 		// NeoForge 26.2 deprecated `logoFile` (and shows a warning screen for it) in favour of
 		// `iconFile` / `bannerFile`, which older NeoForge does not know.
 		"icon_property"    : project.findProperty('neoforge_icon_property') ?: 'logoFile'

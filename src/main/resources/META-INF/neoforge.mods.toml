@@ -15,7 +15,7 @@ description = '''Exposes full read & control access to Minecraft through an embe
 [[dependencies.mcpfabric]]
 modId = "neoforge"
 type = "required"
-versionRange = "[${neoforge_version},)"
+versionRange = "${neoforge_dep}"
 ordering = "NONE"
 side = "BOTH"
 
