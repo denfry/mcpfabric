@@ -1,5 +1,10 @@
 package dev.mcpfabric.platform;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import org.jetbrains.annotations.Nullable;
+
 import java.nio.file.Path;
 
 /**
@@ -20,4 +25,12 @@ public interface Platform {
 	String minecraftVersion();
 
 	String modVersion();
+
+	/**
+	 * The item inventory the block at {@code pos} exposes through the loader's item-handler
+	 * capability, seen from {@code side} ({@code null} = the unsided view), or {@code null} when it
+	 * has none. Server thread only.
+	 */
+	@Nullable
+	BlockInventory blockInventory(ServerLevel level, BlockPos pos, @Nullable Direction side);
 }

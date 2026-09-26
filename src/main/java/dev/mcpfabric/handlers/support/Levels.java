@@ -12,12 +12,16 @@ import net.minecraft.resources.ResourceLocation;
 /*import net.minecraft.resources.Identifier;*/
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
+import java.util.Optional;
 
 /** Helpers for resolving dimensions and describing blocks. */
 public final class Levels {
@@ -63,6 +67,31 @@ public final class Levels {
 		return level.getDayTime();
 		//?} else
 		/*return level.getDefaultClockTime();*/
+	}
+
+	/** The registered item {@code id}, or {@code bad_request} for an unknown / malformed id. */
+	public static Item item(String id) throws RpcException {
+		//? if <1.21.11 {
+		ResourceLocation key = ResourceLocation.tryParse(id);
+		//?} else
+		/*Identifier key = Identifier.tryParse(id);*/
+		if (key == null) throw RpcException.badRequest("Invalid item id: " + id);
+		Optional<Item> item = BuiltInRegistries.ITEM.getOptional(key);
+		if (item.isEmpty() || item.get() == Items.AIR) throw RpcException.badRequest("Unknown item: " + id);
+		return item.get();
+	}
+
+	/** Id, count and name of a stack ({@code empty: true} for an empty one). */
+	public static JsonObject itemJson(ItemStack stack) {
+		JsonObject o = new JsonObject();
+		if (stack.isEmpty()) {
+			o.addProperty("empty", true);
+			return o;
+		}
+		o.addProperty("id", BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+		o.addProperty("count", stack.getCount());
+		o.addProperty("name", stack.getHoverName().getString());
+		return o;
 	}
 
 	public static String blockId(BlockState state) {

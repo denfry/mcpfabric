@@ -11,10 +11,15 @@ import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.handlers.support.CommandRunner;
 import dev.mcpfabric.handlers.support.Levels;
+import dev.mcpfabric.platform.BlockInventory;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -165,6 +170,25 @@ public final class WorldHandlers {
 
 		router.register("world.raycast", ctx -> onServer(server -> raycast(server, ctx)));
 
+		router.register("world.getBlockInventory", ctx -> onServer(server -> {
+			ServerLevel level = Levels.resolve(server, ctx.optString("dimension", null));
+			BlockPos pos = BlockPos.containing(ctx.getDouble("x"), ctx.getDouble("y"), ctx.getDouble("z"));
+			BlockInventory inv = blockInventory(level, pos, ctx);
+			JsonArray slots = new JsonArray();
+			List<ItemStack> stacks = inv.slots();
+			for (int i = 0; i < stacks.size(); i++) {
+				JsonObject s = Levels.itemJson(stacks.get(i));
+				s.addProperty("slot", i);
+				slots.add(s);
+			}
+			JsonObject o = new JsonObject();
+			o.addProperty("dimension", Levels.dimensionId(level));
+			o.addProperty("block", Levels.blockId(level.getBlockState(pos)));
+			o.addProperty("size", stacks.size());
+			o.add("slots", slots);
+			return o;
+		}));
+
 		// --- writes ----------------------------------------------------------------------------
 
 		router.register("world.setBlock", ctx -> writeCommand(ctx, ctx2 -> {
@@ -189,6 +213,32 @@ public final class WorldHandlers {
 			return CommandRunner.run(server, level, cmd).toJson();
 		}));
 
+		router.register("world.insertItem", ctx -> writeCommand(ctx, ctx2 -> {
+			MinecraftServer server = ServerHolder.get();
+			ServerLevel level = Levels.resolve(server, ctx2.optString("dimension", null));
+			BlockPos pos = BlockPos.containing(ctx2.getDouble("x"), ctx2.getDouble("y"), ctx2.getDouble("z"));
+			BlockInventory inv = blockInventory(level, pos, ctx2);
+			Item item = Levels.item(ctx2.getString("item"));
+			int count = ctx2.optInt("count", 1);
+			if (count < 1) throw RpcException.badRequest("count must be at least 1.");
+			boolean simulate = ctx2.optBool("simulate", false);
+			// Insert in stack-sized batches so a count above the max stack size behaves like several
+			// stacks. A simulation cannot chain batches (nothing is committed), so it checks one stack.
+			int inserted = 0;
+			while (inserted < count) {
+				int batch = Math.min(count - inserted, new ItemStack(item).getMaxStackSize());
+				int n = inv.insert(new ItemStack(item, batch), simulate);
+				inserted += n;
+				if (n < batch || simulate) break;
+			}
+			JsonObject o = new JsonObject();
+			o.addProperty("item", ctx2.getString("item"));
+			o.addProperty("requested", count);
+			o.addProperty("inserted", inserted);
+			o.addProperty("simulated", simulate);
+			return o;
+		}));
+
 		router.register("world.setTime", ctx -> writeCommand(ctx, ctx2 -> {
 			MinecraftServer server = ServerHolder.get();
 			return CommandRunner.run(server, "time set " + ctx2.getInt("time")).toJson();
@@ -210,20 +260,28 @@ public final class WorldHandlers {
 	// --- raycast ---------------------------------------------------------------------------------
 
 	private static JsonElement raycast(MinecraftServer server, RpcContext ctx) throws RpcException {
-		ServerLevel level = Levels.resolve(server, ctx.optString("dimension", null));
-		JsonObject origin = ctx.getObject("origin");
-		Vec3 start = new Vec3(origin.get("x").getAsDouble(), origin.get("y").getAsDouble(), origin.get("z").getAsDouble());
+		JsonObject origin = ctx.optObject("origin");
+		JsonObject dirObj = ctx.optObject("direction");
+		boolean angles = ctx.has("yaw") && ctx.has("pitch");
+		// Without an origin or a direction the ray starts at the player's eyes / follows their look:
+		// the common question is "what is in front of me".
+		ServerPlayer viewer = origin == null || (dirObj == null && !angles) ? viewer(server, ctx) : null;
+		ServerLevel level = viewer != null && !ctx.has("dimension")
+				? (ServerLevel) viewer.level()
+				: Levels.resolve(server, ctx.optString("dimension", null));
+		Vec3 start = origin != null
+				? new Vec3(origin.get("x").getAsDouble(), origin.get("y").getAsDouble(), origin.get("z").getAsDouble())
+				: viewer.getEyePosition();
 
 		Vec3 dir;
-		JsonObject dirObj = ctx.optObject("direction");
 		if (dirObj != null) {
 			dir = new Vec3(dirObj.get("x").getAsDouble(), dirObj.get("y").getAsDouble(), dirObj.get("z").getAsDouble());
-		} else if (ctx.has("yaw") && ctx.has("pitch")) {
+		} else if (angles) {
 			double yaw = Math.toRadians(ctx.getDouble("yaw"));
 			double pitch = Math.toRadians(ctx.getDouble("pitch"));
 			dir = new Vec3(-Math.cos(pitch) * Math.sin(yaw), -Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw));
 		} else {
-			throw RpcException.badRequest("Provide either 'direction' or both 'yaw' and 'pitch'.");
+			dir = viewer.getLookAngle();
 		}
 		if (dir.lengthSqr() < 1.0e-6) throw RpcException.badRequest("Direction has zero length.");
 		dir = dir.normalize();
@@ -258,7 +316,7 @@ public final class WorldHandlers {
 		if (includeEntities) {
 			Vec3 end = start.add(dir.scale(maxDistance));
 			AABB box = new AABB(start, end).inflate(1.0);
-			for (Entity e : level.getEntities((Entity) null, box, ent -> ent.isAlive() && ent.isPickable())) {
+			for (Entity e : level.getEntities(viewer, box, ent -> ent.isAlive() && ent.isPickable())) {
 				AABB eb = e.getBoundingBox().inflate(0.3);
 				var clip = eb.clip(start, end);
 				if (clip.isPresent()) {
@@ -293,6 +351,36 @@ public final class WorldHandlers {
 			o.addProperty("hitType", "miss");
 		}
 		return o;
+	}
+
+	/** The item inventory at {@code pos} through the loader's capability, from the optional {@code side}. */
+	private static BlockInventory blockInventory(ServerLevel level, BlockPos pos, RpcContext ctx) throws RpcException {
+		if (!level.hasChunkAt(pos)) throw RpcException.notFound("Chunk not loaded at " + pos.toShortString());
+		Direction side = null;
+		if (ctx.has("side")) {
+			side = Direction.byName(ctx.getString("side").toLowerCase());
+			if (side == null) throw RpcException.badRequest("side must be up|down|north|south|east|west.");
+		}
+		BlockInventory inv = McpFabric.platform().blockInventory(level, pos, side);
+		if (inv == null) {
+			throw RpcException.notFound("The block at " + pos.toShortString() + " (" + Levels.blockId(level.getBlockState(pos))
+					+ ") exposes no item inventory" + (side != null ? " on side " + side.getName() : "") + ".");
+		}
+		return inv;
+	}
+
+	/** The player whose eyes default a raycast: {@code player} when given, else the only one online. */
+	private static ServerPlayer viewer(MinecraftServer server, RpcContext ctx) throws RpcException {
+		if (ctx.has("player")) {
+			ServerPlayer p = PlayerAdminHandlers.find(server, ctx.getString("player"));
+			if (p == null) throw RpcException.notFound("No online player matching: " + ctx.getString("player"));
+			return p;
+		}
+		List<ServerPlayer> players = server.getPlayerList().getPlayers();
+		if (players.size() == 1) return players.get(0);
+		throw RpcException.badRequest(players.isEmpty()
+				? "No player online to cast from; provide 'origin' and a direction."
+				: "Several players online; name one with 'player' or provide 'origin' and a direction.");
 	}
 
 	private static JsonObject vec(Vec3 v) {

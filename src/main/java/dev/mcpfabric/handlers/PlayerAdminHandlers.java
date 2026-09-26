@@ -110,7 +110,8 @@ public final class PlayerAdminHandlers {
 		return p;
 	}
 
-	private static ServerPlayer find(MinecraftServer server, String ref) {
+	/** Online player by UUID or name, or null. */
+	static ServerPlayer find(MinecraftServer server, String ref) {
 		try {
 			UUID uuid = UUID.fromString(ref);
 			return server.getPlayerList().getPlayer(uuid);
