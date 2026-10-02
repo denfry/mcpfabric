@@ -67,7 +67,11 @@ public final class ContainerHandlers {
 			return o;
 		}));
 
-		router.register("container.state", ctx -> ClientMc.call(() -> state(ClientMc.player())));
+		// Reading the open menu belongs to the containers group too, so it follows the same lock.
+		router.register("container.state", ctx -> ClientMc.call(() -> {
+			requireControl();
+			return state(ClientMc.player());
+		}));
 
 		router.register("container.click", ctx -> ClientMc.call(() -> {
 			requireControl();

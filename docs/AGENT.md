@@ -48,7 +48,9 @@ tested without a game. The mod only gained what needs game access:
 | `interact.stopBreaking` | client | stop an unfinished survival mining action |
 
 Perception reads the client's own copy of the world. It therefore works on vanilla multiplayer
-servers, unlike the server-only `world.*` tools.
+servers, unlike the server-only `world.*` tools. It also sees through walls and as far as the loaded
+chunks, so it is vision: `perception.*` needs `enableVision`, and `container.state` needs
+`enablePlayerControl` like the other container methods.
 
 ## Memory: the codebase-index approach, applied to a world
 
