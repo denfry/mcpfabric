@@ -2,11 +2,13 @@ package dev.mcpfabric.client.handlers;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.client.ClientMc;
 import dev.mcpfabric.handlers.support.Gates;
 import dev.mcpfabric.handlers.support.Levels;
+import dev.mcpfabric.handlers.support.OpaqueIds;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ServerData;
@@ -127,9 +129,10 @@ public final class PerceptionHandlers {
 		} else {
 			ServerData data = mc.getCurrentServer();
 			String address = data != null && data.ip != null ? data.ip.trim().toLowerCase(Locale.ROOT) : "unknown";
-			o.addProperty("worldId", "mp:" + address);
+			// Stable per server, but neither the address nor the server list entry's name leaves the game:
+			// the id reaches the MCP client, its model and the agent's database.
+			o.addProperty("worldId", "mp:" + OpaqueIds.of(McpFabric.config().worldIdKey, address));
 			o.addProperty("kind", "multiplayer");
-			o.addProperty("name", data != null && data.name != null ? data.name : address);
 		}
 		o.addProperty("player", player.getName().getString());
 		o.addProperty("dimension", Levels.dimensionId(player.level()));

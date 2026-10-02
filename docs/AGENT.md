@@ -38,7 +38,7 @@ tested without a game. The mod only gained what needs game access:
 
 | RPC | Side | What it returns |
 |---|---|---|
-| `session.info` | client / server | a stable world id: `sp:<save folder>`, `mp:<server address>`, `server:<level name>` |
+| `session.info` | client / server | a stable world id: `sp:<save folder>`, `mp:<opaque id>` (an HMAC of the address with the mod's `worldIdKey`, so the address never leaves the game), `server:<level name>` |
 | `perception.scan` | client | per-chunk surface height, biome and ore/log counts; points of interest (containers, workstations, beds, portals, spawners); positions of requested blocks |
 | `perception.blocks` | client | block ids at positions, optionally with the best hotbar tool and whether it can harvest the block |
 | `perception.entities` | client | nearby dropped items, hostile/passive mobs and players, nearest first |
