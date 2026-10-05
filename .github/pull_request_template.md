@@ -10,6 +10,7 @@
 
 - [ ] `./gradlew chiseledBuild` passes (all versions compile)
 - [ ] `npm run typecheck` passes in `mcp-server/` (if the server changed)
+- [ ] New or changed RPC methods check their `Gates` lock, show up in `info.capabilities`, and are in `tools.ts`, the README and `CHANGELOG.md`
 
 ## Notes
 

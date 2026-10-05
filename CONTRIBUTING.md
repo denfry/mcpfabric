@@ -122,6 +122,8 @@ RPC handler, keep the corresponding tool entry in sync.
 - Make sure `./gradlew chiseledBuild` and `npm run typecheck` pass.
 - Describe what you changed and which Minecraft versions you tested against.
 
+AI coding agents: read [AGENTS.md](AGENTS.md) first; the same rules apply to them.
+
 ## License
 
 By contributing you agree that your contributions are licensed under the project's
