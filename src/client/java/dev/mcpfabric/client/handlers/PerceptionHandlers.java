@@ -2,10 +2,13 @@ package dev.mcpfabric.client.handlers;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.client.ClientMc;
+import dev.mcpfabric.handlers.support.Gates;
 import dev.mcpfabric.handlers.support.Levels;
+import dev.mcpfabric.handlers.support.OpaqueIds;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ServerData;
@@ -80,7 +83,9 @@ public final class PerceptionHandlers {
 	public static void register(RpcRouter router) {
 		router.register("session.info", ctx -> ClientMc.call(PerceptionHandlers::sessionInfo));
 
+		// Perception sees through walls and as far as the loaded chunks: it is vision, behind its lock.
 		router.register("perception.scan", ctx -> ClientMc.call(() -> {
+			Gates.vision();
 			int radius = Math.max(0, Math.min(MAX_RADIUS, ctx.optInt("radius", 6)));
 			Set<String> find = new HashSet<>(ctx.getStringList("find"));
 			int findLimit = Math.max(1, Math.min(500, ctx.optInt("findLimit", 64)));
@@ -88,11 +93,13 @@ public final class PerceptionHandlers {
 		}));
 
 		router.register("perception.entities", ctx -> ClientMc.call(() -> {
+			Gates.vision();
 			double radius = Math.max(1, Math.min(64, ctx.optDouble("radius", 16)));
 			return entities(ClientMc.level(), ClientMc.player(), radius, new HashSet<>(ctx.getStringList("kinds")));
 		}));
 
 		router.register("perception.blocks", ctx -> ClientMc.call(() -> {
+			Gates.vision();
 			ClientLevel level = ClientMc.level();
 			LocalPlayer player = ClientMc.player();
 			boolean tool = ctx.optBool("tool", false);
@@ -122,9 +129,10 @@ public final class PerceptionHandlers {
 		} else {
 			ServerData data = mc.getCurrentServer();
 			String address = data != null && data.ip != null ? data.ip.trim().toLowerCase(Locale.ROOT) : "unknown";
-			o.addProperty("worldId", "mp:" + address);
+			// Stable per server, but neither the address nor the server list entry's name leaves the game:
+			// the id reaches the MCP client, its model and the agent's database.
+			o.addProperty("worldId", "mp:" + OpaqueIds.of(McpFabric.config().worldIdKey, address));
 			o.addProperty("kind", "multiplayer");
-			o.addProperty("name", data != null && data.name != null ? data.name : address);
 		}
 		o.addProperty("player", player.getName().getString());
 		o.addProperty("dimension", Levels.dimensionId(player.level()));

@@ -38,7 +38,7 @@ tested without a game. The mod only gained what needs game access:
 
 | RPC | Side | What it returns |
 |---|---|---|
-| `session.info` | client / server | a stable world id: `sp:<save folder>`, `mp:<server address>`, `server:<level name>` |
+| `session.info` | client / server | a stable world id: `sp:<save folder>`, `mp:<opaque id>` (an HMAC of the address with the mod's `worldIdKey`, so the address never leaves the game), `server:<level name>` |
 | `perception.scan` | client | per-chunk surface height, biome and ore/log counts; points of interest (containers, workstations, beds, portals, spawners); positions of requested blocks |
 | `perception.blocks` | client | block ids at positions, optionally with the best hotbar tool and whether it can harvest the block |
 | `perception.entities` | client | nearby dropped items, hostile/passive mobs and players, nearest first |
@@ -48,7 +48,9 @@ tested without a game. The mod only gained what needs game access:
 | `interact.stopBreaking` | client | stop an unfinished survival mining action |
 
 Perception reads the client's own copy of the world. It therefore works on vanilla multiplayer
-servers, unlike the server-only `world.*` tools.
+servers, unlike the server-only `world.*` tools. It also sees through walls and as far as the loaded
+chunks, so it is vision: `perception.*` needs `enableVision`, and `container.state` needs
+`enablePlayerControl` like the other container methods.
 
 ## Memory: the codebase-index approach, applied to a world
 

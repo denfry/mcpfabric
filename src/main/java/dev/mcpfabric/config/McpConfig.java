@@ -31,6 +31,13 @@ public final class McpConfig {
 	/** Max time a single RPC may block the game thread before timing out. */
 	public int callTimeoutMs = 8000;
 
+	/**
+	 * Secret that turns a server address into an opaque world id (session.info), so the agent's memory
+	 * stays per server without the address reaching the MCP client or its database. Generated on first
+	 * run; never sent over the bridge.
+	 */
+	public String worldIdKey = "";
+
 	// capability gates ------------------------------------------------------------------------
 	public boolean enableWorldWrite = true;
 	public boolean enableCommands = true;
@@ -56,6 +63,9 @@ public final class McpConfig {
 		}
 		if (cfg.token == null || cfg.token.isBlank()) {
 			cfg.token = UUID.randomUUID().toString().replace("-", "");
+		}
+		if (cfg.worldIdKey == null || cfg.worldIdKey.isBlank()) {
+			cfg.worldIdKey = UUID.randomUUID().toString().replace("-", "");
 		}
 		cfg.source = file;
 		cfg.save();

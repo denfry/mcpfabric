@@ -51,7 +51,7 @@ public final class InfoHandlers {
 			groups.addProperty("chat", true);
 			groups.addProperty("vision", client && McpFabric.config().enableVision);
 			groups.addProperty("navigation", client && McpFabric.config().enablePlayerControl);
-			groups.addProperty("perception", client);
+			groups.addProperty("perception", client && McpFabric.config().enableVision);
 			groups.addProperty("containers", client && McpFabric.config().enablePlayerControl);
 			groups.addProperty("recipes", client);
 			groups.addProperty("crafting", client && McpFabric.config().enablePlayerControl);
@@ -79,7 +79,6 @@ public final class InfoHandlers {
 		}
 		if (client) {
 			a.add("player_local");
-			a.add("perception");
 			a.add("recipes");
 			if (McpFabric.config().enablePlayerControl) {
 				a.add("inventory");
@@ -89,7 +88,10 @@ public final class InfoHandlers {
 				a.add("containers");
 				a.add("crafting");
 			}
-			if (McpFabric.config().enableVision) a.add("vision");
+			if (McpFabric.config().enableVision) {
+				a.add("vision");
+				a.add("perception");
+			}
 		}
 		return a;
 	}

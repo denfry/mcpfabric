@@ -160,6 +160,7 @@ printed to logs.
   "token": "generated automatically",
   "requireAuth": true,
   "callTimeoutMs": 8000,
+  "worldIdKey": "generated automatically",
   "enableWorldWrite": true,
   "enableCommands": true,
   "enablePlayerControl": true,
@@ -170,7 +171,9 @@ printed to logs.
 The `enable*` flags let you switch off dangerous capability groups. `requireAuth` (default `true`)
 gates every request behind the bearer token — only set it to `false` if you understand that it
 removes the sole authentication on an operator-level bridge. Keep `host` on `127.0.0.1` unless you
-fully understand the consequences — the bridge grants operator-level power.
+fully understand the consequences — the bridge grants operator-level power. `worldIdKey` turns a
+server address into the opaque world id that `session.info` reports; like the token, it is never
+sent over the bridge.
 
 ---
 
