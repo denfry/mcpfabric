@@ -17,6 +17,15 @@ Thanks to @heide-oficial for the review in #33.
 - New capability group `crafting` (`craft.place`), reported only with `enablePlayerControl`.
   `recipes` now covers just the read-only `recipes.query`.
 
+### Security
+- `perception.scan`, `perception.entities` and `perception.blocks` now require `enableVision`, and
+  `container.state` requires `enablePlayerControl`, like the other methods of their groups.
+  `info.capabilities` reports `perception` only with `enableVision`.
+- In multiplayer, `session.info` reports an opaque world id (`mp:` plus an HMAC of the server address
+  under the new `worldIdKey` config value) instead of the address and the server list entry's name.
+  Agent memory stored under `mp:<address>` is not found under the new id; `MCPFABRIC_WORLD` can still
+  force one.
+
 ### Fixed
 - `perception.blocks` returns `bad_request` instead of `internal` for a malformed `positions` item.
 - `container.open` refuses blocks out of reach and blocks that do not open a menu, instead of using
