@@ -6,7 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
-Thanks to @heide-oficial for the review in #33.
+## [0.5.1] - 2026-10-05
+
+Fabric and NeoForge. Thanks to @heide-oficial for the review in #33 and for the private report and
+patch behind the Security section. The project now lives at <https://github.com/denfry/mcpfabric>.
 
 ### Changed
 - The agent database (`~/.mcpfabric/agent.db`) is created the first time an agent tool is called,
@@ -25,6 +28,10 @@ Thanks to @heide-oficial for the review in #33.
   under the new `worldIdKey` config value) instead of the address and the server list entry's name.
   Agent memory stored under `mp:<address>` is not found under the new id; `MCPFABRIC_WORLD` can still
   force one.
+
+### Dependencies
+- MCP server: `hono`, `fast-uri`, `ip-address` and `qs` updated for their published security fixes,
+  `@modelcontextprotocol/sdk` 1.31.0. Gradle wrapper 9.8.0.
 
 ### Fixed
 - `perception.blocks` returns `bad_request` instead of `internal` for a malformed `positions` item.
