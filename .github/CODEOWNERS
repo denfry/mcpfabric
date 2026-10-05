@@ -1,7 +1,7 @@
 # Default ownership for code review and security-sensitive changes.
-* @Etoryx
+* @denfry
 
 # Release automation and the operator-level HTTP bridge need explicit maintainer review.
-/.github/workflows/ @Etoryx
-/src/main/java/dev/mcpfabric/bridge/ @Etoryx
-/src/main/java/dev/mcpfabric/config/ @Etoryx
+/.github/workflows/ @denfry
+/src/main/java/dev/mcpfabric/bridge/ @denfry
+/src/main/java/dev/mcpfabric/config/ @denfry

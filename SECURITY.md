@@ -28,7 +28,7 @@ declared in `settings.gradle`. Older builds are not back-patched.
 
 Please report security issues **privately** — do not open a public issue for anything exploitable.
 
-- Use GitHub's [private vulnerability reporting](https://github.com/Etoryx/mcpfabric/security/advisories/new)
+- Use GitHub's [private vulnerability reporting](https://github.com/denfry/mcpfabric/security/advisories/new)
   ("Report a vulnerability"), or
 - email the maintainer at the address on their GitHub profile.
 

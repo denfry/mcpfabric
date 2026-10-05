@@ -10,10 +10,10 @@ Before asking for help:
 2. Run `get_status` to confirm which client/server capability groups are available.
 3. Check that `MCPFABRIC_URL` matches the bridge address and that `MCPFABRIC_TOKEN` matches
    `config/mcpfabric.config.json`.
-4. Search [existing issues](https://github.com/Etoryx/mcpfabric/issues).
+4. Search [existing issues](https://github.com/denfry/mcpfabric/issues).
 
 If the problem remains, open a
-[setup or usage request](https://github.com/Etoryx/mcpfabric/issues/new?template=setup_help.yml).
+[setup or usage request](https://github.com/denfry/mcpfabric/issues/new?template=setup_help.yml).
 Include exact versions and the smallest relevant log excerpt.
 
 Never post your bridge token, full config file, private server address, player data, or other

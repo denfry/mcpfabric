@@ -14,8 +14,8 @@ This file is the canonical copy and settings checklist for
 | Categories | Game Mechanics, Management, Utility |
 | Client side | Optional |
 | Server side | Optional |
-| Source | `https://github.com/Etoryx/mcpfabric` |
-| Issues | `https://github.com/Etoryx/mcpfabric/issues` |
+| Source | `https://github.com/denfry/mcpfabric` |
+| Issues | `https://github.com/denfry/mcpfabric/issues` |
 | Icon | `docs/assets/mcpfabric-icon-512.png` |
 
 Client and server are both **optional**, not required: install on the client when the AI should play
@@ -63,12 +63,12 @@ Each supported Minecraft version has its own jar. MCP Fabric supports Minecraft 
 3. Launch once and copy `token` from `config/mcpfabric.config.json`.
 4. Build the small Node.js MCP server and add it to your MCP host.
 
-Follow the [five-step quick start](https://github.com/Etoryx/mcpfabric#quick-start) for copy-ready
+Follow the [five-step quick start](https://github.com/denfry/mcpfabric#quick-start) for copy-ready
 commands and client configuration.
 
 > MCP Fabric can grant operator-level control. Keep the bridge on `127.0.0.1`, keep authentication
 > enabled, and disable capability groups you do not need. Read the
-> [security policy](https://github.com/Etoryx/mcpfabric/blob/main/SECURITY.md) before exposing it
+> [security policy](https://github.com/denfry/mcpfabric/blob/main/SECURITY.md) before exposing it
 > beyond your own machine.
 
 ### Example prompts
@@ -79,7 +79,7 @@ commands and client configuration.
 - “Build a stone wall between these two points.”
 
 Source code, documentation, releases, and contribution guidelines are available on
-[GitHub](https://github.com/Etoryx/mcpfabric).
+[GitHub](https://github.com/denfry/mcpfabric).
 
 ## Gallery plan
 

@@ -24,7 +24,7 @@ other spaces where someone represents the MCP Fabric project.
 ## Reporting and enforcement
 
 For ordinary moderation, contact the repository maintainers. For a sensitive or private report, use
-[GitHub private vulnerability reporting](https://github.com/Etoryx/mcpfabric/security/advisories/new)
+[GitHub private vulnerability reporting](https://github.com/denfry/mcpfabric/security/advisories/new)
 and begin the report with `Conduct report`. Do not open a public issue containing private details.
 
 Maintainers may edit or remove content and may temporarily or permanently restrict participation

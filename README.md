@@ -5,10 +5,10 @@
 
 **Let Claude and other MCP clients see, understand, and play Minecraft through 50+ tools.**
 
-[![Build](https://github.com/Etoryx/mcpfabric/actions/workflows/build.yml/badge.svg)](https://github.com/Etoryx/mcpfabric/actions/workflows/build.yml)
+[![Build](https://github.com/denfry/mcpfabric/actions/workflows/build.yml/badge.svg)](https://github.com/denfry/mcpfabric/actions/workflows/build.yml)
 [![Modrinth downloads](https://img.shields.io/modrinth/dt/eA63YgUh?logo=modrinth&label=Modrinth)](https://modrinth.com/mod/mcpfabric)
-[![GitHub stars](https://img.shields.io/github/stars/Etoryx/mcpfabric?logo=github&style=flat)](https://github.com/Etoryx/mcpfabric/stargazers)
-[![License: MIT](https://img.shields.io/github/license/Etoryx/mcpfabric)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/denfry/mcpfabric?logo=github&style=flat)](https://github.com/denfry/mcpfabric/stargazers)
+[![License: MIT](https://img.shields.io/github/license/denfry/mcpfabric)](LICENSE)
 
 [Download on Modrinth](https://modrinth.com/mod/mcpfabric) ·
 [Installation](#quick-start) ·

@@ -135,7 +135,7 @@ section of CHANGELOG.md): the Platform layer and `"loader"` in `info.status`.
 - Repository community files and a canonical Modrinth listing guide.
 
 ### Changed
-- Project links now point to the canonical `Etoryx/mcpfabric` repository.
+- Project links now point to the canonical `denfry/mcpfabric` repository.
 - GitHub Actions are pinned to immutable commit SHAs and release publishing fails closed when the
   Modrinth token is unavailable.
 - The MCP server lockfile version now matches the package version.
