@@ -9,6 +9,7 @@
 [![Modrinth downloads](https://img.shields.io/modrinth/dt/eA63YgUh?logo=modrinth&label=Modrinth)](https://modrinth.com/mod/mcpfabric)
 [![GitHub stars](https://img.shields.io/github/stars/denfry/mcpfabric?logo=github&style=flat)](https://github.com/denfry/mcpfabric/stargazers)
 [![License: MIT](https://img.shields.io/github/license/denfry/mcpfabric)](LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/mVZcNUAGZt)
 
 [Download on Modrinth](https://modrinth.com/mod/mcpfabric) ·
 [Installation](#quick-start) ·
