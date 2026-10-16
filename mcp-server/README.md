@@ -3,9 +3,29 @@
 Bridges an MCP client (Claude Desktop / Claude Code / any MCP host) to the in-game HTTP bridge
 exposed by the **mcpfabric** mod (Fabric / NeoForge), publishing ~50 tools to observe and control
 Minecraft, plus an agent runtime with persistent memory, goals, a world map and background jobs
-(see [../docs/AGENT.md](../docs/AGENT.md)). Requires Node.js ≥ 22.16.
+(see [docs/AGENT.md](https://github.com/denfry/mcpfabric/blob/main/docs/AGENT.md)). Requires Node.js ≥ 22.16.
 
-## Install & build
+## Install from npm
+
+```bash
+npx -y mcpfabric-mcp-server          # or: npm install -g mcpfabric-mcp-server && mcpfabric
+```
+
+In an MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "mcpfabric": {
+      "command": "npx",
+      "args": ["-y", "mcpfabric-mcp-server"],
+      "env": { "MCPFABRIC_TOKEN": "paste-the-token-from-the-mod-config" }
+    }
+  }
+}
+```
+
+## Build from source
 
 ```bash
 npm install
