@@ -168,6 +168,7 @@ public final class InteractHandlers {
 			placedAt.addProperty("y", target.getY());
 			placedAt.addProperty("z", target.getZ());
 			placedAt.addProperty("serverBlock", Levels.blockId(after));
+			placedAt.addProperty("serverState", Levels.blockState(after));
 			o.add("target", placedAt);
 			return o;
 		});

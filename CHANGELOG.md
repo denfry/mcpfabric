@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- Block states in build results: `get_blocks_region` takes `includeState` and then returns each
+  block with its properties (`minecraft:oak_stairs[facing=east,half=bottom,...]`), `set_block`
+  reads the block back and returns it as `state`, and `place_block` returns the placed block as
+  `target.serverState`. A block facing the wrong way is now visible without a `get_block` per block.
+
 ## [0.8.0] - 2026-10-16
 
 Fabric and NeoForge. Implements #27, thanks to @faizsaifulnizam.

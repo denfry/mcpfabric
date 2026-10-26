@@ -28,7 +28,7 @@ const BRIDGE_TOOLS = {
   list_capabilities: { method: "info.capabilities", args: {} },
   // world (read)
   get_block: { method: "world.getBlock", args: { ...pos }, invalid: { x: 10, y: 64 } },
-  get_blocks_region: { method: "world.getBlocks", args: { from: pos, to: corner, includeAir: true }, invalid: { from: pos, to: corner, maxBlocks: 0 } },
+  get_blocks_region: { method: "world.getBlocks", args: { from: pos, to: corner, includeAir: true, includeState: true }, invalid: { from: pos, to: corner, maxBlocks: 0 } },
   find_blocks: { method: "world.findBlocks", args: { center: pos, radius: 16, blockIds: ["minecraft:diamond_ore"] }, invalid: { center: pos, radius: 16, blockIds: [] } },
   get_time_and_weather: { method: "world.getTimeAndWeather", args: { dimension: "minecraft:the_nether" }, invalid: { dimension: 7 } },
   list_dimensions: { method: "world.getDimensions", args: {} },
