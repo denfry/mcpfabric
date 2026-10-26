@@ -733,7 +733,8 @@ async function reachFor(rt: AgentRuntime, ctx: JobContext, target: Pos, plan: Co
   const inside = Math.floor(self.x) === target.x && Math.floor(self.z) === target.z && (Math.floor(self.y) === target.y || Math.floor(self.y) + 1 === target.y);
   if (!force && !inside && distance(eyeOf(self), centre) <= REACH - 0.5) return true;
   // A free spot to stand near the target that is not going to be a block of the plan.
-  const around = await probeAll(rt, box({ x: target.x - 4, y: target.y - 3, z: target.z - 4 }, { x: target.x + 4, y: target.y + 2, z: target.z + 4 }));
+  // Feet from 3 below the target (with the floor under them) to 2 above it (with head room).
+  const around = await probeAll(rt, box({ x: target.x - 4, y: target.y - 4, z: target.z - 4 }, { x: target.x + 4, y: target.y + 3, z: target.z + 4 }));
   const probe = (p: Pos) => around.get(posKey(p));
   const spots: Pos[] = [];
   for (const p of around.values()) {
@@ -741,10 +742,10 @@ async function reachFor(rt: AgentRuntime, ctx: JobContext, target: Pos, plan: Co
     if (plan.byKey.get(keyOf(p))?.want || plan.byKey.get(keyOf({ x: p.x, y: p.y + 1, z: p.z }))?.want) continue;
     if (p.x === target.x && p.z === target.z && (p.y === target.y || p.y + 1 === target.y)) continue;
     const d = distance(eyeOf({ x: p.x + 0.5, y: p.y, z: p.z + 0.5 }), centre);
-    if (d <= REACH - 0.6 && d >= 1.2) spots.push(p);
+    if (d <= REACH - 0.6 && p.y <= target.y + 2) spots.push(p);
   }
   spots.sort((a, b) => distance(a, self) - distance(b, self));
-  for (const spot of spots.slice(0, 4)) {
+  for (const spot of spots.slice(0, 6)) {
     try {
       await rt.body.pathTo(spot, { reachRadius: 0.6, timeoutSeconds: 25 });
     } catch (err) {
@@ -773,6 +774,33 @@ async function mineAt(rt: AgentRuntime, ctx: JobContext, pos: Pos, plan: Compile
   }, limitMs);
   if (!gone) await rt.body.stopBreaking().catch(() => undefined);
   return gone;
+}
+
+/** Outcome of {@link placeCell} for a cell to try again after the others. */
+const RETRY = "retry";
+
+/** Place one plan cell; "" when it is placed as planned, RETRY, or why it failed. */
+async function placeCell(rt: AgentRuntime, ctx: JobContext, plan: Plan, c: Compiled, cell: Cell, method: "place" | "set"): Promise<string> {
+  const state = formatState(cell.want!);
+  if (method === "set") {
+    const r = await rt.body.setBlock(cell, state, plan.dim);
+    return r.success ? "" : (r.output?.join(" ") ?? "command failed");
+  }
+  const item = itemFor(cell.want!.id);
+  if (!item) return "no item places it";
+  let outcome = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (!(await reachFor(rt, ctx, cell, c, attempt > 0))) return RETRY;
+    await holdItem(rt, item);
+    const r = await rt.body.placeAt(cell, state);
+    if (r.result === "NO_SUPPORT") return RETRY; // standing elsewhere does not help
+    if (r.placed === false || r.placed === undefined) {
+      outcome = `${r.result}${r.reachable?.length ? ` (from here: ${r.reachable.slice(0, 3).map(shortId).join(", ")})` : ""}`;
+      continue; // another standing spot may allow it
+    }
+    return r.matches === false ? `placed as ${shortId(r.serverState ?? "?")}` : "";
+  }
+  return outcome;
 }
 
 /** Build (or repair) a plan: clear what is in the way, then place the blocks bottom-up, then verify. */
@@ -826,42 +854,28 @@ export async function buildStructure(rt: AgentRuntime, ctx: JobContext, plan: Pl
     }
   }
 
-  // Solid blocks bottom-up, then what hangs on or stands on them.
+  // Solid blocks bottom-up, then what hangs on or stands on them. A block with nothing to place it
+  // against yet (or no spot to reach it from) is retried after the others, which may give it one: a
+  // roof is closed from its edges inward.
   const order = [...place].sort((a, b) => Number(isAttachable(a.want!)) - Number(isAttachable(b.want!)) || a.y - b.y || distance(a, self) - distance(b, self));
-  for (const cell of order) {
-    step("placing");
-    await guard.check();
-    await vitals(rt, opts.minHealth ?? 6);
-    const state = formatState(cell.want!);
-    ctx.progress(`placing ${shortId(state)} @ ${fmtPos(cell)} (${placed}/${order.length})`);
-    if (method === "set") {
-      const r = await rt.body.setBlock(cell, state, plan.dim);
-      if (r.success) placed++;
-      else failures.push(`${fmtPos(cell)} ${shortId(state)}: ${r.output?.join(" ") ?? "command failed"}`);
-      continue;
+  let queue = order;
+  for (let pass = 0; queue.length > 0; pass++) {
+    const later: Cell[] = [];
+    for (const cell of queue) {
+      step("placing");
+      await guard.check();
+      await vitals(rt, opts.minHealth ?? 6);
+      ctx.progress(`placing ${shortId(formatState(cell.want!))} @ ${fmtPos(cell)} (${placed}/${order.length})`);
+      const outcome = await placeCell(rt, ctx, plan, c, cell, method);
+      if (outcome === "") placed++;
+      else if (outcome === RETRY) later.push(cell);
+      else failures.push(`${fmtPos(cell)} ${shortId(formatState(cell.want!))}: ${outcome}`);
     }
-    const item = itemFor(cell.want!.id);
-    if (!item) {
-      failures.push(`${fmtPos(cell)} ${shortId(state)}: no item places it`);
-      continue;
-    }
-    let outcome = "";
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (!(await reachFor(rt, ctx, cell, c, attempt > 0))) {
-        outcome = "no place to stand within reach";
-        break;
-      }
-      await holdItem(rt, item);
-      const r = await rt.body.placeAt(cell, state);
-      if (r.placed === false || r.placed === undefined) {
-        outcome = `${r.result}${r.reachable?.length ? ` (from here: ${r.reachable.slice(0, 3).map(shortId).join(", ")})` : ""}`;
-        continue; // another standing spot may allow it
-      }
-      outcome = r.matches === false ? `placed as ${shortId(r.serverState ?? "?")}` : "";
+    if (later.length === queue.length || pass === 3) {
+      failures.push(...later.map((cell) => `${fmtPos(cell)} ${shortId(formatState(cell.want!))}: nothing to place it against, or no spot to reach it from`));
       break;
     }
-    if (outcome) failures.push(`${fmtPos(cell)} ${shortId(state)}: ${outcome}`);
-    else placed++;
+    queue = later;
   }
 
   const { text } = await verifyPlan(rt, plan, c);

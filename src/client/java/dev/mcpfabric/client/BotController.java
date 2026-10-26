@@ -2,6 +2,7 @@ package dev.mcpfabric.client;
 
 import com.google.gson.JsonObject;
 import dev.mcpfabric.McpFabric;
+import dev.mcpfabric.client.nav.AStarPathfinder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
@@ -9,7 +10,10 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
@@ -245,6 +249,7 @@ public final class BotController {
 		}
 
 		BlockPos node = path.get(pathIndex);
+		openDoorAhead(p, node);
 		double cx = node.getX() + 0.5;
 		double cz = node.getZ() + 0.5;
 		double dx = cx - p.getX();
@@ -278,6 +283,25 @@ public final class BotController {
 				stuckTicks = 0;
 				jumpOnceTicks = Math.max(jumpOnceTicks, 1);
 			}
+		}
+	}
+
+	/**
+	 * Opens a closed wooden door or gate in the next path cell (feet or head) once it is within reach;
+	 * the pathfinder routes through them. The click is predicted on the client at once, so the next
+	 * tick sees the door open and does not click again.
+	 */
+	private void openDoorAhead(LocalPlayer p, BlockPos node) {
+		for (BlockPos pos : new BlockPos[]{node, node.above()}) {
+			BlockState state = p.level().getBlockState(pos);
+			if (!AStarPathfinder.openable(state) || !state.hasProperty(BlockStateProperties.OPEN) || state.getValue(BlockStateProperties.OPEN)) continue;
+			if (p.getEyePosition().distanceTo(Vec3.atCenterOf(pos)) > 3.0) return;
+			MultiPlayerGameMode gm = Minecraft.getInstance().gameMode;
+			if (gm == null) return;
+			double dx = p.getX() - (pos.getX() + 0.5), dz = p.getZ() - (pos.getZ() + 0.5);
+			Direction face = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? Direction.EAST : Direction.WEST) : (dz > 0 ? Direction.SOUTH : Direction.NORTH);
+			gm.useItemOn(p, InteractionHand.MAIN_HAND, new BlockHitResult(Vec3.atCenterOf(pos), face, pos, false));
+			return;
 		}
 	}
 

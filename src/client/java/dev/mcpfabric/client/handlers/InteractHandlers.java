@@ -190,6 +190,7 @@ public final class InteractHandlers {
 				o.addProperty("placed", false);
 				o.addProperty("result", plan.problem().startsWith("occupied") ? "OCCUPIED" : plan.problem().toUpperCase(java.util.Locale.ROOT));
 				o.addProperty("note", switch (plan.problem()) {
+					case "no_support" -> "Nothing next to the target to place against (only air or blocks a click would use); place a neighbour first.";
 					case "out_of_reach" -> "No block next to the target is within reach; move closer first.";
 					case "cannot_place" -> "The block cannot be placed there (no support, or something is in the way).";
 					case "no_click_gives_that_state" -> "No click from here gives that state; 'reachable' lists what can be placed from here. "

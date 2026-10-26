@@ -101,7 +101,8 @@ keep pushing the bot back until navigation gives up.
 - **build_structure**: builds or repairs a saved plan (see below). It clears cells that must be
   empty and blocks that are wrong, places the solid blocks bottom-up and the hanging or standing
   ones (torches, doors, ladders, beds) last, each with `interact.placeAt`, from a spot within reach
-  that is not part of the plan. Then it runs the same check as `build_verify`. `method: "set"` writes
+  that is not part of the plan. A block with nothing to place it against yet is retried after the
+  others, so a roof closes from its edges inward. Then it runs the same check as `build_verify`. `method: "set"` writes
   the blocks on the server instead (needs `enableWorldWrite`, no items).
 
 ## Building
@@ -127,7 +128,8 @@ the build must look like, so those become checkable.
 
 ## Known limits
 
-- The walker cannot swim, climb ladders, pillar up or dig tunnels. `collect_blocks` skips buried
+- The walker cannot swim, climb ladders, pillar up or dig tunnels; it opens wooden doors and gates
+  on its way, not iron doors. `collect_blocks` skips buried
   blocks, and travel fails with a clear message when no walkable route exists. `build_structure`
   only places what it can reach from where it can stand: a tall build needs scaffolding in the
   plan, or `method: "set"`.

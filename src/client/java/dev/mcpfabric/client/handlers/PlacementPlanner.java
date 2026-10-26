@@ -12,6 +12,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.block.AnvilBlock;
@@ -118,12 +119,14 @@ final class PlacementPlanner {
 		float yaw0 = p.getYRot(), pitch0 = p.getXRot();
 		List<Click> matches = new ArrayList<>();
 		Set<String> reachable = new LinkedHashSet<>();
+		boolean anySupport = false;
 		boolean anyInReach = false;
 		try {
 			for (Direction face : Direction.values()) {
 				BlockPos against = target.relative(face.getOpposite());
 				BlockState clicked = level.getBlockState(against);
 				if (clicked.isAir() || interactive(level, against, clicked)) continue;
+				anySupport = true;
 				if (!ClientMc.canReachBlock(p, against, 1.0)) continue;
 				anyInReach = true;
 				for (Vec3 hit : spots(against, face)) {
@@ -143,6 +146,7 @@ final class PlacementPlanner {
 			p.setYRot(yaw0);
 			p.setXRot(pitch0);
 		}
+		if (!anySupport) return new Result(null, "no_support", Set.of());
 		if (!anyInReach) return new Result(null, "out_of_reach", Set.of());
 		if (matches.isEmpty()) {
 			return new Result(null, reachable.isEmpty() ? "cannot_place" : "no_click_gives_that_state", reachable);
@@ -159,10 +163,34 @@ final class PlacementPlanner {
 	private static BlockState predict(LocalPlayer p, ItemStack stack, BlockItem item, BlockHitResult hit, BlockPos target) {
 		BlockPlaceContext ctx = item.updatePlacementContext(new BlockPlaceContext(p, InteractionHand.MAIN_HAND, stack, hit));
 		if (ctx == null || !ctx.canPlace() || !ctx.getClickedPos().equals(target)) return null;
-		BlockState state = item.getBlock().getStateForPlacement(ctx);
+		BlockState state = placementState(item, ctx);
 		if (state == null || !state.canSurvive(ctx.getLevel(), target)) return null;
 		if (!ctx.getLevel().isUnobstructed(state, target, CollisionContext.of(p))) return null;
 		return state;
+	}
+
+	/**
+	 * The block an item places for this click. Most items place their own block; torches, signs,
+	 * banners and heads also have a wall variant and pick one by where the player looks, as
+	 * StandingAndWallBlockItem does (its own method for it is not public). The wall variant is the
+	 * other block the item registers itself for.
+	 */
+	private static BlockState placementState(BlockItem item, BlockPlaceContext ctx) {
+		Block standing = item.getBlock();
+		Map<Block, Item> blocks = new LinkedHashMap<>();
+		item.registerBlocks(blocks, item);
+		Block wall = null;
+		for (Block b : blocks.keySet()) if (b != standing) wall = b;
+		if (wall == null) return standing.getStateForPlacement(ctx);
+		// Hanging signs hang from the block above; torches, signs, banners and heads stand on the one below.
+		Direction attachment = Levels.blockId(standing.defaultBlockState()).contains("hanging") ? Direction.UP : Direction.DOWN;
+		BlockState wallState = wall.getStateForPlacement(ctx);
+		for (Direction d : ctx.getNearestLookingDirections()) {
+			if (d == attachment.getOpposite()) continue;
+			BlockState s = d == attachment ? standing.getStateForPlacement(ctx) : wallState;
+			if (s != null && s.canSurvive(ctx.getLevel(), ctx.getClickedPos())) return s;
+		}
+		return null;
 	}
 
 	/** Four spots on the face of {@code pos} that points along {@code face}: lower/upper and left/right quarters. */

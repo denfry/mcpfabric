@@ -127,7 +127,7 @@ export interface Recipe {
 }
 
 export interface PlaceAtResult {
-  /** SUCCESS/CONSUME..., or OUT_OF_REACH, OCCUPIED, CANNOT_PLACE, NO_CLICK_GIVES_THAT_STATE. */
+  /** SUCCESS/CONSUME..., or NO_SUPPORT, OUT_OF_REACH, OCCUPIED, CANNOT_PLACE, NO_CLICK_GIVES_THAT_STATE. */
   result: string;
   /** null on a remote server (only the prediction is known). */
   placed: boolean | null;

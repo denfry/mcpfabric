@@ -2,7 +2,9 @@ package dev.mcpfabric.client.nav;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,7 +16,8 @@ import java.util.PriorityQueue;
 /**
  * A small A* pathfinder over block positions for walking bots. Considers same-level walking,
  * a one-block step-up (jump), and dropping down up to three blocks. Walkability is derived from
- * block collision shapes, so it works on any {@link BlockGetter} (client or server level).
+ * block collision shapes, so it works on any {@link BlockGetter} (client or server level); wooden
+ * doors and gates count as passable because the bot opens them.
  */
 public final class AStarPathfinder {
 	private final BlockGetter level;
@@ -26,11 +29,17 @@ public final class AStarPathfinder {
 	}
 
 	private boolean passable(BlockPos pos) {
-		return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
+		BlockState state = level.getBlockState(pos);
+		return state.getCollisionShape(level, pos).isEmpty() || openable(state);
 	}
 
 	private boolean hasGround(BlockPos pos) {
-		return !passable(pos);
+		return !level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
+	}
+
+	/** Doors and gates a player opens by hand on the way (the bot does, see BotController); iron doors need redstone. */
+	public static boolean openable(BlockState state) {
+		return state.is(BlockTags.WOODEN_DOORS) || state.is(BlockTags.FENCE_GATES);
 	}
 
 	/** Can the bot's body occupy this position (feet here, head above, solid below)? */

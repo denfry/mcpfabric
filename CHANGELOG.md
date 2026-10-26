@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format is based on
 - `perception.blocks` returns each block's full state, collision height and whether it is
   climbable.
 
+### Changed
+- Navigation (`navigate_to` and the jobs) walks through wooden doors and fence gates, opening
+  closed ones on the way; iron doors still block it.
+
 ## [0.8.0] - 2026-10-16
 
 Fabric and NeoForge. Implements #27, thanks to @faizsaifulnizam.
