@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import type { BlockProbe } from "./body.js";
+import { compilePlan, formatPlanSummary, lint, type Plan } from "./build.js";
 
 import {
   distance,
@@ -27,7 +28,7 @@ import { formatMemory, MEMORY_KINDS, MEMORY_STATUSES, SentLedger, type Memory, t
 import { formatObserveReport } from "./observe.js";
 import { collectRecipes, formatPlan, plan } from "./planner.js";
 import type { AgentRuntime } from "./runtime.js";
-import { collect, containerItems, craft, explore, openContainerAt, recordContainer, travel } from "./skills.js";
+import { buildStructure, collect, containerItems, craft, explore, openContainerAt, recordContainer, travel, verifyPlan } from "./skills.js";
 import { chunkOf, renderMap, type MapMarker } from "./worldmap.js";
 
 /** Per-MCP-session state. */
@@ -59,6 +60,14 @@ const waitSeconds = z
   .max(50)
   .optional()
   .describe("Block up to this many seconds for the job to finish before returning (default 0: return at once).");
+
+const planKey = (name: string) => `build.plan.${name}`;
+
+async function loadPlan(rt: AgentRuntime, name: string): Promise<Plan> {
+  const plan = rt.kv.get<Plan>(await rt.world(), planKey(name));
+  if (!plan) throw new Error(`no plan named "${name}"; create it with build_plan`);
+  return plan;
+}
 
 /** A context for one-shot helpers that run outside a job. */
 function inlineContext(): JobContext {
@@ -541,6 +550,74 @@ export const AGENT_TOOLS: AgentToolDef[] = [
           return `chunk ${f.cx},${f.cz} → walk to ${fmtPos(f.target)} (${fmtDistance(distance(at, f.target))} ${dir}${f.via.biome ? `, via ${shortId(f.via.biome)}` : ""})`;
         })
         .join("\n");
+    },
+  },
+
+  // ===== building ============================================================================
+  {
+    name: "build_plan",
+    title: "Save a build plan",
+    description:
+      "Save a structure as a plan before building it, and check the plan: palette characters map to blocks with the properties that matter (\"S\": \"oak_stairs[facing=north,half=bottom]\"), layers go bottom-up, each layer is rows north → south and each row is columns west → east. ' ' = any block (not checked), '.' = must stay empty (doorways, head room, the cell a door opens into, windows). Only the properties you write are checked later, so pin facing/half/axis/hinge where they matter. spots are places to stand (plan coordinates x = column, y = layer, z = row) that must be reachable on foot from the first one — e.g. an entrance outside, the bed, the chest. rotate turns the whole plan clockwise (properties included); origin is the lowest north-west corner after turning. Answers with size, materials vs inventory and warnings (a door opening into a wall, a torch on nothing, a stair without facing). With only name, shows a saved plan.",
+    inputSchema: {
+      name: z.string().min(1).max(60).regex(/^[\w.-]+$/),
+      origin: z.object(coords).optional(),
+      rotate: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).optional(),
+      palette: z.record(z.string(), z.string().max(256)).optional(),
+      layers: z.array(z.array(z.string().max(64)).max(64)).max(64).optional(),
+      spots: z.array(z.object({ name: z.string().min(1).max(40), ...coords })).max(16).optional(),
+    },
+    annotations: ACT,
+    run: async (rt, _s, args) => {
+      const world = await rt.world();
+      let plan: Plan;
+      if (args.layers || args.palette || args.origin) {
+        if (!args.layers || !args.palette || !args.origin) throw new Error("a new plan needs origin, palette and layers");
+        const { at } = await rt.here();
+        plan = {
+          name: args.name,
+          dim: at.dim,
+          origin: args.origin,
+          ...(args.rotate !== undefined ? { rotate: args.rotate } : {}),
+          palette: args.palette,
+          layers: args.layers,
+          ...(args.spots ? { spots: args.spots } : {}),
+        };
+        const c = compilePlan(plan); // throws on an unknown character or a bad state
+        rt.kv.set(world, planKey(plan.name), plan);
+        return `saved\n${formatPlanSummary(plan.name, c, await rt.body.itemCounts(), lint(c))}`;
+      }
+      plan = await loadPlan(rt, args.name);
+      const c = compilePlan(plan);
+      return formatPlanSummary(plan.name, c, await rt.body.itemCounts(), lint(c));
+    },
+  },
+  {
+    name: "build_verify",
+    title: "Check a build against its plan",
+    description:
+      "Compare a saved plan with the world: every block (id and the properties the plan pins, e.g. facing), every cell that must stay empty, and whether each spot can be walked to from the first one — when one cannot, it names the fewest blocks in the way. Call it after building and after every fix; build_structure repairs the plan cells itself.",
+    inputSchema: { name: z.string().min(1).max(60) },
+    annotations: READ,
+    run: async (rt, _s, args) => (await verifyPlan(rt, await loadPlan(rt, args.name))).text,
+  },
+  {
+    name: "build_structure",
+    title: "Build a plan (job)",
+    description:
+      "Background job: build or repair a saved plan. It first clears cells that must be empty and blocks that are wrong (wrong block, or the right one facing the wrong way), then places the blocks bottom-up with the exact properties of the plan (choosing where to stand and how to click), the hanging and standing ones (torches, doors, ladders, beds) last, then runs build_verify. method 'place' builds like a player from the inventory (fails up front when materials are missing); 'set' writes blocks on the server (needs enableWorldWrite) without items.",
+    inputSchema: {
+      name: z.string().min(1).max(60),
+      method: z.enum(["place", "set"]).optional().default("place"),
+      maxSeconds: z.number().int().min(10).max(1800).optional().default(900),
+      waitSeconds,
+    },
+    annotations: WRITE,
+    run: async (rt, session, args) => {
+      const plan = await loadPlan(rt, args.name);
+      return startJob(rt, session, "build", `${plan.name} (${args.method})`, args.waitSeconds, (ctx) =>
+        buildStructure(rt, ctx, plan, { method: args.method, maxSeconds: args.maxSeconds }),
+      );
     },
   },
 

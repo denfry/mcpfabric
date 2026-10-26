@@ -72,6 +72,7 @@ const BRIDGE_TOOLS = {
   // interact
   break_block: { method: "interact.breakBlock", args: { ...pos, mode: "instant" }, invalid: { ...pos, mode: "fast" } },
   place_block: { method: "interact.placeBlock", args: { ...pos, face: "north" }, invalid: { ...pos, face: "sideways" } },
+  place_block_at: { method: "interact.placeAt", args: { ...pos, state: "minecraft:oak_stairs[facing=north,half=top]" }, invalid: { ...pos } },
   use_item: { method: "interact.useItem", args: {} },
   attack_entity: { method: "interact.attackEntity", args: { uuid }, invalid: {} },
   use_entity: { method: "interact.useEntity", args: { uuid }, invalid: {} },

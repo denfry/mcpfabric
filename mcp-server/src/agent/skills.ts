@@ -6,6 +6,25 @@
 import { BridgeError } from "../bridge.js";
 import type { BlockProbe, ContainerState, NearbyEntity, Recipe, SelfState } from "./body.js";
 import {
+  canStand,
+  compare,
+  compilePlan,
+  formatState,
+  formatVerify,
+  isAttachable,
+  isPartner,
+  itemFor,
+  keyOf,
+  materials,
+  reachability,
+  verifyRegion,
+  type Cell,
+  type Compiled,
+  type Plan,
+  type Probe,
+  type VerifyReport,
+} from "./build.js";
+import {
   distance,
   fmtDistance,
   fmtItems,
@@ -91,7 +110,7 @@ export class Guard {
 }
 
 /** Wait for the active navigation to end. Returns its final state, or `stuck` / `timeout`. */
-async function waitNavigation(rt: AgentRuntime, ctx: JobContext, timeoutMs: number): Promise<string> {
+export async function waitNavigation(rt: AgentRuntime, ctx: JobContext, timeoutMs: number): Promise<string> {
   const deadline = Date.now() + timeoutMs;
   const guard = new Guard(rt, ctx);
   let best = Infinity;
@@ -499,7 +518,7 @@ async function tableAvailable(rt: AgentRuntime): Promise<boolean> {
 }
 
 /** Put `item` into the selected hotbar slot, moving it from the main inventory if needed. */
-async function holdItem(rt: AgentRuntime, item: string): Promise<void> {
+export async function holdItem(rt: AgentRuntime, item: string): Promise<void> {
   const inv = await rt.body.inventory();
   const inHotbar = inv.hotbar.find((s) => s.id === item);
   if (inHotbar) {
@@ -658,4 +677,195 @@ export async function craft(rt: AgentRuntime, ctx: JobContext, opts: CraftOption
   }
   const now = (await rt.body.itemCounts())[item] ?? 0;
   return `crafted ${shortId(item)} in ${steps.length} step${steps.length === 1 ? "" : "s"}; you now have ${now}`;
+}
+
+// ----- build ------------------------------------------------------------------------------------
+
+/** Most positions one verify probes for walking (cells beyond it are checked, walking is not). */
+const VERIFY_VOLUME = 40_000;
+const PROBE_BATCH = 512;
+
+async function probeAll(rt: AgentRuntime, positions: Pos[]): Promise<Map<string, Probe>> {
+  const out = new Map<string, Probe>();
+  for (let i = 0; i < positions.length; i += PROBE_BATCH) {
+    for (const b of await rt.body.blocks(positions.slice(i, i + PROBE_BATCH))) out.set(posKey(b), b);
+  }
+  return out;
+}
+
+function box(from: Pos, to: Pos): Pos[] {
+  const out: Pos[] = [];
+  for (let y = from.y; y <= to.y; y++) for (let x = from.x; x <= to.x; x++) for (let z = from.z; z <= to.z; z++) out.push({ x, y, z });
+  return out;
+}
+
+/** Compare the plan with the world: every cell, and whether the spots can be walked to. */
+export async function verifyPlan(rt: AgentRuntime, plan: Plan, compiled?: Compiled): Promise<{ report: VerifyReport; text: string }> {
+  const c = compiled ?? compilePlan(plan);
+  const self = await rt.body.self();
+  if (self.dimension !== plan.dim) throw new JobFailure(`the plan is in ${plan.dim}, you are in ${self.dimension}`);
+  const region = verifyRegion(c);
+  const walkable = c.spots.length >= 2 && region.volume <= VERIFY_VOLUME;
+  const probes = await probeAll(rt, walkable ? box(region.from, region.to) : c.cells);
+  const probe = (p: Pos) => probes.get(posKey(p));
+  const { ok, mismatches } = compare(c, probe);
+  const report: VerifyReport = {
+    checked: c.cells.length,
+    ok,
+    mismatches,
+    reach: walkable ? reachability(c, probe) : [],
+    ...(c.spots.length >= 2 && !walkable ? { reachNote: `walking not checked: the area is ${region.volume} positions (limit ${VERIFY_VOLUME})` } : {}),
+  };
+  return { report, text: formatVerify(plan.name, c, report) };
+}
+
+export interface BuildOptions {
+  /** place: like a player, from the inventory; set: server-side writes (creative / enableWorldWrite). */
+  method?: "place" | "set";
+  maxSeconds?: number;
+  minHealth?: number;
+}
+
+/** Stand where `target` is within reach, and not inside it. */
+async function reachFor(rt: AgentRuntime, ctx: JobContext, target: Pos, plan: Compiled, force = false): Promise<boolean> {
+  const centre = centerOf(target);
+  const self = await rt.body.self();
+  const inside = Math.floor(self.x) === target.x && Math.floor(self.z) === target.z && (Math.floor(self.y) === target.y || Math.floor(self.y) + 1 === target.y);
+  if (!force && !inside && distance(eyeOf(self), centre) <= REACH - 0.5) return true;
+  // A free spot to stand near the target that is not going to be a block of the plan.
+  const around = await probeAll(rt, box({ x: target.x - 4, y: target.y - 3, z: target.z - 4 }, { x: target.x + 4, y: target.y + 2, z: target.z + 4 }));
+  const probe = (p: Pos) => around.get(posKey(p));
+  const spots: Pos[] = [];
+  for (const p of around.values()) {
+    if (!canStand(probe, p)) continue;
+    if (plan.byKey.get(keyOf(p))?.want || plan.byKey.get(keyOf({ x: p.x, y: p.y + 1, z: p.z }))?.want) continue;
+    if (p.x === target.x && p.z === target.z && (p.y === target.y || p.y + 1 === target.y)) continue;
+    const d = distance(eyeOf({ x: p.x + 0.5, y: p.y, z: p.z + 0.5 }), centre);
+    if (d <= REACH - 0.6 && d >= 1.2) spots.push(p);
+  }
+  spots.sort((a, b) => distance(a, self) - distance(b, self));
+  for (const spot of spots.slice(0, 4)) {
+    try {
+      await rt.body.pathTo(spot, { reachRadius: 0.6, timeoutSeconds: 25 });
+    } catch (err) {
+      if (isNotFound(err)) continue;
+      throw err;
+    }
+    if ((await waitNavigation(rt, ctx, 30_000)) === "reached") return true;
+  }
+  ctx.log(`no place to stand within reach of ${fmtPos(target)}`);
+  return false;
+}
+
+/** Mine one block like a player (best hotbar tool), waiting until it is gone. */
+async function mineAt(rt: AgentRuntime, ctx: JobContext, pos: Pos, plan: Compiled): Promise<boolean> {
+  const [probe] = await rt.body.blocks([pos], { tool: true });
+  if (!probe || !probe.loaded || probe.air) return true;
+  if (!(await reachFor(rt, ctx, pos, plan))) return false;
+  const self = await rt.body.self();
+  if (probe.bestSlot !== undefined && probe.bestSlot !== self.selectedSlot) await rt.body.selectHotbar(probe.bestSlot);
+  await rt.body.lookAt(centerOf(pos));
+  await rt.body.breakBlock(pos);
+  const limitMs = Math.min(30_000, 3000 + (probe.hardness ?? 1) * 6000);
+  const gone = await waitFor(ctx, async () => {
+    const [b] = await rt.body.blocks([pos]);
+    return !!b && (b.air === true || b.id !== probe.id);
+  }, limitMs);
+  if (!gone) await rt.body.stopBreaking().catch(() => undefined);
+  return gone;
+}
+
+/** Build (or repair) a plan: clear what is in the way, then place the blocks bottom-up, then verify. */
+export async function buildStructure(rt: AgentRuntime, ctx: JobContext, plan: Plan, opts: BuildOptions = {}): Promise<string> {
+  const method = opts.method ?? "place";
+  const deadline = Date.now() + (opts.maxSeconds ?? 900) * 1000;
+  const c = compilePlan(plan);
+  const self = await vitals(rt, opts.minHealth ?? 6);
+  if (self.dimension !== plan.dim) throw new JobFailure(`the plan is in ${plan.dim}, you are in ${self.dimension}`);
+
+  const probes = await probeAll(rt, c.cells);
+  const { mismatches } = compare(c, (p) => probes.get(posKey(p)));
+  const unloaded = mismatches.filter((m) => m.kind === "unloaded");
+  if (unloaded.length) throw new JobFailure(`${unloaded.length} plan cells are not loaded (e.g. ${fmtPos(unloaded[0]!.cell)}); walk closer first`);
+  const clear = mismatches.filter((m) => m.kind !== "missing").map((m) => m.cell);
+  // A player's click places both halves of a door or bed; a server write places only the one named.
+  const place = mismatches.filter((m) => m.kind !== "obstructed" && (method === "set" || !isPartner(m.cell.want!))).map((m) => m.cell);
+
+  if (method === "place") {
+    const need = materials({ ...c, cells: place });
+    const have = await rt.body.itemCounts();
+    const short = Object.fromEntries(Object.entries(need).filter(([id, n]) => (have[id] ?? 0) < n).map(([id, n]) => [id, n - (have[id] ?? 0)]));
+    if (Object.keys(short).length) {
+      throw new JobFailure(`missing materials: ${fmtItems(short, 40)}${self.gameMode === "creative" ? " (in creative, method set writes blocks without items)" : ""}`);
+    }
+  }
+
+  const failures: string[] = [];
+  let broke = 0;
+  let placed = 0;
+  const step = (what: string) => {
+    ctx.checkpoint();
+    if (Date.now() > deadline) throw new JobFailure(`time limit reached (${what}); placed ${placed}, cleared ${broke}`);
+  };
+  const guard = new Guard(rt, ctx);
+
+  // Clear from the top down: obstructions, wrong blocks and blocks that face the wrong way.
+  const byHeight = (a: Cell, b: Cell) => b.y - a.y || distance(a, self) - distance(b, self);
+  for (const cell of [...clear].sort(byHeight)) {
+    step("clearing");
+    await guard.check();
+    ctx.progress(`clearing ${fmtPos(cell)} (${broke}/${clear.length})`);
+    if (method === "set") {
+      const r = await rt.body.setBlock(cell, "minecraft:air", plan.dim);
+      if (r.success || r.state === "minecraft:air") broke++;
+      else failures.push(`${fmtPos(cell)}: could not clear (${r.output?.join(" ") ?? "command failed"})`);
+    } else if (await mineAt(rt, ctx, cell, c)) {
+      broke++;
+    } else {
+      failures.push(`${fmtPos(cell)}: could not break it`);
+    }
+  }
+
+  // Solid blocks bottom-up, then what hangs on or stands on them.
+  const order = [...place].sort((a, b) => Number(isAttachable(a.want!)) - Number(isAttachable(b.want!)) || a.y - b.y || distance(a, self) - distance(b, self));
+  for (const cell of order) {
+    step("placing");
+    await guard.check();
+    await vitals(rt, opts.minHealth ?? 6);
+    const state = formatState(cell.want!);
+    ctx.progress(`placing ${shortId(state)} @ ${fmtPos(cell)} (${placed}/${order.length})`);
+    if (method === "set") {
+      const r = await rt.body.setBlock(cell, state, plan.dim);
+      if (r.success) placed++;
+      else failures.push(`${fmtPos(cell)} ${shortId(state)}: ${r.output?.join(" ") ?? "command failed"}`);
+      continue;
+    }
+    const item = itemFor(cell.want!.id);
+    if (!item) {
+      failures.push(`${fmtPos(cell)} ${shortId(state)}: no item places it`);
+      continue;
+    }
+    let outcome = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (!(await reachFor(rt, ctx, cell, c, attempt > 0))) {
+        outcome = "no place to stand within reach";
+        break;
+      }
+      await holdItem(rt, item);
+      const r = await rt.body.placeAt(cell, state);
+      if (r.placed === false || r.placed === undefined) {
+        outcome = `${r.result}${r.reachable?.length ? ` (from here: ${r.reachable.slice(0, 3).map(shortId).join(", ")})` : ""}`;
+        continue; // another standing spot may allow it
+      }
+      outcome = r.matches === false ? `placed as ${shortId(r.serverState ?? "?")}` : "";
+      break;
+    }
+    if (outcome) failures.push(`${fmtPos(cell)} ${shortId(state)}: ${outcome}`);
+    else placed++;
+  }
+
+  const { text } = await verifyPlan(rt, plan, c);
+  const head = `${method === "set" ? "wrote" : "placed"} ${placed}/${order.length} · cleared ${broke}/${clear.length}`;
+  const failed = failures.length ? [`failed (${failures.length}): ${failures.slice(0, 12).join(" · ")}${failures.length > 12 ? ` +${failures.length - 12} more` : ""}`] : [];
+  return [head, ...failed, text].join("\n");
 }

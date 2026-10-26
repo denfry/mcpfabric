@@ -34,6 +34,7 @@ import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -371,8 +372,14 @@ public final class PerceptionHandlers {
 		if (!loaded) return o;
 		BlockState state = level.getBlockState(pos);
 		o.addProperty("id", blockId(state));
+		o.addProperty("state", Levels.blockState(state));
 		o.addProperty("air", state.isAir());
 		if (state.isAir()) return o;
+		// What a walker meets here: the top of the collision box (0 when it can be walked through,
+		// above 1 for fences and walls) and whether it can be climbed.
+		VoxelShape collision = state.getCollisionShape(level, pos);
+		o.addProperty("height", collision.isEmpty() ? 0 : collision.max(Direction.Axis.Y));
+		o.addProperty("climbable", state.is(BlockTags.CLIMBABLE));
 		boolean requiresTool = state.requiresCorrectToolForDrops();
 		o.addProperty("requiresTool", requiresTool);
 		o.addProperty("hardness", state.getDestroySpeed(level, pos));

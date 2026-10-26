@@ -1,5 +1,6 @@
 package dev.mcpfabric.client.handlers;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.Json;
@@ -173,6 +174,73 @@ public final class InteractHandlers {
 			return o;
 		});
 
+		router.register("interact.placeAt", ctx -> {
+			BlockPos target = BlockPos.containing(ctx.getDouble("x"), ctx.getDouble("y"), ctx.getDouble("z"));
+			PlacementPlanner.Wanted wanted = PlacementPlanner.Wanted.parse(ctx.getString("state"));
+			PlacementPlanner.Result plan = ClientMc.call(() -> {
+				requireControl();
+				LocalPlayer p = ClientMc.player();
+				PlacementPlanner.Result r = PlacementPlanner.plan(p, target, wanted);
+				if (r.click() != null) turn(p, r.click().yaw(), r.click().pitch());
+				return r;
+			});
+			JsonObject o = new JsonObject();
+			o.addProperty("wanted", ctx.getString("state"));
+			if (plan.click() == null) {
+				o.addProperty("placed", false);
+				o.addProperty("result", plan.problem().startsWith("occupied") ? "OCCUPIED" : plan.problem().toUpperCase(java.util.Locale.ROOT));
+				o.addProperty("note", switch (plan.problem()) {
+					case "out_of_reach" -> "No block next to the target is within reach; move closer first.";
+					case "cannot_place" -> "The block cannot be placed there (no support, or something is in the way).";
+					case "no_click_gives_that_state" -> "No click from here gives that state; 'reachable' lists what can be placed from here. "
+							+ "Another side (walk around, or place a support block first) may allow it.";
+					default -> "The target is " + plan.problem() + "; break it first.";
+				});
+				if (!plan.reachable().isEmpty()) {
+					JsonArray reachable = new JsonArray();
+					plan.reachable().stream().limit(12).forEach(reachable::add);
+					o.add("reachable", reachable);
+				}
+				return o;
+			}
+			PlacementPlanner.Click click = plan.click();
+			Aim aim = ClientMc.call(() -> aim(ClientMc.player(), click.against(), false));
+			ServerLevel level = ServerSide.level(aim.dimension());
+			// The use packet carries no rotation: the server takes the one the client last sent, which
+			// it does once per tick. Wait for it, so the server places the block the way it was planned.
+			awaitRotation(level, aim.player(), click.yaw(), click.pitch());
+			BlockState before = level == null ? null : ServerSide.call(level, () -> level.getBlockState(target));
+			String result = ClientMc.call(() -> {
+				requireControl();
+				LocalPlayer p = ClientMc.player();
+				InteractionResult r = ClientMc.gameMode().useItemOn(p, InteractionHand.MAIN_HAND, click.hitResult());
+				swingUse(p);
+				return String.valueOf(r);
+			});
+			o.addProperty("result", result);
+			o.addProperty("predicted", Levels.blockState(click.predicted()));
+			JsonObject via = new JsonObject();
+			via.addProperty("x", click.against().getX());
+			via.addProperty("y", click.against().getY());
+			via.addProperty("z", click.against().getZ());
+			via.addProperty("face", click.face().getName());
+			via.addProperty("yaw", click.yaw());
+			via.addProperty("pitch", click.pitch());
+			o.add("clicked", via);
+			if (level == null) {
+				o.add("placed", null);
+				o.add("matches", null);
+				o.addProperty("note", "Connected to a remote server: 'predicted' is the client's prediction; read the block back to confirm.");
+				return o;
+			}
+			BlockState was = before;
+			BlockState after = ServerSide.await(level, target, state -> state != was, SERVER_WAIT_MS);
+			o.addProperty("placed", after != before);
+			o.addProperty("matches", wanted.matches(after));
+			o.addProperty("serverState", Levels.blockState(after));
+			return o;
+		});
+
 		router.register("interact.useItem", ctx -> ClientMc.call(() -> {
 			requireControl();
 			MultiPlayerGameMode gm = ClientMc.gameMode();
@@ -333,6 +401,35 @@ public final class InteractHandlers {
 		p.swing(InteractionHand.MAIN_HAND);
 		//?} else
 		/*p.swing(InteractionHand.MAIN_HAND, p.getMainHandItem().getInteractAnimation(), false);*/
+	}
+
+	/** Turn the player like the look controls do. */
+	private static void turn(LocalPlayer p, float yaw, float pitch) {
+		p.setYRot(yaw);
+		p.setXRot(pitch);
+		p.setYHeadRot(yaw);
+		p.setYBodyRot(yaw);
+	}
+
+	/**
+	 * Waits until the server has the player's new rotation: on an integrated server by reading it, on
+	 * a remote one for two ticks (the client sends it with the next tick's movement).
+	 */
+	private static void awaitRotation(ServerLevel level, UUID player, float yaw, float pitch) throws RpcException {
+		long deadline = System.nanoTime() + SERVER_WAIT_MS * 1_000_000L;
+		while (level == null || !ServerSide.call(level, () -> {
+			ServerPlayer sp = level.getServer().getPlayerList().getPlayer(player);
+			return sp == null || (Math.abs(((sp.getYRot() - yaw) % 360 + 540) % 360 - 180) < 0.5 && Math.abs(sp.getXRot() - pitch) < 0.5);
+		})) {
+			if (System.nanoTime() >= deadline) return;
+			try {
+				Thread.sleep(level == null ? 100 : 25);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new RpcException("interrupted", "Interrupted while waiting for the server.");
+			}
+			if (level == null) return;
+		}
 	}
 
 	private static void requireControl() throws RpcException {

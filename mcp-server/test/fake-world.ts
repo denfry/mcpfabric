@@ -141,8 +141,13 @@ export class FakeWorld implements Bridge {
       }
       case "perception.blocks": {
         const blocks = (a.positions as P[]).map((pos) => {
-          const id = this.blockAt(pos);
-          const out: Record<string, unknown> = { ...pos, loaded: true, air: !id, id: id ?? "minecraft:air" };
+          const state = this.blockAt(pos);
+          const id = state?.replace(/\[.*$/, "");
+          const out: Record<string, unknown> = { ...pos, loaded: true, air: !id, id: id ?? "minecraft:air", state: state ?? "minecraft:air" };
+          if (id) {
+            out.height = /torch|flower|short_grass|_sign|rail|_button|_pressure_plate/.test(id) ? 0 : /_carpet$/.test(id) ? 0.0625 : /_fence$|_wall$/.test(id) ? 1.5 : 1;
+            out.climbable = /ladder|vine|scaffolding/.test(id);
+          }
           if (a.tool && id) {
             const needs = HARD_NEEDS_PICK.test(id);
             const pickSlot = [...this.slots].find(([slot, s]) => slot < 9 && s.id.endsWith("_pickaxe"))?.[0];
@@ -228,6 +233,26 @@ export class FakeWorld implements Bridge {
         this.blocks.set(key(target), held.id);
         this.removeItem(held.id, 1);
         return { result: "SUCCESS" };
+      }
+      case "interact.placeAt": {
+        const held = this.slots.get(p.selected);
+        if (!held) throw new BridgeError({ code: "bad_request", message: "The main hand holds no block" });
+        if (Math.hypot(a.x + 0.5 - p.x, a.y + 0.5 - (p.y + 1.62), a.z + 0.5 - p.z) > 5.5) return { result: "OUT_OF_REACH", placed: false };
+        if (this.blockAt(a as P)) return { result: "OCCUPIED", placed: false };
+        const wanted = String(a.state).includes(":") ? String(a.state) : `minecraft:${a.state}`;
+        const base = wanted.replace(/\[.*$/, "");
+        if (base.replace(/wall_torch$/, "torch") !== held.id) return { result: "NO_CLICK_GIVES_THAT_STATE", placed: false, reachable: [held.id] };
+        this.blocks.set(key(a as P), wanted);
+        if (/_door$/.test(base)) this.blocks.set(key({ x: a.x, y: a.y + 1, z: a.z }), wanted.replace("half=lower", "half=upper"));
+        this.removeItem(held.id, 1);
+        this.calls.push(`placeAt:${key(a as P)}`);
+        return { result: "SUCCESS", placed: true, matches: true, serverState: wanted };
+      }
+      case "world.setBlock": {
+        const id = String(a.blockId);
+        if (id === "minecraft:air") this.blocks.delete(key(a as P));
+        else this.blocks.set(key(a as P), id);
+        return { command: "setblock", success: true, resultValue: 1, output: [], state: id };
       }
       case "container.open": {
         const id = this.blockAt(a as P);

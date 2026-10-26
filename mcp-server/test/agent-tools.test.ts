@@ -21,6 +21,18 @@ function setup(world = new FakeWorld()) {
 
 type Harness = ReturnType<typeof setup>;
 
+/**
+ * A 3×3 hut at 5 64 5 with a door in the south wall facing south, an empty cell inside and a flat
+ * roof; the entrance spot is just outside the door.
+ */
+const HUT = {
+  name: "hut",
+  origin: { x: 5, y: 64, z: 5 },
+  palette: { "#": "oak_planks", D: "oak_door[facing=south,half=lower]", d: "oak_door[facing=south,half=upper]" },
+  layers: [["###", "#.#", "#D#"], ["###", "#.#", "#d#"], ["###", "###", "###"]],
+  spots: [{ name: "entrance", x: 1, y: 0, z: 3 }, { name: "inside", x: 1, y: 0, z: 1 }],
+};
+
 /** A chest at 2 64 1 holding five raw iron, within reach of the player. */
 function withChest(world: FakeWorld): FakeWorld {
   world.set({ x: 2, y: 64, z: 1 }, "minecraft:chest");
@@ -175,6 +187,39 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     const job = rt.jobs.start("wait", "sleep", (ctx) => ctx.sleep(10_000).then(() => "slept"), session.id);
     assert.equal(await tool("job_cancel"), `cancelled job #${job.id} (wait)`);
     assert.equal(rt.jobs.get(job.id)!.state, "cancelled");
+  },
+  // building
+  build_plan: async ({ world, tool }) => {
+    world.give("minecraft:oak_planks", 10);
+    const out = await tool("build_plan", HUT);
+    assert.match(out, /^saved\n# plan hut · 3×3×3 \(x×y×z\) · 5 64 5 → 7 66 7 · 25 blocks · 2 must-be-empty/);
+    assert.match(out, /materials: oak_planks×23 oak_door×1/);
+    assert.match(out, /missing from inventory: oak_planks×13 oak_door×1/);
+    assert.match(out, /spots: entrance @ 6 64 8 · inside @ 6 64 6/);
+    assert.match(out, /no warnings/);
+    assert.match(await tool("build_plan", { name: "hut" }), /^# plan hut/, "a saved plan is shown by name");
+    const bad = await tool("build_plan", { ...HUT, name: "bad", layers: [["#D#"], ["###"]] });
+    assert.match(bad, /oak_door @ 6 64 5: the cell above is not the upper half of the door/);
+  },
+  build_verify: async ({ world, tool }) => {
+    await tool("build_plan", HUT);
+    await tool("build_structure", { name: "hut", method: "set", waitSeconds: 30 });
+    assert.match(await tool("build_verify", { name: "hut" }), /ok 27\/27[\s\S]*reach from entrance: inside ✓[\s\S]*the build matches the plan/);
+    world.set({ x: 6, y: 64, z: 7 }, "minecraft:oak_door[facing=east,half=lower]").set({ x: 6, y: 64, z: 6 }, "minecraft:dirt");
+    const out = await tool("build_verify", { name: "hut" });
+    assert.match(out, /wrong state: 6 64 7 oak_door facing=east \(want south\)/);
+    assert.match(out, /obstructed \(must be empty\): 6 64 6 dirt/);
+    assert.match(out, /reach from entrance: inside ✗ blocked by 6 64 6 dirt/);
+  },
+  build_structure: async ({ world, tool }) => {
+    await tool("build_plan", HUT);
+    assert.match(await tool("build_structure", { name: "hut", waitSeconds: 30 }), /\[failed\][\s\S]*missing materials: oak_planks×23 oak_door×1/);
+    world.give("minecraft:oak_planks", 23).give("minecraft:oak_door", 1);
+    world.set({ x: 6, y: 64, z: 6 }, "minecraft:dirt");
+    const out = await tool("build_structure", { name: "hut", waitSeconds: 30 });
+    assert.match(out, /\[done\][\s\S]*placed 24\/24 · cleared 1\/1[\s\S]*the build matches the plan/);
+    assert.equal(world.count("minecraft:oak_planks"), 0);
+    assert.equal(world.calls.filter((c) => c.startsWith("placeAt:")).at(-1), "placeAt:6,64,7", "the door goes in last");
   },
   // containers
   open_container: async ({ world, rt, tool }) => {

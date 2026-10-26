@@ -65,7 +65,12 @@ export interface ScanResult {
 export interface BlockProbe extends Pos {
   loaded: boolean;
   id?: string;
+  /** The id with all its properties, e.g. `minecraft:oak_stairs[facing=east,half=bottom,...]`. */
+  state?: string;
   air?: boolean;
+  /** Top of the collision box: 0 when it can be walked through, above 1 for fences and walls. */
+  height?: number;
+  climbable?: boolean;
   requiresTool?: boolean;
   hardness?: number;
   /** Best hotbar slot (0-8) to mine this block with, when requested. */
@@ -119,6 +124,18 @@ export interface Recipe {
   width?: number;
   height?: number;
   station?: string;
+}
+
+export interface PlaceAtResult {
+  /** SUCCESS/CONSUME..., or OUT_OF_REACH, OCCUPIED, CANNOT_PLACE, NO_CLICK_GIVES_THAT_STATE. */
+  result: string;
+  /** null on a remote server (only the prediction is known). */
+  placed: boolean | null;
+  matches?: boolean | null;
+  predicted?: string;
+  serverState?: string;
+  reachable?: string[];
+  note?: string;
 }
 
 export class Body {
@@ -190,6 +207,16 @@ export class Body {
 
   placeBlock(against: Pos, face: "up" | "down" | "north" | "south" | "east" | "west"): Promise<unknown> {
     return this.bridge.call("interact.placeBlock", { x: against.x, y: against.y, z: against.z, face });
+  }
+
+  /** Place the held block into `target` so that it gets the properties in `state`; the bridge picks the click. */
+  placeAt(target: Pos, state: string): Promise<PlaceAtResult> {
+    return this.bridge.call("interact.placeAt", { x: target.x, y: target.y, z: target.z, state });
+  }
+
+  /** Server-side block write (needs enableWorldWrite); answers with the block read back. */
+  setBlock(p: Pos, blockId: string, dimension?: string): Promise<{ success: boolean; state?: string; output?: string[] }> {
+    return this.bridge.call("world.setBlock", { x: p.x, y: p.y, z: p.z, blockId, ...(dimension ? { dimension } : {}) });
   }
 
   selectHotbar(slot: number): Promise<unknown> {
