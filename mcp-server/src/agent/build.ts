@@ -262,6 +262,16 @@ export function lint(c: Compiled): string[] {
       const below = at(add(cell, STEP.down!));
       if (below && !below.want) out.push(`${name}: stands on an empty cell`);
     }
+    // A stair climbs toward its facing. On a slope the next stair (or the ridge) is one up on that
+    // side; when it is on the other side instead, the slope is upside down.
+    if (/_stairs$/.test(w.id) && w.props.half !== "top" && w.props.facing && STEP[w.props.facing] && w.props.facing !== "up" && w.props.facing !== "down") {
+      const up = add(cell, STEP.up!);
+      const ahead = at(add(up, STEP[w.props.facing]!));
+      const behind = at(add(up, STEP[OPPOSITE[w.props.facing]!]!));
+      if (behind?.want && !ahead?.want) {
+        out.push(`${name}: the slope rises to the ${OPPOSITE[w.props.facing]} but the stair faces ${w.props.facing} — stairs climb toward their facing, so this slope is upside down (use facing=${OPPOSITE[w.props.facing]})`);
+      }
+    }
     if (/_bed$/.test(w.id) && w.props.part !== "head" && w.props.facing && STEP[w.props.facing]) {
       const head = at(add(cell, STEP[w.props.facing]!));
       if (head && (!head.want || head.want.id !== w.id)) out.push(`${name}: the cell ${w.props.facing} of it must be the bed's head`);

@@ -55,6 +55,18 @@ test("lint finds a blocked doorway, a torch on nothing and a stair without facin
   assert.deepEqual(hanging, ["wall_torch @ 1 0 0: hangs on an empty cell (west of it)"]);
 });
 
+test("lint finds a roof slope built upside down", () => {
+  // A south slope rising north to a ridge: stairs must face north (toward the ridge).
+  const roof = (facing: string) => compilePlan({
+    name: "p",
+    origin: { x: 0, y: 0, z: 0 },
+    palette: { S: `oak_stairs[facing=${facing},half=bottom]`, "#": "oak_planks" },
+    layers: [["  ", " S"], [" #", "  "]],
+  });
+  assert.deepEqual(lint(roof("north")), []);
+  assert.deepEqual(lint(roof("south")), ["oak_stairs @ 1 0 1: the slope rises to the north but the stair faces south — stairs climb toward their facing, so this slope is upside down (use facing=north)"]);
+});
+
 test("materials count items, not cells: one door for two halves, torch items for wall torches", () => {
   const c = compilePlan({
     name: "p",
