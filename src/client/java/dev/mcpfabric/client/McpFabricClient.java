@@ -54,6 +54,7 @@ public final class McpFabricClient {
 	/** End of every client tick: drives the {@link BotController}, remembers the world joined last, runs supervised input. */
 	public static void onClientTick(Minecraft client) {
 		BotController.get().onClientTick(client);
+		AiControl.onClientTick(client);
 		SessionScreenHandlers.onClientTick(client);
 		SupervisedClientHandlers.onClientTick(client);
 	}
