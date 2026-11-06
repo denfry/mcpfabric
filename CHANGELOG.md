@@ -40,6 +40,15 @@ All notable changes to this project are documented here. The format is based on
 - `show_message` (`chat.showLocal`, client): a message from the AI, prefixed `[AI]`, that only the
   local player sees, in chat or on the action bar. Nothing is sent to the server. It stays available
   while the AI is paused.
+- Code mode in the MCP server: `run_script` runs a short JavaScript program that drives the game
+  through the bridge (`await mc.call(...)`, or one helper per bridge tool such as `mc.get_self()`),
+  instead of one tool call per step. Programs run in QuickJS compiled to WebAssembly
+  (`quickjs-emscripten`), see nothing of Node, and reach only the catalogue's bridge methods, with
+  the tools' parameter checks; `supervised.*` methods are refused and the mod's `enable*` locks
+  apply. Limits: time (default 60 s, max 300 s), 64 MiB memory, 2000 calls, log and result size.
+  A program never runs together with an agent job. Programs that worked are kept per world as
+  skills: `save_skill`, `list_skills`, `run_skill`, `delete_skill`; `agent_brief` names them.
+  `MCPFABRIC_SCRIPTS=0` removes the tools. See docs/AGENT.md, "Scripts and skills".
 
 ### Changed
 - MCP server: results of tools that can return text written by other players or the world

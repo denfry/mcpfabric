@@ -24,6 +24,7 @@ import { SupervisedSession } from "./supervised.js";
 import { markUntrusted, UNTRUSTED_INSTRUCTIONS } from "./untrusted.js";
 import { AgentRuntime, defaultDbPath } from "./agent/runtime.js";
 import { AGENT_TOOLS, AgentSession } from "./agent/tools.js";
+import { SCRIPT_TOOLS, ScriptHost } from "./script/tools.js";
 import { registerDashboard } from "./dashboard/register.js";
 
 // dist/index.js -> ../package.json, so the reported version always matches the published package.
@@ -137,6 +138,31 @@ function registerAgentTools(server: McpServer, runtime: AgentRuntime): () => voi
   };
 }
 
+/** Registers the script tools; returns what to do when the MCP session closes. */
+function registerScriptTools(server: McpServer, host: ScriptHost): () => void {
+  const owner = randomUUID();
+  for (const def of SCRIPT_TOOLS) {
+    if (def.needsRuntime && !host.runtime) continue;
+    const config = {
+      title: def.title,
+      description: def.description,
+      inputSchema: def.inputSchema,
+      annotations: def.annotations,
+    };
+    const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
+      try {
+        const { text, isError } = await def.run(host, owner, args ?? {});
+        return { content: [{ type: "text", text }], ...(isError ? { isError: true } : {}) };
+      } catch (err) {
+        return errorResult(err);
+      }
+    };
+    server.registerTool(def.name, config, handler);
+  }
+  // A script must not keep driving the player after the session that started it is gone.
+  return () => host.cancelOwnedBy(owner);
+}
+
 const BASE_INSTRUCTIONS =
   "Control and observe a running Minecraft: Java Edition game (1.21.1 or newer, Fabric or NeoForge) through the mcpfabric mod. " +
   "Call get_status first to learn which side you are on and which capability groups are available. " +
@@ -152,31 +178,37 @@ const AGENT_INSTRUCTIONS =
   "(travel_to, explore, collect_blocks, craft_item) run as background jobs — follow them with job_status " +
   "and do not drive movement manually while one runs.";
 
-function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, groups: Set<string>): McpServer {
+const SCRIPT_INSTRUCTIONS =
+  " Code mode: for a sequence of many bridge calls (scan then act, loops, retries), write one run_script " +
+  "program instead of calling tools one by one; keep programs that worked with save_skill and reuse them with run_skill.";
+
+function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, groups: Set<string>): McpServer {
   const server = new McpServer(
     { name: "mcpfabric", version: PKG_VERSION },
-    { instructions: BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") },
+    { instructions: BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") + (scripts ? SCRIPT_INSTRUCTIONS : "") },
   );
   const supervised = new SupervisedSession(bridge);
   registerTools(server, bridge, supervised, groups);
   const closeAgent = runtime ? registerAgentTools(server, runtime) : undefined;
+  const closeScripts = scripts ? registerScriptTools(server, scripts) : undefined;
   if (runtime) registerDashboard(server, runtime, bridge);
   // Grants of this MCP session must not outlive it.
   server.server.onclose = () => {
     closeAgent?.();
+    closeScripts?.();
     void supervised.end();
   };
   return server;
 }
 
-async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined, groups: Set<string>): Promise<void> {
-  const server = buildServer(bridge, runtime, groups);
+async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, groups: Set<string>): Promise<void> {
+  const server = buildServer(bridge, runtime, scripts, groups);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   log(`stdio transport ready (bridge: ${bridge.target().url})`);
 }
 
-async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, cfg: ServerConfig): Promise<void> {
+async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
   // Stateful streamable-HTTP: one transport+server per session id.
   const sessions = new Map<string, { server: McpServer; transport: StreamableHTTPServerTransport; lastSeen: number }>();
 
@@ -232,7 +264,7 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
       transport.onclose = () => {
         if (transport.sessionId) sessions.delete(transport.sessionId);
       };
-      const server = buildServer(bridge, runtime, cfg.toolsets);
+      const server = buildServer(bridge, runtime, scripts, cfg.toolsets);
       await server.connect(transport);
       entry = { server, transport, lastSeen: Date.now() };
     }
@@ -262,7 +294,7 @@ async function main(): Promise<void> {
   if (cfg.agent && cfg.toolsets.has("agent")) {
     const dbPath = cfg.dataDir ? defaultDbPath({ MCPFABRIC_DATA_DIR: cfg.dataDir }) : defaultDbPath();
     try {
-      runtime = new AgentRuntime(bridge, { dbPath, ...(cfg.world ? { worldOverride: cfg.world } : {}) });
+      runtime = new AgentRuntime(bridge, { dbPath, scripts: cfg.scripts, ...(cfg.world ? { worldOverride: cfg.world } : {}) });
       log(`agent runtime ready (memory: ${dbPath}, opened on first use)`);
     } catch (err) {
       // e.g. a Node build without node:sqlite: keep serving the plain bridge tools.
@@ -270,10 +302,14 @@ async function main(): Promise<void> {
     }
   }
 
+  // Scripts need only the bridge; their skills are kept in the agent database, so they need the runtime.
+  // Scripts are a tool group too (`script`).
+  const scripts = cfg.scripts && cfg.toolsets.has("script") ? new ScriptHost(bridge, runtime) : undefined;
+
   if (cfg.transport === "http") {
-    await runHttp(bridge, runtime, cfg);
+    await runHttp(bridge, runtime, scripts, cfg);
   } else {
-    await runStdio(bridge, runtime, cfg.toolsets);
+    await runStdio(bridge, runtime, scripts, cfg.toolsets);
   }
 }
 

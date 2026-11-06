@@ -23,6 +23,8 @@ export interface ServerConfig {
   dataDir: string | undefined;
   /** Fixed world id for agent memory instead of the one reported by the game. */
   world: string | undefined;
+  /** Serve the script tools (run_script; the skill tools also need the agent runtime). */
+  scripts: boolean;
   /** Tool groups to serve (MCPFABRIC_TOOLSETS); all of them by default. */
   toolsets: Set<string>;
 }
@@ -51,6 +53,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     agent: !/^(0|false|off|no)$/i.test(env.MCPFABRIC_AGENT ?? ""),
     dataDir: env.MCPFABRIC_DATA_DIR || undefined,
     world: env.MCPFABRIC_WORLD || undefined,
+    scripts: !/^(0|false|off|no)$/i.test(env.MCPFABRIC_SCRIPTS ?? ""),
     toolsets: parseToolsets(env.MCPFABRIC_TOOLSETS),
   };
 }

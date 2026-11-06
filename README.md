@@ -226,6 +226,7 @@ node dist/index.js        # finds the running game through ~/.mcpfabric/bridge.j
 | `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge.                   |
 | `MCPFABRIC_TRANSPORT`  | `stdio`                  | `stdio` or `http`.                                |
 | `MCPFABRIC_HTTP_PORT`  | `25600`                  | Port for the `http` transport (`/mcp`).           |
+| `MCPFABRIC_SCRIPTS`    | on                       | `0` / `false` / `off` removes the script tools (`run_script`, skills). |
 | `MCPFABRIC_TOOLSETS`   | all tools                | Serve only some tools; see [Tool sets](#tool-sets). |
 
 ### Tool sets
@@ -235,12 +236,12 @@ Every tool takes up model context, and a model chooses better from 20 tools than
 
 | Profile | Groups | For |
 |---------|--------|-----|
-| `play`  | `player`, `vision`, `chat`, `events`, `session`, `agent` | playing as the local player |
+| `play`  | `player`, `vision`, `chat`, `events`, `session`, `agent`, `script` | playing as the local player |
 | `admin` | `world`, `entities`, `operator`, `chat`, `events` | running a server |
 | `build` | `world`, `vision`, `chat` | building with world edits |
 | `all`   | every group (the default) | |
 
-The other groups are `ui` and `supervised`, e.g. `MCPFABRIC_TOOLSETS=play,ui` or
+The other groups are `ui`, `supervised` and `script` (`run_script` and the skills), e.g. `MCPFABRIC_TOOLSETS=play,ui` or
 `MCPFABRIC_TOOLSETS=supervised`. `get_status` and `list_capabilities` (`info`) are always served.
 Tool sets only hide tools: the mod's `enable*` flags still decide what the game allows.
 
@@ -308,6 +309,10 @@ jobs `travel_to` / `explore` / `collect_blocks` / `craft_item` with `job_status`
 and `open_container` / `container_transfer` / `close_container`; `open_dashboard` shows a live
 panel (position, vitals, job, map, goals, inventory and a STOP button) in hosts that render
 [MCP Apps](https://modelcontextprotocol.io/extensions/apps), such as Claude
+
+**scripts** ([docs/AGENT.md](docs/AGENT.md#scripts-and-skills)) — code mode: one JavaScript program
+in a sandbox replaces dozens of tool calls: `run_script`; programs that worked are kept per world as
+skills: `save_skill`, `list_skills`, `run_skill`, `delete_skill` (the skill tools need the agent runtime)
 
 Server tools require a running server (integrated on the client or dedicated). Client tools
 (`control` / `interact` / `vision` / `navigation` / `player` / `inventory`) only work on the client.

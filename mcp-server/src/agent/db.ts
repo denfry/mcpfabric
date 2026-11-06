@@ -1,5 +1,5 @@
 /**
- * SQLite storage for the agent runtime (memories, goals, the chunk map).
+ * SQLite storage for the agent runtime (memories, goals, the chunk map, script skills).
  *
  * Uses Node's built-in `node:sqlite` so the server keeps zero native dependencies. Every table is
  * keyed by a world id, so a single database file holds the memory of every world the agent plays.
@@ -109,6 +109,20 @@ const MIGRATIONS: string[] = [
     key    TEXT NOT NULL,
     value  TEXT NOT NULL,
     PRIMARY KEY (world, key)
+  ) WITHOUT ROWID;
+  `,
+  `
+  CREATE TABLE script_skills (
+    world        TEXT    NOT NULL,
+    name         TEXT    NOT NULL,
+    description  TEXT    NOT NULL DEFAULT '',
+    code         TEXT    NOT NULL,
+    runs         INTEGER NOT NULL DEFAULT 0,
+    last_ok      INTEGER,
+    last_run_at  INTEGER,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL,
+    PRIMARY KEY (world, name)
   ) WITHOUT ROWID;
   `,
 ];
