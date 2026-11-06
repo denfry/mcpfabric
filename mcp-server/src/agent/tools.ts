@@ -94,7 +94,7 @@ async function startJob(
   return (done ?? job).state === "running" ? `${text}\n(poll job_status to follow it; job_cancel stops it)` : text;
 }
 
-function markersFor(memories: Memory[]): MapMarker[] {
+export function markersFor(memories: Memory[]): MapMarker[] {
   const markers: MapMarker[] = [];
   for (const m of memories) {
     if (!m.pos || m.status === "gone") continue;

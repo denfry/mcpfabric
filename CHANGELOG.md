@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `open_dashboard`: a live agent panel as an MCP App (position, vitals, running job, explored map,
+  goal tree, inventory) with a STOP button that cancels the job and releases movement, navigation,
+  mining and supervised input. It refreshes itself through the app-only `dashboard_state`; hosts
+  without MCP Apps get a text summary. New dependency `@modelcontextprotocol/ext-apps`.
+
+### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.
