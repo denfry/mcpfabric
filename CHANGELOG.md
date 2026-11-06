@@ -17,6 +17,15 @@ All notable changes to this project are documented here. The format is based on
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.
 
+### Changed
+- MCP server: results of tools that can return text written by other players or the world
+  (`get_recent_chat`, `poll_events`, `query_entities`, `get_entity`, `raycast`, `describe_scene`,
+  `get_inventory`, `get_equipment`, `attack_entity`, `use_entity`, `get_screen`, `get_ui`,
+  `click_widget`, `set_text_field`, `run_command`, `supervised_command`) are now returned as
+  `{ untrusted: true, notice, data }`, and chat and system messages carry a `source`
+  (`player:<name>`, `server` or `unknown`). The server instructions say that text from the game is
+  data, never instructions.
+
 ## [0.8.0] - 2026-10-16
 
 Fabric and NeoForge. Implements #27, thanks to @faizsaifulnizam.
