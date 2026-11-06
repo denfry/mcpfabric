@@ -7,6 +7,19 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `open_dashboard`: a live agent panel as an MCP App (position, vitals, running job, explored map,
+  goal tree, inventory) with a STOP button that cancels the job and releases movement, navigation,
+  mining and supervised input. It refreshes itself through the app-only `dashboard_state`; hosts
+  without MCP Apps get a text summary. New dependency `@modelcontextprotocol/ext-apps`.
+- `surroundings` (agent runtime): nearby mobs, players, dropped items, points of interest and named
+  blocks, described relative to where the player looks ("5 ahead, 3 left · 5.8 m (11 o'clock)"),
+  each with its coordinates.
+- `mcpfabric-bench` (`docs/BENCH.md`): seven reproducible tasks (logs, crafting table, stone
+  pickaxe, walking to a marked block, chest loot, smelting, climbing a ledge) set up with server
+  commands relative to the player, played by any agent command, and scored from the game's state.
+  It refuses to set up anything unless `--world` names the world the game is in.
+
+### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.
@@ -18,6 +31,15 @@ All notable changes to this project are documented here. The format is based on
 - A one-click Claude Desktop extension: `npm run bundle` in `mcp-server/` builds
   `mcpfabric-<version>.mcpb` (MCP Bundle) with optional settings for the token, address and tool
   sets. `mcp-server/server.json` and `mcpName` prepare the listing in the MCP Registry.
+- Take control back from the AI on the client: the new key **K** (Controls → Miscellaneous) or the
+  client command `/mcpfabric stop` pauses it, releasing held keys and stopping navigation, mining
+  and supervised grants; every action over the bridge is then refused until `/mcpfabric resume` or
+  K again. Reads keep working. `get_status` reports `aiPaused`, the events `ai_paused` and
+  `ai_resumed` are emitted, and the action bar says when the AI starts acting after a quiet spell.
+  Fabric and NeoForge.
+- `show_message` (`chat.showLocal`, client): a message from the AI, prefixed `[AI]`, that only the
+  local player sees, in chat or on the action bar. Nothing is sent to the server. It stays available
+  while the AI is paused.
 - Code mode in the MCP server: `run_script` runs a short JavaScript program that drives the game
   through the bridge (`await mc.call(...)`, or one helper per bridge tool such as `mc.get_self()`),
   instead of one tool call per step. Programs run in QuickJS compiled to WebAssembly
@@ -36,6 +58,8 @@ All notable changes to this project are documented here. The format is based on
   `{ untrusted: true, notice, data }`, and chat and system messages carry a `source`
   (`player:<name>`, `server` or `unknown`). The server instructions say that text from the game is
   data, never instructions.
+- `nav.pathTo`, `craft.place` and the container and interaction methods check player control through
+  the same gate as the other control methods.
 
 ## [0.8.0] - 2026-10-16
 

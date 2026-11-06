@@ -70,6 +70,14 @@ The design borrows from the `codebase-index` workflow:
 Kinds: `note`, `place`, `container` (last seen contents), `event` (every finished job is logged,
 so earlier failures inform later plans), `skill` (a procedure that worked).
 
+## Relative directions
+
+Models confuse world axes easily, so `surroundings` describes what is near relative to where the
+player looks: `zombie 20hp: 5 ahead, 3 left · 5.8 m (11 o'clock) · 4 64 6`. It lists hostile mobs,
+players, passive mobs, dropped items, points of interest (containers, workstations, beds, portals)
+and, with `find`, the blocks you name, nearest first. Each line ends with the coordinates for tools
+that need them. It reads `perception.entities` and `perception.scan`, so it needs `enableVision`.
+
 ## Jobs
 
 `travel_to`, `explore`, `collect_blocks` and `craft_item` start background jobs and return at once.
@@ -184,6 +192,15 @@ and `agent_brief` names them. They are not the `skill` memory kind, which is a n
 **Configuration.** `MCPFABRIC_SCRIPTS=0` removes all script tools. `run_script` needs only the
 bridge and is served even with `MCPFABRIC_AGENT=0` (then there are no jobs to clash with); the
 skill tools need the agent database and are only served with the runtime.
+
+## Dashboard
+
+`open_dashboard` is an [MCP App](https://modelcontextprotocol.io/extensions/apps): hosts that render
+MCP Apps (Claude among them) show a live panel with the position, health and food, the running job,
+the explored map, the goal tree and the inventory. It refreshes every 3 seconds while it is visible,
+through the app-only tool `dashboard_state`. Its **STOP** button calls `dashboard_stop`, which cancels
+the running job and stops navigation, mining, held keys and supervised input. The model does not see
+these two tools. Other hosts get a short text summary from `open_dashboard`.
 
 ## Known limits
 

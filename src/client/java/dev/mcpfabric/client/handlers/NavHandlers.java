@@ -1,13 +1,13 @@
 package dev.mcpfabric.client.handlers;
 
 import com.google.gson.JsonObject;
-import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.Json;
 import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.client.BotController;
 import dev.mcpfabric.client.ClientMc;
 import dev.mcpfabric.client.nav.AStarPathfinder;
+import dev.mcpfabric.handlers.support.Gates;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -22,9 +22,7 @@ public final class NavHandlers {
 
 	public static void register(RpcRouter router) {
 		router.register("nav.pathTo", ctx -> ClientMc.call(() -> {
-			if (!McpFabric.config().enablePlayerControl) {
-				throw RpcException.unavailable("Player control is disabled (enablePlayerControl=false).");
-			}
+			Gates.playerControl();
 			LocalPlayer p = ClientMc.player();
 			ClientLevel level = ClientMc.level();
 			BlockPos start = p.blockPosition();

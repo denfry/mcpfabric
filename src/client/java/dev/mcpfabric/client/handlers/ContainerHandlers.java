@@ -2,11 +2,11 @@ package dev.mcpfabric.client.handlers;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.Json;
 import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.client.ClientMc;
+import dev.mcpfabric.handlers.support.Gates;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
@@ -181,8 +181,6 @@ public final class ContainerHandlers {
 	}
 
 	private static void requireControl() throws RpcException {
-		if (!McpFabric.config().enablePlayerControl) {
-			throw RpcException.unavailable("Player control is disabled in mcpfabric.config.json (enablePlayerControl=false).");
-		}
+		Gates.playerControl();
 	}
 }
