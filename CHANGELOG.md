@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- Code mode in the MCP server: `run_script` runs a short JavaScript program that drives the game
+  through the bridge (`await mc.call(...)`, or one helper per bridge tool such as `mc.get_self()`),
+  instead of one tool call per step. Programs run in QuickJS compiled to WebAssembly
+  (`quickjs-emscripten`), see nothing of Node, and reach only the catalogue's bridge methods, with
+  the tools' parameter checks; `supervised.*` methods are refused and the mod's `enable*` locks
+  apply. Limits: time (default 60 s, max 300 s), 64 MiB memory, 2000 calls, log and result size.
+  A program never runs together with an agent job. Programs that worked are kept per world as
+  skills: `save_skill`, `list_skills`, `run_skill`, `delete_skill`; `agent_brief` names them.
+  `MCPFABRIC_SCRIPTS=0` removes the tools. See docs/AGENT.md, "Scripts and skills".
+
 ## [0.8.0] - 2026-10-16
 
 Fabric and NeoForge. Implements #27, thanks to @faizsaifulnizam.

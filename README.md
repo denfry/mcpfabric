@@ -217,6 +217,7 @@ MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
 | `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge.                   |
 | `MCPFABRIC_TRANSPORT`  | `stdio`                  | `stdio` or `http`.                                |
 | `MCPFABRIC_HTTP_PORT`  | `25600`                  | Port for the `http` transport (`/mcp`).           |
+| `MCPFABRIC_SCRIPTS`    | on                       | `0` / `false` / `off` removes the script tools (`run_script`, skills). |
 
 ---
 
@@ -278,6 +279,10 @@ Then set `MCPFABRIC_TOKEN` in the server's environment.
 `goal_add`, `goal_update`, `goal_list`, `plan_craft`, `get_recipes`, `explore_next`,
 jobs `travel_to` / `explore` / `collect_blocks` / `craft_item` with `job_status` / `job_cancel`,
 and `open_container` / `container_transfer` / `close_container`
+
+**scripts** ([docs/AGENT.md](docs/AGENT.md#scripts-and-skills)) — code mode: one JavaScript program
+in a sandbox replaces dozens of tool calls: `run_script`; programs that worked are kept per world as
+skills: `save_skill`, `list_skills`, `run_skill`, `delete_skill` (the skill tools need the agent runtime)
 
 Server tools require a running server (integrated on the client or dedicated). Client tools
 (`control` / `interact` / `vision` / `navigation` / `player` / `inventory`) only work on the client.

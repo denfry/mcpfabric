@@ -29,6 +29,7 @@ import { collectRecipes, formatPlan, plan } from "./planner.js";
 import type { AgentRuntime } from "./runtime.js";
 import { collect, containerItems, craft, explore, openContainerAt, recordContainer, travel } from "./skills.js";
 import { chunkOf, renderMap, type MapMarker } from "./worldmap.js";
+import { briefSkills } from "../script/skills.js";
 
 /** Per-MCP-session state. */
 export class AgentSession {
@@ -118,7 +119,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "agent_brief",
     title: "Agent brief (resume here)",
     description:
-      "One-call situation report for resuming work after a restart or context loss: world id, your position/vitals/inventory, the active goal path, the running job, remembered places nearby and a small map. Call this first in a new session.",
+      "One-call situation report for resuming work after a restart or context loss: world id, your position/vitals/inventory, the active goal path, the running job, saved script skills, remembered places nearby and a small map. Call this first in a new session.",
     inputSchema: {},
     annotations: READ,
     run: async (rt, session) => {
@@ -140,6 +141,8 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       }
       const job = rt.jobs.running();
       if (job) lines.push(job.owner === undefined || job.owner === session.id ? formatJob(job) : "job: another MCP session is running one");
+      const skills = rt.scripts ? briefSkills(rt.skills.list(world)) : undefined;
+      if (skills) lines.push(skills);
       const nearby = rt.memory.recall(world, { near: at, radius: 160, limit: 8, kinds: ["place", "container", "note", "skill"] });
       if (nearby.length > 0) {
         lines.push("nearby memory:");
