@@ -373,6 +373,18 @@ export const TOOLS: ToolDef[] = [
     annotations: { ...WRITE, openWorldHint: true },
   },
   {
+    name: "show_message",
+    method: "chat.showLocal",
+    title: "Show a message to the player",
+    description:
+      "Client only. Show the local player a message from you, prefixed [AI], in their chat or on the action bar. Nothing is sent to the server or other players, so use it rather than send_chat to talk to the player. It works while the player has paused you (get_status reports aiPaused); formatting codes are removed and text is cut at 512 characters.",
+    inputSchema: {
+      text: z.string().min(1).max(2000).describe("The message."),
+      actionBar: z.boolean().optional().describe("Show it briefly above the hotbar instead of in chat."),
+    },
+    annotations: ACT,
+  },
+  {
     name: "get_recent_chat",
     method: "chat.getRecent",
     title: "Get recent chat",

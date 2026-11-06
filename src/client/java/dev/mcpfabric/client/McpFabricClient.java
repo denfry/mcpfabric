@@ -51,9 +51,11 @@ public final class McpFabricClient {
 		McpFabric.LOGGER.info("[mcpfabric] client handlers registered");
 	}
 
-	/** End of every client tick: drives the {@link BotController}, remembers the world joined last, runs supervised input. */
+	/** End of every client tick: drives the {@link BotController}, watches the local player, remembers the world joined last, runs supervised input. */
 	public static void onClientTick(Minecraft client) {
 		BotController.get().onClientTick(client);
+		ClientEvents.onClientTick(client);
+		AiControl.onClientTick(client);
 		SessionScreenHandlers.onClientTick(client);
 		SupervisedClientHandlers.onClientTick(client);
 	}

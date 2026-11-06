@@ -15,6 +15,19 @@ public final class Gates {
 		if (!McpFabric.config().enablePlayerControl) {
 			throw RpcException.unavailable("Player control is disabled in mcpfabric.config.json (enablePlayerControl=false).");
 		}
+		notPaused();
+		Takeover.noteAction();
+	}
+
+	/**
+	 * The player paused the AI and has control. Every action is refused until they resume it; do not
+	 * retry in a loop.
+	 */
+	public static void notPaused() throws RpcException {
+		if (Takeover.paused()) {
+			throw RpcException.unavailable("The player paused the AI and has control (mcpfabric key or /mcpfabric stop). "
+					+ "Actions are refused until they resume it; tell them what you were doing instead of retrying.");
+		}
 	}
 
 	/**
@@ -38,6 +51,7 @@ public final class Gates {
 		if (!McpFabric.config().enableSupervisedControl) {
 			throw RpcException.unavailable("Supervised control is disabled in mcpfabric.config.json (enableSupervisedControl=false).");
 		}
+		notPaused();
 	}
 
 	/** Screenshots and scene descriptions. */

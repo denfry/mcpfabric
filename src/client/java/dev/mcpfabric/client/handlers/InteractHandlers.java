@@ -7,6 +7,7 @@ import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.client.BotController;
 import dev.mcpfabric.client.ClientMc;
+import dev.mcpfabric.handlers.support.Gates;
 import dev.mcpfabric.handlers.support.Levels;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
@@ -335,9 +336,7 @@ public final class InteractHandlers {
 	}
 
 	private static void requireControl() throws RpcException {
-		if (!McpFabric.config().enablePlayerControl) {
-			throw RpcException.unavailable("Player control is disabled in mcpfabric.config.json (enablePlayerControl=false).");
-		}
+		Gates.playerControl();
 	}
 
 	private static Entity findEntity(String uuidStr) throws RpcException {
