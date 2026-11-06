@@ -28,6 +28,10 @@ mcp-server (Node)
        observe.ts        scan → map + places (incremental "index update")
        planner.ts        recipe graph → craft/smelt steps
        jobs.ts, skills.ts  travel / explore / collect / craft jobs
+  └─ script/             code mode                                 programs instead of round trips
+       sandbox.ts        QuickJS (WebAssembly) sandbox, limits
+       tools.ts          run_script, skill tools, the call gate
+       skills.ts         saved programs per world
         │ HTTP /rpc
 mod (Fabric / NeoForge) ── perception, actions, tick-level executors (A* walking, mining)
 ```
@@ -66,6 +70,14 @@ The design borrows from the `codebase-index` workflow:
 Kinds: `note`, `place`, `container` (last seen contents), `event` (every finished job is logged,
 so earlier failures inform later plans), `skill` (a procedure that worked).
 
+## Relative directions
+
+Models confuse world axes easily, so `surroundings` describes what is near relative to where the
+player looks: `zombie 20hp: 5 ahead, 3 left · 5.8 m (11 o'clock) · 4 64 6`. It lists hostile mobs,
+players, passive mobs, dropped items, points of interest (containers, workstations, beds, portals)
+and, with `find`, the blocks you name, nearest first. Each line ends with the coordinates for tools
+that need them. It reads `perception.entities` and `perception.scan`, so it needs `enableVision`.
+
 ## Jobs
 
 `travel_to`, `explore`, `collect_blocks` and `craft_item` start background jobs and return at once.
@@ -97,6 +109,99 @@ keep pushing the bot back until navigation gives up.
   tool) through the recipe book, and uses the 2×2 grid or a crafting table. It walks to a table
   nearby, or places one from the inventory if there is none.
 
+## Scripts and skills
+
+A job is a fixed macro. For anything else that takes many bridge calls (scan an area and act on what
+is there, loop until something changes, retry with a different tool), the model can write one short
+JavaScript program and run it with `run_script`, instead of one tool round trip per step. The
+program's intermediate results stay in the program and do not fill the model's context; only its
+return value and its log come back.
+
+```js
+// walk to each coal ore within 12 blocks and start mining it
+const me = await mc.get_self();
+const { matches } = await mc.find_blocks({ center: me, radius: 12, blockIds: ["minecraft:coal_ore"] });
+const visited = [];
+for (const b of matches) {
+  try {
+    await mc.navigate_to({ x: b.x, y: b.y, z: b.z, reachRadius: 3 });
+    let nav;
+    do {
+      await mc.sleep(250);
+      nav = await mc.navigation_status();
+    } while (nav.active);
+    await mc.break_block({ x: b.x, y: b.y, z: b.z });
+    visited.push([b.x, b.y, b.z, nav.state]);
+  } catch (e) {
+    mc.log("skipped", b, e.code);
+  }
+}
+return visited;
+```
+
+**API inside the program.** The program is the body of an async function: `await` and `return`
+work at the top level.
+
+| | |
+|---|---|
+| `await mc.call(name, params)` | calls a bridge tool, by tool name (`get_self`) or RPC method (`player.getState`) |
+| `await mc.<tool>(params)` | the same, one helper per bridge tool: `mc.get_self()`, `mc.find_blocks({...})`, ... |
+| `mc.log(...)`, `console.log(...)` | records a log line (strings as is, other values as JSON) |
+| `await mc.sleep(ms)` | waits; never past the time limit |
+| `mc.args` | the JSON `args` passed to `run_script` / `run_skill` |
+
+Parameters are checked against the tool's schema before anything is sent, with the same defaults
+as the tool. A failed call throws an `Error` whose `code` is the bridge error code
+(`capability_disabled`, `not_found`, ...) or one of `forbidden`, `unknown_method`,
+`invalid_params`, `too_large`, and whose `data` carries the bridge's error data.
+
+**What a program can reach.** Only the bridge methods of the tool catalogue (`mcp-server/src/tools.ts`):
+every call goes through the bridge, so the mod's `enable*` locks apply exactly as for the tools.
+`supervised.*` methods are refused, because supervised actions need the supervisor session that
+only the `supervised_*` tools carry. The runtime's internal methods (`perception.*`, `container.*`,
+...) are not in the catalogue and are refused too. The program runs in QuickJS compiled to
+WebAssembly (`quickjs-emscripten`), in a fresh WebAssembly instance per run: no `require`,
+`process`, `fetch`, file system, network or timers, and nothing survives from one run to the next.
+
+**Limits.**
+
+| Limit | Value |
+|---|---|
+| wall clock | `timeoutSeconds`, default 60, max 300 |
+| memory | 64 MiB heap |
+| calls | 2000 per run (refused calls count) |
+| computation between two awaits | 5 s (the sandbox shares the server's event loop) |
+| log | 16 KB, then cut |
+| result | 32 KB of JSON, then cut; one bridge result handed to the program at most 8 MB |
+| program | 64 KB |
+
+When a limit stops a program it is interrupted, makes no further calls, and the server stops
+movement, navigation and mining (`control.stop`, `nav.stop`, `interact.stopBreaking`) in case it
+left them on; this also happens when a program fails after making calls. Closing the MCP session
+stops its program. Only one program runs at a time, and never together with a job: `run_script`
+is refused while a job runs, and jobs are refused while a program runs. The result reports
+`ok`/`failed`, the call count, the duration, the returned JSON, the log, and the error with its
+stack (`script.js:<line>`).
+
+**Skills.** A program that worked can be kept with `save_skill` (name, description, code; the
+code is compiled first and a syntax error is refused) and run again with `run_skill` and new
+`args`. Skills are stored per world in `agent.db` (table `script_skills`) with their run count and
+last outcome; `list_skills` lists them (with `name`, also the code), `delete_skill` removes one,
+and `agent_brief` names them. They are not the `skill` memory kind, which is a note.
+
+**Configuration.** `MCPFABRIC_SCRIPTS=0` removes all script tools. `run_script` needs only the
+bridge and is served even with `MCPFABRIC_AGENT=0` (then there are no jobs to clash with); the
+skill tools need the agent database and are only served with the runtime.
+
+## Dashboard
+
+`open_dashboard` is an [MCP App](https://modelcontextprotocol.io/extensions/apps): hosts that render
+MCP Apps (Claude among them) show a live panel with the position, health and food, the running job,
+the explored map, the goal tree and the inventory. It refreshes every 3 seconds while it is visible,
+through the app-only tool `dashboard_state`. Its **STOP** button calls `dashboard_stop`, which cancels
+the running job and stops navigation, mining, held keys and supervised input. The model does not see
+these two tools. Other hosts get a short text summary from `open_dashboard`.
+
 ## Known limits
 
 - The walker cannot swim, climb ladders, pillar up or dig tunnels. `collect_blocks` skips buried
@@ -115,6 +220,7 @@ keep pushing the bot back until navigation gives up.
 | `MCPFABRIC_AGENT` | on | `0` / `false` / `off` serves only the bridge tools |
 | `MCPFABRIC_DATA_DIR` | `~/.mcpfabric` | where `agent.db` lives |
 | `MCPFABRIC_WORLD` | from the game | force a world id (e.g. to share memory between two saves) |
+| `MCPFABRIC_SCRIPTS` | on | `0` / `false` / `off` removes `run_script` and the skill tools |
 
 It requires Node.js ≥ 22.16 for `node:sqlite` with FTS5. From Node 24.15 on there is no
 experimental warning; on earlier versions the runtime suppresses that one warning.
@@ -129,3 +235,5 @@ experimental warning; on earlier versions the runtime suppresses that one warnin
 5. `observe` after arriving somewhere new. `remember` anything that matters: bases, dangers,
    player requests, procedures that worked.
 6. `goal_update` with an outcome, then continue with the next goal.
+7. For a sequence of many bridge calls, write one `run_script` program; keep it with `save_skill`
+   when it worked, and reuse it with `run_skill`.
