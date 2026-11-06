@@ -7,6 +7,7 @@ import dev.mcpfabric.config.McpConfig;
 import dev.mcpfabric.events.EventBus;
 import dev.mcpfabric.bridge.SseHub;
 import dev.mcpfabric.handlers.CommandHandlers;
+import dev.mcpfabric.handlers.support.Approvals;
 import dev.mcpfabric.handlers.EntityHandlers;
 import dev.mcpfabric.handlers.InfoHandlers;
 import dev.mcpfabric.handlers.PlayerAdminHandlers;
@@ -66,6 +67,7 @@ public final class McpFabric {
 		sseHub = new SseHub();
 		eventBus = new EventBus(sseHub);
 		router = new RpcRouter();
+		router.setGuard(Approvals::require);
 
 		// Server-capable handlers. Game event listeners are wired by the loader entrypoint and feed
 		// the bus through GameEvents.

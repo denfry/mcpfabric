@@ -62,6 +62,12 @@ public final class McpConfig {
 	public List<String> supervisedWorlds = new ArrayList<>();
 	/** Command roots supervised_command may run; data ({...}) is refused in every command. */
 	public List<String> supervisedCommands = new ArrayList<>(List.of("time", "weather"));
+	/**
+	 * Capability groups whose calls wait for the player to approve them in the game: "command",
+	 * "world_write", "players_admin". Empty: none. Only a client can approve; on a dedicated server
+	 * these groups are then refused.
+	 */
+	public List<String> requireApproval = new ArrayList<>();
 
 	public transient Path source;
 
@@ -88,6 +94,7 @@ public final class McpConfig {
 		}
 		if (cfg.supervisedWorlds == null) cfg.supervisedWorlds = new ArrayList<>();
 		if (cfg.supervisedCommands == null) cfg.supervisedCommands = new ArrayList<>();
+		if (cfg.requireApproval == null) cfg.requireApproval = new ArrayList<>();
 		cfg.source = file;
 		cfg.save();
 		return cfg;

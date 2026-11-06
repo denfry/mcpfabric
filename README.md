@@ -175,7 +175,8 @@ stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writ
   "enableUiControl": false,
   "enableSupervisedControl": false,
   "supervisedWorlds": [],
-  "supervisedCommands": ["time", "weather"]
+  "supervisedCommands": ["time", "weather"],
+  "requireApproval": []
 }
 ```
 
@@ -332,6 +333,17 @@ every action over the bridge is refused until you press K again or run `/mcpfabr
 keep working, and the AI can still answer you with `show_message`. `/mcpfabric status` shows the
 state; `get_status` reports it to the model as `aiPaused`, and the events `ai_paused` and
 `ai_resumed` are emitted. When the AI starts acting after a quiet spell, the action bar says so.
+
+---
+
+### Approving risky calls
+
+List capability groups in `requireApproval` (`"command"`, `"world_write"`, `"players_admin"`) and
+each call of those groups waits until you answer it in the game: the request shows in chat and on
+the action bar, **Y** approves and **N** denies the oldest one (rebindable), or
+`/mcpfabric approve|deny [id]`. No answer within 60 seconds is a denial, and pausing the AI denies
+everything that waits. `get_status` reports the list as `requireApproval`. Only a client can answer:
+on a dedicated server those groups are then refused.
 
 ---
 

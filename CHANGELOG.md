@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Approve risky calls in the game: groups listed in the new `requireApproval` config value
+  (`command`, `world_write`, `players_admin`; also `/` commands sent through chat) wait up to 60
+  seconds for the player. Requests show in chat and on the action bar; **Y** / **N** (rebindable) or
+  `/mcpfabric approve|deny [id]` answer them, silence and pausing the AI deny them. `get_status`
+  reports `requireApproval`, and the events `approval_requested` / `approval_answered` are emitted.
+  Client only; on a dedicated server those groups are refused. Fabric and NeoForge.
+
+### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.

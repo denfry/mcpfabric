@@ -26,6 +26,10 @@ public final class InfoHandlers {
 			o.addProperty("side", client ? "client" : "dedicated_server");
 			// The player paused the AI (client only): actions are refused until they resume it.
 			o.addProperty("aiPaused", Takeover.paused());
+			// Groups whose calls wait for the player's approval; a refused one is not to be retried.
+			JsonArray approval = new JsonArray();
+			McpFabric.config().requireApproval.forEach(approval::add);
+			o.add("requireApproval", approval);
 			o.addProperty("serverPresent", serverPresent);
 			o.addProperty("integratedServer", client && serverPresent);
 			// Benign off-thread read (a single int) — intentionally NOT scheduled onto the game thread
