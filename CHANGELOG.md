@@ -59,8 +59,18 @@ All notable changes to this project are documented here. The format is based on
 - Client events: `chat` events now carry `kind` (`chat`, `whisper_in`, `whisper_out`, `team`, `say`,
   `emote`, `other`) and `self` for the local player's own messages; new `self_health`,
   `self_death` and `left_world` events from the local player (Fabric and NeoForge).
+- The walker (`navigate_to`, `travel_to`, `explore`, `collect_blocks`) swims at the surface, climbs
+  ladders and vines, opens wooden doors and fence gates, digs through blocks with the best hotbar
+  tool when going around is longer, and pillars up on cobblestone, dirt or similar from the hotbar.
+  It never digs next to water or lava, under its own feet or under falling blocks over its head,
+  and drops more than three blocks only into water or onto a ladder. `nav.pathTo` takes
+  `allowDig`, `allowPillar` and `allowSwim` (all on by default) and returns the path's move counts;
+  `nav.status` reports the current `move`. `travel_to` takes the same flags, and `collect_blocks`
+  tunnels to buried blocks up to 16 blocks away (`dig: false` turns that off).
 
 ### Changed
+- `navigate_to`, `travel_to` and `explore` are now marked destructive, since they may break and
+  place blocks.
 - MCP server: results of tools that can return text written by other players or the world
   (`get_recent_chat`, `poll_events`, `query_entities`, `get_entity`, `raycast`, `describe_scene`,
   `get_inventory`, `get_equipment`, `attack_entity`, `use_entity`, `get_screen`, `get_ui`,
