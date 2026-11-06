@@ -196,6 +196,9 @@ run. See [docs/SUPERVISED.md](docs/SUPERVISED.md).
 
 ## 2. MCP server
 
+The server is on npm as [`mcpfabric-mcp-server`](https://www.npmjs.com/package/mcpfabric-mcp-server):
+`npx -y mcpfabric-mcp-server` runs it without a checkout. To build it from source:
+
 ```bash
 cd mcp-server
 npm install
