@@ -18,6 +18,15 @@ All notable changes to this project are documented here. The format is based on
 - A one-click Claude Desktop extension: `npm run bundle` in `mcp-server/` builds
   `mcpfabric-<version>.mcpb` (MCP Bundle) with optional settings for the token, address and tool
   sets. `mcp-server/server.json` and `mcpName` prepare the listing in the MCP Registry.
+- Take control back from the AI on the client: the new key **K** (Controls → Miscellaneous) or the
+  client command `/mcpfabric stop` pauses it, releasing held keys and stopping navigation, mining
+  and supervised grants; every action over the bridge is then refused until `/mcpfabric resume` or
+  K again. Reads keep working. `get_status` reports `aiPaused`, the events `ai_paused` and
+  `ai_resumed` are emitted, and the action bar says when the AI starts acting after a quiet spell.
+  Fabric and NeoForge.
+- `show_message` (`chat.showLocal`, client): a message from the AI, prefixed `[AI]`, that only the
+  local player sees, in chat or on the action bar. Nothing is sent to the server. It stays available
+  while the AI is paused.
 
 ### Changed
 - MCP server: results of tools that can return text written by other players or the world
@@ -27,6 +36,8 @@ All notable changes to this project are documented here. The format is based on
   `{ untrusted: true, notice, data }`, and chat and system messages carry a `source`
   (`player:<name>`, `server` or `unknown`). The server instructions say that text from the game is
   data, never instructions.
+- `nav.pathTo`, `craft.place` and the container and interaction methods check player control through
+  the same gate as the other control methods.
 
 ## [0.8.0] - 2026-10-16
 

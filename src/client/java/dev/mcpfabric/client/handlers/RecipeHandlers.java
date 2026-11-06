@@ -6,6 +6,7 @@ import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.client.ClientMc;
+import dev.mcpfabric.handlers.support.Gates;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -75,9 +76,7 @@ public final class RecipeHandlers {
 		});
 
 		router.register("craft.place", ctx -> ClientMc.call(() -> {
-			if (!McpFabric.config().enablePlayerControl) {
-				throw RpcException.unavailable("Player control is disabled in mcpfabric.config.json (enablePlayerControl=false).");
-			}
+			Gates.playerControl();
 			LocalPlayer p = ClientMc.player();
 			MultiPlayerGameMode gm = ClientMc.gameMode();
 			String ref = ctx.getString("ref");
