@@ -156,7 +156,8 @@ const BASE_INSTRUCTIONS =
   "Call get_status first to learn which side you are on and which capability groups are available. " +
   "Client-side tools (get_self, set_movement, look, break_block, place_block, use_item, screenshot, describe_scene, navigate_to, ...) drive the local player; " +
   "server-side tools (list_players, teleport_player, run_command, set_block, fill_blocks, query_entities, ...) require an integrated or dedicated server. " +
-  "If client tools fail with no_client_player or the player stops reacting, call get_screen: close_screen leaves a pause menu or respawns, join_world rejoins a world or server from the menus.";
+  "If client tools fail with no_client_player or the player stops reacting, call get_screen: close_screen leaves a pause menu or respawns, join_world rejoins a world or server from the menus. " +
+  "The player can pause you at any time (get_status reports aiPaused): then actions are refused, so stop and talk to them with show_message instead of retrying.";
 
 const AGENT_INSTRUCTIONS =
   " Agent runtime: memory, goals and the world map persist per world across sessions. Start with " +

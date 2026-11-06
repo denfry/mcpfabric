@@ -56,6 +56,7 @@ const BRIDGE_TOOLS = {
   // command and chat
   run_command: { method: "command.run", args: { command: "time set day" }, invalid: {} },
   send_chat: { method: "chat.send", args: { message: "hi" }, invalid: { message: 1 } },
+  show_message: { method: "chat.showLocal", args: { text: "on my way", actionBar: true }, invalid: { text: "" } },
   get_recent_chat: { method: "chat.getRecent", args: { limit: 10 }, invalid: { limit: 501 } },
   // local player
   get_self: { method: "player.getState", args: {} },
