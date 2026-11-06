@@ -24,6 +24,11 @@ All notable changes to this project are documented here. The format is based on
   duration and its params (long values cut at 200 characters, session ids left out). Written off the
   game thread; rolls over to `.1` at 5 MiB. New config value `auditLog` (default `true`). Fabric and
   NeoForge.
+- A read-only bridge token, `readToken` in `mcpfabric.config.json` (generated on first run): it may
+  call only methods that look at the game (info, block, entity and player queries, chat history,
+  events, local player state, perception, screenshots, recipes, screen and UI listings); every
+  other method is refused with `forbidden`. `MCPFABRIC_TOOLSETS=readonly` (alone or with other sets)
+  serves only the read-only tools to match. Fabric and NeoForge.
 
 ### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,

@@ -65,3 +65,16 @@ test("tool names are unique across the bridge, agent and script tools", () => {
   const names = [...TOOLS, ...AGENT_TOOLS, ...SCRIPT_TOOLS].map((tool) => tool.name);
   assert.equal(new Set(names).size, names.length);
 });
+
+test("the read-only token allows exactly the methods of the read-only bridge tools", () => {
+  const java = readFileSync(join(repoRoot, "src", "main", "java", "dev", "mcpfabric", "bridge", "ReadAccess.java"), "utf8");
+  const block = /Set\.of\(([\s\S]*?)\);/.exec(java)[1];
+  const allowed = new Set([...block.matchAll(/"([^"]+)"/g)].map((m) => m[1]));
+  const registered = registeredMethods();
+  assert.deepEqual([...allowed].filter((m) => !registered.has(m)).sort(), [], "ReadAccess lists methods the mod does not register");
+  // Supervised reads run under a grant of a supervisor session, which only the full token can open.
+  const readTools = TOOLS.filter((t) => t.annotations.readOnlyHint && !t.supervised);
+  assert.deepEqual(readTools.filter((t) => !allowed.has(t.method)).map((t) => `${t.name} (${t.method})`).sort(), [], "read-only tools the read token cannot call");
+  const writing = TOOLS.filter((t) => !t.annotations.readOnlyHint && allowed.has(t.method));
+  assert.deepEqual(writing.map((t) => t.name).sort(), [], "ReadAccess allows a method of a tool that is not read-only");
+});
