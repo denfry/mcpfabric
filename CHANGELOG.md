@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- MCP server: optional Claude Code channel (research preview). With `MCPFABRIC_CHANNEL=1` on the
+  stdio transport the server declares `claude/channel` and pushes `notifications/claude/channel`
+  messages: the local player's chat starting with `MCPFABRIC_CHANNEL_PREFIX` (default `@ai`),
+  whispers to the local player when `MCPFABRIC_CHANNEL_WHISPERS=1` (marked untrusted), death, low
+  health (`MCPFABRIC_CHANNEL_HEALTH`, at most one alert a minute), a kick or lost connection, and
+  agent jobs that finished or failed. One event stream with reconnect backoff; at most
+  `MCPFABRIC_CHANNEL_RATE` (default 6) messages a minute. See the README.
+- Client events: `chat` events now carry `kind` (`chat`, `whisper_in`, `whisper_out`, `team`, `say`,
+  `emote`, `other`) and `self` for the local player's own messages; new `self_health`,
+  `self_death` and `left_world` events from the local player (Fabric and NeoForge).
+
 ### Changed
 - MCP server: results of tools that can return text written by other players or the world
   (`get_recent_chat`, `poll_events`, `query_entities`, `get_entity`, `raycast`, `describe_scene`,

@@ -48,7 +48,7 @@ public final class NeoForgeClientEntrypoint {
 		if (event instanceof ClientChatReceivedEvent.System system) {
 			ClientEvents.onSystemMessage(system.getMessage(), system.isOverlay());
 		} else {
-			ClientEvents.onChatMessage(event.getMessage(), senderName(event));
+			ClientEvents.onChatMessage(event.getMessage(), senderName(event), event.getBoundChatType());
 		}
 	}
 

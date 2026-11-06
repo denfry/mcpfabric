@@ -9,7 +9,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult, ServerNotification } from "@modelcontextprotocol/sdk/types.js";
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
@@ -20,6 +20,7 @@ import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
 import { SupervisedSession } from "./supervised.js";
 import { markUntrusted, UNTRUSTED_INSTRUCTIONS } from "./untrusted.js";
+import { Channel, CHANNEL_CAPABILITY, CHANNEL_INSTRUCTIONS, CHANNEL_NOTIFICATION } from "./channel.js";
 import { AgentRuntime, defaultDbPath } from "./agent/runtime.js";
 import { AGENT_TOOLS, AgentSession } from "./agent/tools.js";
 
@@ -147,10 +148,14 @@ const AGENT_INSTRUCTIONS =
   "(travel_to, explore, collect_blocks, craft_item) run as background jobs — follow them with job_status " +
   "and do not drive movement manually while one runs.";
 
-function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined): McpServer {
+function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, channel = false): McpServer {
   const server = new McpServer(
     { name: "mcpfabric", version: PKG_VERSION },
-    { instructions: BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") },
+    {
+      instructions:
+        BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") + (channel ? CHANNEL_INSTRUCTIONS : ""),
+      ...(channel ? { capabilities: { experimental: { [CHANNEL_CAPABILITY]: {} } } } : {}),
+    },
   );
   const supervised = new SupervisedSession(bridge);
   registerTools(server, bridge, supervised);
@@ -163,11 +168,33 @@ function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined): M
   return server;
 }
 
-async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined): Promise<void> {
-  const server = buildServer(bridge, runtime);
+async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined, cfg: ServerConfig): Promise<void> {
+  const server = buildServer(bridge, runtime, cfg.channel.enabled);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   log(`stdio transport ready (bridge: ${process.env.MCPFABRIC_URL ?? "http://127.0.0.1:25599"})`);
+  if (cfg.channel.enabled) startChannel(server, bridge, runtime, cfg);
+}
+
+/** Claude Code channel: one event stream, pushed into this (only) stdio session. */
+function startChannel(server: McpServer, bridge: BridgeClient, runtime: AgentRuntime | undefined, cfg: ServerConfig): void {
+  const channel = new Channel({
+    cfg: cfg.channel,
+    bridge,
+    log,
+    send: (message) =>
+      // A Claude Code extension, outside the SDK's typed notification union.
+      server.server.notification({ method: CHANNEL_NOTIFICATION, params: { ...message } } as unknown as ServerNotification),
+  });
+  const offJobs = runtime?.jobs.onEnd(channel.onJobEnd);
+  channel.start();
+  const previous = server.server.onclose;
+  server.server.onclose = () => {
+    previous?.();
+    offJobs?.();
+    void channel.stop();
+  };
+  log(`channel on (prefix "${cfg.channel.prefix}", whispers ${cfg.channel.whispers ? "on" : "off"}, at most ${cfg.channel.maxPerMinute}/min)`);
 }
 
 async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, cfg: ServerConfig): Promise<void> {
@@ -261,9 +288,10 @@ async function main(): Promise<void> {
   }
 
   if (cfg.transport === "http") {
+    if (cfg.channel.enabled) log("MCPFABRIC_CHANNEL needs the stdio transport; the channel stays off.");
     await runHttp(bridge, runtime, cfg);
   } else {
-    await runStdio(bridge, runtime);
+    await runStdio(bridge, runtime, cfg);
   }
 }
 

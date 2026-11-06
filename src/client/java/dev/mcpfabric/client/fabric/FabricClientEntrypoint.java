@@ -24,7 +24,7 @@ public class FabricClientEntrypoint implements ClientModInitializer {
 				//?} else
 				/*name = sender.name();*/
 			}
-			ClientEvents.onChatMessage(message, name);
+			ClientEvents.onChatMessage(message, name, params);
 		});
 	}
 }

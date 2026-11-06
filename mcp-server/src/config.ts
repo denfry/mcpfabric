@@ -21,12 +21,29 @@ export interface ServerConfig {
   dataDir: string | undefined;
   /** Fixed world id for agent memory instead of the one reported by the game. */
   world: string | undefined;
+  /** Act as a Claude Code channel (stdio only): push chat addressed to the AI and important events. */
+  channel: ChannelConfig;
+}
+
+export interface ChannelConfig {
+  enabled: boolean;
+  /** Chat messages of the local player that start with this prefix go to the session. */
+  prefix: string;
+  /** Also push whispers other players send to the local player (as untrusted text). */
+  whispers: boolean;
+  /** Push a low-health alert when health drops below this (in half hearts, 20 = full). */
+  healthThreshold: number;
+  /** At most this many channel messages per minute; the rest are dropped and counted. */
+  maxPerMinute: number;
 }
 
 function int(value: string | undefined, fallback: number): number {
   const n = value === undefined ? NaN : Number.parseInt(value, 10);
   return Number.isFinite(n) ? n : fallback;
 }
+
+/** Opt-in flags: only 1/true/on/yes turn them on. */
+const on = (value: string | undefined): boolean => /^(1|true|on|yes)$/i.test(value ?? "");
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const rawUrl = env.MCPFABRIC_URL ?? "http://127.0.0.1:25599";
@@ -47,5 +64,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     agent: !/^(0|false|off|no)$/i.test(env.MCPFABRIC_AGENT ?? ""),
     dataDir: env.MCPFABRIC_DATA_DIR || undefined,
     world: env.MCPFABRIC_WORLD || undefined,
+    channel: {
+      enabled: on(env.MCPFABRIC_CHANNEL),
+      prefix: (env.MCPFABRIC_CHANNEL_PREFIX ?? "").trim() || "@ai",
+      whispers: on(env.MCPFABRIC_CHANNEL_WHISPERS),
+      healthThreshold: Math.max(0, int(env.MCPFABRIC_CHANNEL_HEALTH, 6)),
+      maxPerMinute: Math.max(1, int(env.MCPFABRIC_CHANNEL_RATE, 6)),
+    },
   };
 }
