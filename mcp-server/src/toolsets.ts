@@ -28,8 +28,8 @@ const METHOD_GROUPS: Record<string, string> = {
   supervised: "supervised",
 };
 
-/** Every group a tool can belong to; `agent` holds the agent runtime tools. */
-export const TOOL_GROUPS = [...new Set([...Object.values(METHOD_GROUPS), "agent"])].sort();
+/** Every group a tool can belong to; `agent` holds the agent runtime tools, `script` run_script and the skills. */
+export const TOOL_GROUPS = [...new Set([...Object.values(METHOD_GROUPS), "agent", "script"])].sort();
 
 /**
  * Not a group but a filter: with it, only tools whose readOnlyHint is true are served (pair it with
@@ -45,7 +45,7 @@ export function servesHints(groups: Set<string>, annotations: { readOnlyHint: bo
 /** Named profiles, each a union of groups. */
 export const TOOL_PROFILES: Record<string, readonly string[]> = {
   all: TOOL_GROUPS,
-  play: ["info", "player", "vision", "chat", "events", "session", "agent"],
+  play: ["info", "player", "vision", "chat", "events", "session", "agent", "script"],
   admin: ["info", "world", "entities", "operator", "chat", "events"],
   build: ["info", "world", "vision", "chat"],
 };
