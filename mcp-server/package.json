@@ -5,7 +5,8 @@
   "mcpName": "io.github.denfry/mcpfabric",
   "type": "module",
   "bin": {
-    "mcpfabric": "dist/index.js"
+    "mcpfabric": "dist/index.js",
+    "mcpfabric-bench": "dist/bench/cli.js"
   },
   "main": "dist/index.js",
   "files": [

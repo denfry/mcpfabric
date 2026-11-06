@@ -14,6 +14,10 @@ All notable changes to this project are documented here. The format is based on
 - `surroundings` (agent runtime): nearby mobs, players, dropped items, points of interest and named
   blocks, described relative to where the player looks ("5 ahead, 3 left · 5.8 m (11 o'clock)"),
   each with its coordinates.
+- `mcpfabric-bench` (`docs/BENCH.md`): seven reproducible tasks (logs, crafting table, stone
+  pickaxe, walking to a marked block, chest loot, smelting, climbing a ledge) set up with server
+  commands relative to the player, played by any agent command, and scored from the game's state.
+  It refuses to set up anything unless `--world` names the world the game is in.
 
 ### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
