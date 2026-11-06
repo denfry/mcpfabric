@@ -261,7 +261,7 @@ Then set `MCPFABRIC_TOKEN` in the server's environment.
 **entities** — `query_entities`, `get_entity`, `summon_entity`, `remove_entity`
 **players (admin)** — `list_players`, `get_player`, `teleport_player`, `set_gamemode`, `give_item`, `apply_effect`, `message_player`, `kick_player`
 **command** — `run_command` (any operator-level command, with output capture)
-**chat** — `send_chat`, `get_recent_chat`
+**chat** — `send_chat`, `show_message` (client: only the local player sees it), `get_recent_chat`
 **player (local, client)** — `get_self`, `get_inventory`, `get_equipment`, `get_status_effects`
 **control (client)** — `set_movement`, `stop_movement`, `look`, `look_at`, `jump`, `start_using_item`, `stop_using_item`
 **interact (client)** — `break_block`, `place_block`, `use_item`, `attack_entity`, `use_entity`, `drop_held_item`
@@ -293,6 +293,17 @@ Call `get_status` first — it reports which side you are on and which groups ar
   kept in the goal tree and memory, so a later session resumes with `agent_brief`.
 - "What's happening on the server" → `list_players` + `poll_events`.
 - "Build a wall" → `fill_blocks` or a series of `set_block` / `run_command`.
+
+---
+
+## Taking control back
+
+On the client, press **K** (rebind it under Controls → Miscellaneous) or run `/mcpfabric stop` to
+pause the AI: the keys it holds are released, navigation, mining and supervised grants stop, and
+every action over the bridge is refused until you press K again or run `/mcpfabric resume`. Reads
+keep working, and the AI can still answer you with `show_message`. `/mcpfabric status` shows the
+state; `get_status` reports it to the model as `aiPaused`, and the events `ai_paused` and
+`ai_resumed` are emitted. When the AI starts acting after a quiet spell, the action bar says so.
 
 ---
 

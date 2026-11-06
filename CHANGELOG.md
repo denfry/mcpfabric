@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- Take control back from the AI on the client: the new key **K** (Controls → Miscellaneous) or the
+  client command `/mcpfabric stop` pauses it, releasing held keys and stopping navigation, mining
+  and supervised grants; every action over the bridge is then refused until `/mcpfabric resume` or
+  K again. Reads keep working. `get_status` reports `aiPaused`, the events `ai_paused` and
+  `ai_resumed` are emitted, and the action bar says when the AI starts acting after a quiet spell.
+  Fabric and NeoForge.
+- `show_message` (`chat.showLocal`, client): a message from the AI, prefixed `[AI]`, that only the
+  local player sees, in chat or on the action bar. Nothing is sent to the server. It stays available
+  while the AI is paused.
+
+### Changed
+- `nav.pathTo`, `craft.place` and the container and interaction methods check player control through
+  the same gate as the other control methods.
+
 ## [0.8.0] - 2026-10-16
 
 Fabric and NeoForge. Implements #27, thanks to @faizsaifulnizam.
