@@ -41,6 +41,12 @@ public final class McpConfig {
 	public String worldIdKey = "";
 
 	/**
+	 * Write the bridge address and token to ~/.mcpfabric/bridge.json while the game runs, so the MCP
+	 * server connects without MCPFABRIC_TOKEN. The file is readable only by this user.
+	 */
+	public boolean writeDiscoveryFile = true;
+
+	/**
 	 * Record every call with a lasting effect (commands, world and entity edits, player admin, chat,
 	 * interactions) in logs/mcpfabric-audit.jsonl next to the game's own logs.
 	 */

@@ -1,6 +1,7 @@
 package dev.mcpfabric;
 
 import dev.mcpfabric.bridge.AuditLog;
+import dev.mcpfabric.bridge.DiscoveryFile;
 import dev.mcpfabric.bridge.HttpBridgeServer;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.config.McpConfig;
@@ -92,6 +93,7 @@ public final class McpFabric {
 		httpServer = new HttpBridgeServer(config, router, eventBus, sseHub);
 		try {
 			httpServer.start();
+			DiscoveryFile.write(config);
 		} catch (Exception e) {
 			LOGGER.error("[mcpfabric] failed to start HTTP bridge on {}:{}", config.host, config.port, e);
 		}
@@ -129,6 +131,7 @@ public final class McpFabric {
 			httpServer.stop();
 		}
 		if (audit != null) audit.close();
+		DiscoveryFile.remove();
 	}
 
 	public static void onServerStopped(MinecraftServer server) {
