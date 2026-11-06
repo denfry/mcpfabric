@@ -15,6 +15,9 @@ All notable changes to this project are documented here. The format is based on
   server uses it when `MCPFABRIC_TOKEN` is not set. It reads the file again on every call, so it can
   start before the game and follows a restart; a file left by a game that crashed is ignored. New
   config value `writeDiscoveryFile` (default `true`) and environment variable `MCPFABRIC_DISCOVERY`.
+- A one-click Claude Desktop extension: `npm run bundle` in `mcp-server/` builds
+  `mcpfabric-<version>.mcpb` (MCP Bundle) with optional settings for the token, address and tool
+  sets. `mcp-server/server.json` and `mcpName` prepare the listing in the MCP Registry.
 - Take control back from the AI on the client: the new key **K** (Controls → Miscellaneous) or the
   client command `/mcpfabric stop` pauses it, releasing held keys and stopping navigation, mining
   and supervised grants; every action over the bridge is then refused until `/mcpfabric resume` or
