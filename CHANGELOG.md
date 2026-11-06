@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `screenshot` with `marks: true` (Set-of-Mark prompting): mobs and players in view get numbered
+  labels drawn on the image, and a legend maps each number to the entity's uuid, type, name and
+  distance, so a vision model can act on "#2". The mod reports where each entity's centre falls in
+  the frame (`vision.screenshot` `marks`), the MCP server draws the labels. Fabric and NeoForge.
+
+### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.

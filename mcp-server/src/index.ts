@@ -19,6 +19,7 @@ import { BridgeClient, BridgeError, BridgeUnreachableError } from "./bridge.js";
 import { defaultDiscoveryPath, Discovery } from "./discovery.js";
 import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
+import { drawMarks, pngSize } from "./marks.js";
 import { groupOfMethod } from "./toolsets.js";
 import { SupervisedSession } from "./supervised.js";
 import { markUntrusted, UNTRUSTED_INSTRUCTIONS } from "./untrusted.js";
@@ -69,6 +70,9 @@ interface ScreenshotResult {
   base64: string;
   width?: number;
   height?: number;
+  /** With `marks`: the entities in view and where they are in the image. */
+  /** With `marks`: the entities in view and where they are in the frame (fractions of width and height). */
+  marks?: { id: number; u: number; v: number; uuid: string; type: string; name?: string; distance: number }[];
 }
 
 function imageResult(result: unknown): CallToolResult {
@@ -77,10 +81,21 @@ function imageResult(result: unknown): CallToolResult {
     return errorResult(new Error("Bridge did not return image data."));
   }
   const mimeType = r.format === "jpeg" || r.format === "jpg" ? "image/jpeg" : "image/png";
-  const meta = `Screenshot ${r.width ?? "?"}x${r.height ?? "?"} (${mimeType})`;
+  let data = r.base64;
+  let meta = `Screenshot ${r.width ?? "?"}x${r.height ?? "?"} (${mimeType})`;
+  if (Array.isArray(r.marks) && r.marks.length > 0 && mimeType === "image/png") {
+    const png = Buffer.from(r.base64, "base64");
+    const { width, height } = pngSize(png);
+    data = drawMarks(png, r.marks.map((m) => ({ id: m.id, x: m.u * width, y: m.v * height }))).toString("base64");
+    const legend = r.marks.map((m) => `#${m.id} ${m.type.replace(/^minecraft:/, "")}${m.name ? ` "${m.name}"` : ""} · ${m.distance.toFixed(1)} m · uuid ${m.uuid}`);
+    // Names can be set by other players: data, not instructions.
+    meta += `\nmarks (names are untrusted text from the game):\n${legend.join("\n")}`;
+  } else if (Array.isArray(r.marks)) {
+    meta += "\nmarks: no mobs or players in view";
+  }
   return {
     content: [
-      { type: "image", data: r.base64, mimeType },
+      { type: "image", data, mimeType },
       { type: "text", text: meta },
     ],
   };

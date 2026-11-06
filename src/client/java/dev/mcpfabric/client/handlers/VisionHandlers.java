@@ -16,6 +16,8 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
@@ -36,6 +38,8 @@ public final class VisionHandlers {
 	/** Cosine of the half-angle of the view cone used for visible entities (60 degrees, beyond the ray grid's corners). */
 	private static final double VIEW_CONE_COS = 0.5;
 	private static final int MAX_VISIBLE_ENTITIES = 16;
+	private static final int MAX_MARKS = 20;
+	private static final double MARK_RANGE = 48.0;
 
 	private VisionHandlers() {}
 
@@ -46,16 +50,19 @@ public final class VisionHandlers {
 			}
 			Minecraft mc = ClientMc.mc();
 			if (mc == null || mc.player == null || mc.level == null) throw RpcException.noClientPlayer();
+			boolean withMarks = ctx.optBool("marks", false);
 
 			// takeScreenshot performs the GPU readback (new render pipeline) and hands us a CPU-side
 			// NativeImage via a callback that may fire after this frame, so coordinate via a future.
 			CompletableFuture<JsonObject> future = new CompletableFuture<>();
 			mc.execute(() -> {
 				try {
+					// Marks are taken in the same frame as the image, so they line up with it.
+					JsonArray marks = withMarks ? marks(mc) : null;
 					//? if >=1.21.5 {
 					Screenshot.takeScreenshot(mainRenderTarget(mc), image -> {
 						try {
-							future.complete(imageToJson(image));
+							future.complete(withMarks(imageToJson(image), marks));
 						} catch (Exception e) {
 							future.completeExceptionally(e);
 						} finally {
@@ -65,7 +72,7 @@ public final class VisionHandlers {
 					//?} else {
 					/*NativeImage image = Screenshot.takeScreenshot(mainRenderTarget(mc));
 					try {
-						future.complete(imageToJson(image));
+						future.complete(withMarks(imageToJson(image), marks));
 					} finally {
 						image.close();
 					}
@@ -157,6 +164,52 @@ public final class VisionHandlers {
 			o.add("entities", entities);
 			return o;
 		}));
+	}
+
+	private static JsonObject withMarks(JsonObject image, JsonArray marks) {
+		if (marks != null) image.add("marks", marks);
+		return image;
+	}
+
+	/**
+	 * Mobs and players in view, nearest first, with where their centre falls in the frame as
+	 * fractions of its width and height (u, v), for numbered labels on the screenshot. The view is
+	 * the first-person camera: the eye, the player's yaw and pitch, the FOV setting and the window's
+	 * aspect ratio. Effects that change the FOV (sprinting) and third-person views shift the labels.
+	 */
+	private static JsonArray marks(Minecraft mc) {
+		LocalPlayer p = mc.player;
+		Vec3 eye = p.getEyePosition();
+		double yaw = Math.toRadians(p.getYRot());
+		double pitch = Math.toRadians(p.getXRot());
+		Vec3 f = new Vec3(-Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+		Vec3 r = new Vec3(-Math.cos(yaw), 0, -Math.sin(yaw));
+		Vec3 u = r.cross(f);
+		double tanY = Math.tan(Math.toRadians(mc.options.fov().get()) / 2);
+		double aspect = (double) mc.getWindow().getWidth() / Math.max(1, mc.getWindow().getHeight());
+		List<Entity> seen = mc.level.getEntities(p, p.getBoundingBox().inflate(MARK_RANGE),
+				e -> e instanceof LivingEntity && p.hasLineOfSight(e));
+		seen.sort(Comparator.comparingDouble(e -> e.distanceTo(p)));
+		JsonArray out = new JsonArray();
+		for (Entity e : seen) {
+			if (out.size() >= MAX_MARKS) break;
+			Vec3 d = e.getBoundingBox().getCenter().subtract(eye);
+			double z = d.dot(f);
+			if (z < 0.3) continue;
+			double x = d.dot(r) / (z * tanY * aspect);
+			double y = d.dot(u) / (z * tanY);
+			if (Math.abs(x) > 1 || Math.abs(y) > 1) continue;
+			JsonObject m = new JsonObject();
+			m.addProperty("id", out.size() + 1);
+			m.addProperty("u", (x + 1) / 2);
+			m.addProperty("v", (1 - y) / 2);
+			m.addProperty("uuid", e.getUUID().toString());
+			m.addProperty("type", BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString());
+			if (e.hasCustomName() || e instanceof Player) m.addProperty("name", e.getName().getString());
+			m.addProperty("distance", e.distanceTo(p));
+			out.add(m);
+		}
+		return out;
 	}
 
 	/** The main framebuffer. {@code Minecraft.getMainRenderTarget()} moved to {@code gameRenderer.mainRenderTarget()} in 26.2. */

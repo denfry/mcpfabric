@@ -578,8 +578,10 @@ export const TOOLS: ToolDef[] = [
     method: "vision.screenshot",
     title: "Capture screenshot",
     description:
-      "Client-only. Capture the current game framebuffer as a PNG image (at the game's current resolution) so a vision-capable model can literally see what the player sees.",
-    inputSchema: {},
+      "Client-only. Capture the current game framebuffer as a PNG image (at the game's current resolution) so a vision-capable model can literally see what the player sees. With marks: true, mobs and players in view get numbered labels (#1, #2, ...) on the image and a legend maps each number to its entity uuid, type and distance, so you can act on \"#2\" with attack_entity or use_entity.",
+    inputSchema: {
+      marks: z.boolean().optional().describe("Label the mobs and players in view with numbers and list them."),
+    },
     annotations: READ,
     kind: "image",
   },
