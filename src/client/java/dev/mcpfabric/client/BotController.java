@@ -283,7 +283,9 @@ public final class BotController {
 			return;
 		}
 		Vec3 tgt = Vec3.atBottomCenterOf(navTarget);
-		if (p.position().distanceTo(tgt) <= Math.max(reachRadius, 0.6)) {
+		// Not while jumping or falling: letting go of the keys mid-jump onto a block drops the player short of it.
+		boolean settled = p.onGround() || p.isInWater() || p.onClimbable();
+		if (settled && p.position().distanceTo(tgt) <= Math.max(reachRadius, 0.6)) {
 			stopNavigationInternal("reached");
 			return;
 		}

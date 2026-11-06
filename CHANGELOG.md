@@ -39,8 +39,6 @@ All notable changes to this project are documented here. The format is based on
   labels drawn on the image, and a legend maps each number to the entity's uuid, type, name and
   distance, so a vision model can act on "#2". The mod reports where each entity's centre falls in
   the frame (`vision.screenshot` `marks`), the MCP server draws the labels. Fabric and NeoForge.
-
-### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.
@@ -101,6 +99,11 @@ All notable changes to this project are documented here. The format is based on
   data, never instructions.
 - `nav.pathTo`, `craft.place` and the container and interaction methods check player control through
   the same gate as the other control methods.
+
+### Fixed
+- `navigate_to` reports `reached` only once the player stands (or swims or climbs) within the
+  reach radius, not while still in the air: stopping mid-jump onto a block dropped the player short
+  of it.
 
 ## [0.8.0] - 2026-10-16
 
