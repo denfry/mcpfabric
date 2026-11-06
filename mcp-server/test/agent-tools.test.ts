@@ -59,6 +59,14 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.deepEqual(rows.slice(1, 6), ["?????", "?...?", "?.@C?", "?...?", "?????"], "a 3×3 explored block, the chest one chunk east");
     assert.match(rows[6]!, /C storage/);
   },
+  surroundings: async ({ world, tool }) => {
+    world.mobs.push({ uuid: "z1", type: "minecraft:zombie", x: 3.5, y: 64, z: 5.5, health: 20 });
+    world.set({ x: 0, y: 64, z: -4 }, "minecraft:crafting_table");
+    const out = await tool("surroundings", { radius: 16 });
+    assert.match(out, /^facing south at 1 64 1 · on ground/);
+    assert.match(out, /hostile:\n  zombie 20hp: 5 ahead, 3 left · 5\.8 m \(11 o'clock\) · 4 64 6/);
+    assert.match(out, /places:\n  crafting_table: 5 behind, 1 right · 4\.5 m \(6 o'clock\) · 0 64 -4/);
+  },
   // memory
   remember: async ({ rt, tool }) => {
     assert.match(await tool("remember", { kind: "place", title: "Home", tags: ["base"] }), /^remembered #1 place "Home" @ 1 64 1 overworld$/);
