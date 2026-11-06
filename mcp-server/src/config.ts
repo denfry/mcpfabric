@@ -1,3 +1,5 @@
+import { parseToolsets } from "./toolsets.js";
+
 /**
  * Runtime configuration for the mcpfabric MCP server.
  *
@@ -21,6 +23,8 @@ export interface ServerConfig {
   dataDir: string | undefined;
   /** Fixed world id for agent memory instead of the one reported by the game. */
   world: string | undefined;
+  /** Tool groups to serve (MCPFABRIC_TOOLSETS); all of them by default. */
+  toolsets: Set<string>;
 }
 
 function int(value: string | undefined, fallback: number): number {
@@ -47,5 +51,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     agent: !/^(0|false|off|no)$/i.test(env.MCPFABRIC_AGENT ?? ""),
     dataDir: env.MCPFABRIC_DATA_DIR || undefined,
     world: env.MCPFABRIC_WORLD || undefined,
+    toolsets: parseToolsets(env.MCPFABRIC_TOOLSETS),
   };
 }

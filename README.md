@@ -196,6 +196,9 @@ run. See [docs/SUPERVISED.md](docs/SUPERVISED.md).
 
 ## 2. MCP server
 
+The server is on npm as [`mcpfabric-mcp-server`](https://www.npmjs.com/package/mcpfabric-mcp-server):
+`npx -y mcpfabric-mcp-server` runs it without a checkout. To build it from source:
+
 ```bash
 cd mcp-server
 npm install
@@ -217,6 +220,23 @@ MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
 | `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge.                   |
 | `MCPFABRIC_TRANSPORT`  | `stdio`                  | `stdio` or `http`.                                |
 | `MCPFABRIC_HTTP_PORT`  | `25600`                  | Port for the `http` transport (`/mcp`).           |
+| `MCPFABRIC_TOOLSETS`   | all tools                | Serve only some tools; see [Tool sets](#tool-sets). |
+
+### Tool sets
+
+Every tool takes up model context, and a model chooses better from 20 tools than from 90. Set
+`MCPFABRIC_TOOLSETS` to a comma-separated list of profiles and groups to serve only those:
+
+| Profile | Groups | For |
+|---------|--------|-----|
+| `play`  | `player`, `vision`, `chat`, `events`, `session`, `agent` | playing as the local player |
+| `admin` | `world`, `entities`, `operator`, `chat`, `events` | running a server |
+| `build` | `world`, `vision`, `chat` | building with world edits |
+| `all`   | every group (the default) | |
+
+The other groups are `ui` and `supervised`, e.g. `MCPFABRIC_TOOLSETS=play,ui` or
+`MCPFABRIC_TOOLSETS=supervised`. `get_status` and `list_capabilities` (`info`) are always served.
+Tool sets only hide tools: the mod's `enable*` flags still decide what the game allows.
 
 ---
 
