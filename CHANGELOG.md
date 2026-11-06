@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- A one-click Claude Desktop extension: `npm run bundle` in `mcp-server/` builds
+  `mcpfabric-<version>.mcpb` (MCP Bundle) with optional settings for the token, address and tool
+  sets. `mcp-server/server.json` and `mcpName` prepare the listing in the MCP Registry.
+
 ## [0.8.0] - 2026-10-16
 
 Fabric and NeoForge. Implements #27, thanks to @faizsaifulnizam.

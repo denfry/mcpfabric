@@ -227,7 +227,12 @@ MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
 
 ### Claude Desktop
 
-`claude_desktop_config.json` (see `examples/claude_desktop_config.json`):
+One click: download `mcpfabric-<version>.mcpb` from the
+[GitHub releases](https://github.com/denfry/mcpfabric/releases) and open it (or drag it into Claude
+Desktop, or Settings → Extensions → Install Extension). It needs Node.js ≥ 22.16 and finds the
+running game on its own. To build it yourself: `cd mcp-server && npm run bundle`.
+
+Or by hand, `claude_desktop_config.json` (see `examples/claude_desktop_config.json`):
 
 ```json
 {
