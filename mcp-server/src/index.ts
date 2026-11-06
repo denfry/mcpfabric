@@ -20,6 +20,7 @@ import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
 import { groupOfMethod } from "./toolsets.js";
 import { SupervisedSession } from "./supervised.js";
+import { markUntrusted, UNTRUSTED_INSTRUCTIONS } from "./untrusted.js";
 import { AgentRuntime, defaultDbPath } from "./agent/runtime.js";
 import { AGENT_TOOLS, AgentSession } from "./agent/tools.js";
 
@@ -97,7 +98,8 @@ function registerTools(server: McpServer, bridge: BridgeClient, supervised: Supe
     const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
       try {
         const result = def.supervised ? await supervised.call(def.method, args ?? {}) : await bridge.call(def.method, args ?? {});
-        return def.kind === "image" ? imageResult(result) : jsonResult(result);
+        if (def.kind === "image") return imageResult(result);
+        return jsonResult(def.untrusted ? markUntrusted(result) : result);
       } catch (err) {
         return errorResult(err);
       }
@@ -150,7 +152,7 @@ const AGENT_INSTRUCTIONS =
 function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, groups: Set<string>): McpServer {
   const server = new McpServer(
     { name: "mcpfabric", version: PKG_VERSION },
-    { instructions: BASE_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") },
+    { instructions: BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") },
   );
   const supervised = new SupervisedSession(bridge);
   registerTools(server, bridge, supervised, groups);
