@@ -40,6 +40,12 @@ public final class McpConfig {
 	 */
 	public String worldIdKey = "";
 
+	/**
+	 * Write the bridge address and token to ~/.mcpfabric/bridge.json while the game runs, so the MCP
+	 * server connects without MCPFABRIC_TOKEN. The file is readable only by this user.
+	 */
+	public boolean writeDiscoveryFile = true;
+
 	// capability gates ------------------------------------------------------------------------
 	public boolean enableWorldWrite = true;
 	public boolean enableCommands = true;
