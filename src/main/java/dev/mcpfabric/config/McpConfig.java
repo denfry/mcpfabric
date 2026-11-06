@@ -51,6 +51,12 @@ public final class McpConfig {
 	 */
 	public boolean writeDiscoveryFile = true;
 
+	/**
+	 * Record every call with a lasting effect (commands, world and entity edits, player admin, chat,
+	 * interactions) in logs/mcpfabric-audit.jsonl next to the game's own logs.
+	 */
+	public boolean auditLog = true;
+
 	// capability gates ------------------------------------------------------------------------
 	public boolean enableWorldWrite = true;
 	public boolean enableCommands = true;
