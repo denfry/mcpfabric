@@ -51,6 +51,11 @@ export interface ToolDef {
    * (see supervised.ts), so neither reaches the model.
    */
   supervised?: boolean;
+  /**
+   * The result can carry text other players or the world wrote (chat, names, titles, command
+   * output): it is returned wrapped as untrusted data (see untrusted.ts).
+   */
+  untrusted?: boolean;
 }
 
 // ----- reusable schema fragments -------------------------------------------------------------
@@ -171,6 +176,7 @@ export const TOOLS: ToolDef[] = [
       ...dimensionOpt,
     },
     annotations: READ,
+    untrusted: true,
   },
 
   // ===== world (write) =======================================================================
@@ -234,6 +240,7 @@ export const TOOLS: ToolDef[] = [
       ...dimensionOpt,
     },
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "get_entity",
@@ -242,6 +249,7 @@ export const TOOLS: ToolDef[] = [
     description: "Get detailed info about a single entity by UUID: type, position, velocity, health, equipment, NBT-derived attributes.",
     inputSchema: { uuid: z.string().describe("Entity UUID.") },
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "summon_entity",
@@ -351,6 +359,7 @@ export const TOOLS: ToolDef[] = [
       "Execute an arbitrary Minecraft command at operator permission level 4 (do NOT include the leading slash) and capture its feedback output. This is extremely powerful (/setblock, /summon, /give, /tp, /gamerule, /execute, datapacks, ...). Requires a server.",
     inputSchema: { command: z.string().describe('Command without the leading slash, e.g. "time set day".') },
     annotations: { ...WRITE, openWorldHint: true },
+    untrusted: true,
   },
 
   // ===== chat ================================================================================
@@ -382,6 +391,7 @@ export const TOOLS: ToolDef[] = [
     description: "Return recently observed chat & system messages (most recent last).",
     inputSchema: { limit: z.number().int().min(1).max(500).optional().default(50) },
     annotations: READ,
+    untrusted: true,
   },
 
   // ===== player (client local player) ========================================================
@@ -401,6 +411,7 @@ export const TOOLS: ToolDef[] = [
     description: "Client-only. Full inventory: main slots, hotbar, armor, offhand, and the selected slot. Each item reports id, count and durability.",
     inputSchema: {},
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "get_equipment",
@@ -409,6 +420,7 @@ export const TOOLS: ToolDef[] = [
     description: "Client-only. Currently equipped items: main hand, off hand, helmet, chestplate, leggings, boots.",
     inputSchema: {},
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "get_status_effects",
@@ -526,6 +538,7 @@ export const TOOLS: ToolDef[] = [
     description: "Client-only. Attack (left-click) an entity by UUID. Out of reach, nothing is sent (result OUT_OF_REACH). With an integrated server, the answer reports what the server did: removed, and for living targets damaged and serverHealth.",
     inputSchema: { uuid: z.string() },
     annotations: WRITE,
+    untrusted: true,
   },
   {
     name: "use_entity",
@@ -534,6 +547,7 @@ export const TOOLS: ToolDef[] = [
     description: "Client-only. Right-click/interact with an entity by UUID (e.g. trade with a villager, mount a horse). Out of reach, nothing is sent (result OUT_OF_REACH); otherwise 'result' is the client's prediction.",
     inputSchema: { uuid: z.string() },
     annotations: WRITE,
+    untrusted: true,
   },
   {
     name: "drop_held_item",
@@ -593,6 +607,7 @@ export const TOOLS: ToolDef[] = [
       rayRows: z.number().int().min(1).max(33).optional().default(5),
     },
     annotations: READ,
+    untrusted: true,
   },
 
   // ===== navigation (client, A*) =============================================================
@@ -636,6 +651,7 @@ export const TOOLS: ToolDef[] = [
       "Client-only. Report where the client is: inWorld, the open screen as a coarse kind (none, pause, chat, container, death, title, multiplayer, singleplayer, disconnected, connecting, loading, other), whether the game is paused, whether join_world can run now (canJoin), and the id of the world joined last in this game run. Call it when client tools fail with no_client_player or the player stops reacting.",
     inputSchema: {},
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "close_screen",
@@ -676,6 +692,7 @@ export const TOOLS: ToolDef[] = [
       "Client-only, needs enableUiControl. List the widgets of the open screen in focus order: id, type (button, checkbox, cycle, slider, text_field, text, other), text, active, checked (checkboxes), value (text fields) and position in GUI coordinates. Works on the pause, title, death, options, advancements, statistics and confirmation screens, container screens and screens added by other mods; the world, server, chat, link, command block and other sensitive screens are refused (ui_refused). Custom-drawn parts such as inventory slots are not widgets: use the container tools for those.",
     inputSchema: {},
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "click_widget",
@@ -688,6 +705,7 @@ export const TOOLS: ToolDef[] = [
       fraction: z.number().min(0).max(1).optional().describe("Where to click across the widget, 0..1 (default 0.5); sets a slider's value."),
     },
     annotations: ACT,
+    untrusted: true,
   },
   {
     name: "set_text_field",
@@ -700,6 +718,7 @@ export const TOOLS: ToolDef[] = [
       text: z.string().max(256),
     },
     annotations: STEER,
+    untrusted: true,
   },
 
   // ===== supervised (needs enableSupervisedControl) ==========================================
@@ -777,6 +796,7 @@ export const TOOLS: ToolDef[] = [
     },
     annotations: { ...WRITE, openWorldHint: true },
     supervised: true,
+    untrusted: true,
   },
   {
     name: "supervised_enter_world",
@@ -828,5 +848,6 @@ export const TOOLS: ToolDef[] = [
       sinceId: z.number().int().min(0).optional().describe("Only return events with id greater than this."),
     },
     annotations: READ,
+    untrusted: true,
   },
 ];

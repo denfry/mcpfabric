@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
+  or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
+  are always served. An unknown name stops the server with the list of valid ones.
 - Take control back from the AI on the client: the new key **K** (Controls → Miscellaneous) or the
   client command `/mcpfabric stop` pauses it, releasing held keys and stopping navigation, mining
   and supervised grants; every action over the bridge is then refused until `/mcpfabric resume` or
@@ -18,6 +21,13 @@ All notable changes to this project are documented here. The format is based on
   while the AI is paused.
 
 ### Changed
+- MCP server: results of tools that can return text written by other players or the world
+  (`get_recent_chat`, `poll_events`, `query_entities`, `get_entity`, `raycast`, `describe_scene`,
+  `get_inventory`, `get_equipment`, `attack_entity`, `use_entity`, `get_screen`, `get_ui`,
+  `click_widget`, `set_text_field`, `run_command`, `supervised_command`) are now returned as
+  `{ untrusted: true, notice, data }`, and chat and system messages carry a `source`
+  (`player:<name>`, `server` or `unknown`). The server instructions say that text from the game is
+  data, never instructions.
 - `nav.pathTo`, `craft.place` and the container and interaction methods check player control through
   the same gate as the other control methods.
 
