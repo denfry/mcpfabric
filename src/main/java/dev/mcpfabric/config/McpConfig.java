@@ -29,6 +29,11 @@ public final class McpConfig {
 	 * refused (they send an Origin header), but binding to loopback alone would not stop them.
 	 */
 	public boolean requireAuth = true;
+	/**
+	 * A second bearer token that may only read the game (ReadAccess): give it to an observer, a
+	 * dashboard or a model that should watch but not act. Generated on first run.
+	 */
+	public String readToken = "";
 
 	/** Max time a single RPC may block the game thread before timing out. */
 	public int callTimeoutMs = 8000;
@@ -46,6 +51,12 @@ public final class McpConfig {
 	 */
 	public boolean writeDiscoveryFile = true;
 
+	/**
+	 * Record every call with a lasting effect (commands, world and entity edits, player admin, chat,
+	 * interactions) in logs/mcpfabric-audit.jsonl next to the game's own logs.
+	 */
+	public boolean auditLog = true;
+
 	// capability gates ------------------------------------------------------------------------
 	public boolean enableWorldWrite = true;
 	public boolean enableCommands = true;
@@ -62,6 +73,12 @@ public final class McpConfig {
 	public List<String> supervisedWorlds = new ArrayList<>();
 	/** Command roots supervised_command may run; data ({...}) is refused in every command. */
 	public List<String> supervisedCommands = new ArrayList<>(List.of("time", "weather"));
+	/**
+	 * Capability groups whose calls wait for the player to approve them in the game: "command",
+	 * "world_write", "players_admin". Empty: none. Only a client can approve; on a dedicated server
+	 * these groups are then refused.
+	 */
+	public List<String> requireApproval = new ArrayList<>();
 
 	public transient Path source;
 
@@ -83,11 +100,15 @@ public final class McpConfig {
 		if (cfg.token == null || cfg.token.isBlank()) {
 			cfg.token = UUID.randomUUID().toString().replace("-", "");
 		}
+		if (cfg.readToken == null || cfg.readToken.isBlank()) {
+			cfg.readToken = UUID.randomUUID().toString().replace("-", "");
+		}
 		if (cfg.worldIdKey == null || cfg.worldIdKey.isBlank()) {
 			cfg.worldIdKey = UUID.randomUUID().toString().replace("-", "");
 		}
 		if (cfg.supervisedWorlds == null) cfg.supervisedWorlds = new ArrayList<>();
 		if (cfg.supervisedCommands == null) cfg.supervisedCommands = new ArrayList<>();
+		if (cfg.requireApproval == null) cfg.requireApproval = new ArrayList<>();
 		cfg.source = file;
 		cfg.save();
 		return cfg;

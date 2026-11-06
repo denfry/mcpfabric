@@ -15,6 +15,23 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class RpcRouter {
 	private final Map<String, RpcHandler> handlers = new ConcurrentHashMap<>();
+	private volatile Guard guard;
+
+	/** Runs before every handler and may refuse the call (the player's approval). */
+	public interface Guard {
+		void check(String method, JsonObject params) throws RpcException;
+	}
+
+	public void setGuard(Guard g) {
+		guard = g;
+	}
+
+	private volatile AuditLog audit;
+
+	/** Calls with a lasting effect are recorded here; null turns the audit log off. */
+	public void setAudit(AuditLog log) {
+		audit = log;
+	}
 
 	public void register(String method, RpcHandler handler) {
 		if (handlers.putIfAbsent(method, handler) != null) {
@@ -42,7 +59,17 @@ public final class RpcRouter {
 		if (handler == null) {
 			return Json.envelopeError("unknown_method", "No such method: " + method, null);
 		}
+		long start = System.nanoTime();
+		JsonObject envelope = invoke(handler, method, params);
+		AuditLog log = audit;
+		if (log != null) log.record(method, params, envelope, (System.nanoTime() - start) / 1_000_000);
+		return envelope;
+	}
+
+	private JsonObject invoke(RpcHandler handler, String method, JsonObject params) {
 		try {
+			Guard g = guard;
+			if (g != null) g.check(method, params);
 			JsonElement result = handler.handle(new RpcContext(method, params));
 			return Json.envelopeOk(result);
 		} catch (RpcException e) {

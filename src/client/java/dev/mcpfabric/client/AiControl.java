@@ -3,6 +3,7 @@ package dev.mcpfabric.client;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mcpfabric.McpFabric;
+import dev.mcpfabric.handlers.support.Approvals;
 import dev.mcpfabric.handlers.support.Takeover;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
@@ -22,12 +23,19 @@ public final class AiControl {
 	/** After this long without an action, the next one shows the "AI has control" hint again. */
 	private static final long IDLE_MILLIS = 15_000;
 
-	//? if <1.21.9 {
-	public static final KeyMapping TOGGLE_KEY = new KeyMapping("key.mcpfabric.toggle_ai", InputConstants.Type.KEYSYM, InputConstants.KEY_K, "key.categories.misc");
-	//?} else if <26.3 {
-	/*public static final KeyMapping TOGGLE_KEY = new KeyMapping("key.mcpfabric.toggle_ai", InputConstants.Type.KEYSYM, InputConstants.KEY_K, KeyMapping.Category.MISC);*/
-	//?} else
-	/*public static final KeyMapping TOGGLE_KEY = new KeyMapping("key.mcpfabric.toggle_ai", InputConstants.Type.KEYBOARD, InputConstants.KEY_K, KeyMapping.Category.MISC);*/
+	public static final KeyMapping TOGGLE_KEY = key("key.mcpfabric.toggle_ai", InputConstants.KEY_K);
+	/** Answer the oldest request waiting for approval (requireApproval). */
+	public static final KeyMapping APPROVE_KEY = key("key.mcpfabric.approve", InputConstants.KEY_Y);
+	public static final KeyMapping DENY_KEY = key("key.mcpfabric.deny", InputConstants.KEY_N);
+
+	private static KeyMapping key(String name, int code) {
+		//? if <1.21.9 {
+		return new KeyMapping(name, InputConstants.Type.KEYSYM, code, "key.categories.misc");
+		//?} else if <26.3 {
+		/*return new KeyMapping(name, InputConstants.Type.KEYSYM, code, KeyMapping.Category.MISC);*/
+		//?} else
+		/*return new KeyMapping(name, InputConstants.Type.KEYBOARD, code, KeyMapping.Category.MISC);*/
+	}
 
 	private static long hintedAction;
 
@@ -39,6 +47,8 @@ public final class AiControl {
 			if (Takeover.paused()) resume();
 			else pause();
 		}
+		while (APPROVE_KEY.consumeClick()) answer(0, true);
+		while (DENY_KEY.consumeClick()) answer(0, false);
 		long last = Takeover.lastActionMillis();
 		if (last != 0 && last != hintedAction && mc.player != null) {
 			if (last - hintedAction > IDLE_MILLIS) {
@@ -56,6 +66,7 @@ public final class AiControl {
 			return;
 		}
 		Takeover.setPaused(true);
+		Approvals.denyAll();
 		BotController bot = BotController.get();
 		bot.stopNavigation("paused by the player");
 		bot.stopMining();
@@ -85,6 +96,28 @@ public final class AiControl {
 		String state = Takeover.paused() ? "paused (you have control)" : "active";
 		chat(Component.literal("AI " + state + ". Bridge on " + McpFabric.config().host + ":" + McpFabric.config().port
 				+ (server ? ", integrated server" : "") + ". Toggle with ").append(keyName()).append("."));
+	}
+
+	/** A request waiting for the player (called on a bridge thread). */
+	public static void showApproval(Approvals.Pending p) {
+		Minecraft.getInstance().execute(() -> {
+			chat(Component.literal("AI asks #" + p.id() + ": ")
+					.append(Component.literal(p.summary()).withStyle(ChatFormatting.WHITE))
+					.append(Component.literal(" · ").append(APPROVE_KEY.getTranslatedKeyMessage().copy().withStyle(ChatFormatting.GREEN))
+							.append(" approve, ").append(DENY_KEY.getTranslatedKeyMessage().copy().withStyle(ChatFormatting.RED))
+							.append(" deny (or /mcpfabric approve|deny " + p.id() + "), " + Approvals.TIMEOUT_SECONDS + " s")));
+			overlay(Component.literal("AI asks for approval: ").append(Component.literal(p.summary()).withStyle(ChatFormatting.YELLOW)));
+		});
+	}
+
+	/** Approves or denies request {@code id}, or the oldest one with 0. */
+	public static void answer(int id, boolean approve) {
+		Approvals.Pending p = Approvals.answer(id, approve);
+		if (p == null) {
+			chat(Component.literal(id == 0 ? "Nothing is waiting for approval." : "No request #" + id + " is waiting."));
+			return;
+		}
+		chat(Component.literal((approve ? "Approved #" : "Denied #") + p.id() + ": " + p.summary()));
 	}
 
 	/** A message from the AI to the local player only: chat (or the action bar), never sent to the server. */

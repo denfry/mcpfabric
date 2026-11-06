@@ -86,7 +86,7 @@ const BRIDGE_TOOLS = {
   screenshot: { method: "vision.screenshot", args: { marks: true }, image: true, invalid: { marks: "yes" } },
   describe_scene: { method: "vision.describeScene", args: { rayColumns: 3, rayRows: 3 }, invalid: { rayColumns: 34 } },
   // navigation
-  navigate_to: { method: "nav.pathTo", args: { ...pos, sprint: true }, invalid: { ...pos, reachRadius: 17 } },
+  navigate_to: { method: "nav.pathTo", args: { ...pos, sprint: true, allowDig: false, allowPillar: true, allowSwim: false }, invalid: { ...pos, reachRadius: 17 } },
   navigation_status: { method: "nav.status", args: {} },
   stop_navigation: { method: "nav.stop", args: {} },
   // session and menus

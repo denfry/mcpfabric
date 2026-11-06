@@ -1,5 +1,6 @@
 package dev.mcpfabric;
 
+import dev.mcpfabric.bridge.AuditLog;
 import dev.mcpfabric.bridge.DiscoveryFile;
 import dev.mcpfabric.bridge.HttpBridgeServer;
 import dev.mcpfabric.bridge.RpcRouter;
@@ -7,6 +8,7 @@ import dev.mcpfabric.config.McpConfig;
 import dev.mcpfabric.events.EventBus;
 import dev.mcpfabric.bridge.SseHub;
 import dev.mcpfabric.handlers.CommandHandlers;
+import dev.mcpfabric.handlers.support.Approvals;
 import dev.mcpfabric.handlers.EntityHandlers;
 import dev.mcpfabric.handlers.InfoHandlers;
 import dev.mcpfabric.handlers.PlayerAdminHandlers;
@@ -35,6 +37,7 @@ public final class McpFabric {
 	private static EventBus eventBus;
 	private static SseHub sseHub;
 	private static HttpBridgeServer httpServer;
+	private static AuditLog audit;
 	private static final Supervisor supervisor = new Supervisor();
 
 	private McpFabric() {}
@@ -66,6 +69,11 @@ public final class McpFabric {
 		sseHub = new SseHub();
 		eventBus = new EventBus(sseHub);
 		router = new RpcRouter();
+		router.setGuard(Approvals::require);
+		if (config.auditLog) {
+			audit = new AuditLog(platform.configDir().resolveSibling("logs").resolve("mcpfabric-audit.jsonl"));
+			router.setAudit(audit);
+		}
 
 		// Server-capable handlers. Game event listeners are wired by the loader entrypoint and feed
 		// the bus through GameEvents.
@@ -124,6 +132,7 @@ public final class McpFabric {
 		if (httpServer != null) {
 			httpServer.stop();
 		}
+		if (audit != null) audit.close();
 		DiscoveryFile.remove();
 	}
 

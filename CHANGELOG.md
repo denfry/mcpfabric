@@ -18,6 +18,23 @@ All notable changes to this project are documented here. The format is based on
   pickaxe, walking to a marked block, chest loot, smelting, climbing a ledge) set up with server
   commands relative to the player, played by any agent command, and scored from the game's state.
   It refuses to set up anything unless `--world` names the world the game is in.
+- Audit log: every bridge call with a lasting effect (commands, block and entity edits, player
+  admin, chat, interactions, inventory drops, containers, crafting, screens, joining a world,
+  supervised actions) is appended to `logs/mcpfabric-audit.jsonl` with the time, the outcome, the
+  duration and its params (long values cut at 200 characters, session ids left out). Written off the
+  game thread; rolls over to `.1` at 5 MiB. New config value `auditLog` (default `true`). Fabric and
+  NeoForge.
+- A read-only bridge token, `readToken` in `mcpfabric.config.json` (generated on first run): it may
+  call only methods that look at the game (info, block, entity and player queries, chat history,
+  events, local player state, perception, screenshots, recipes, screen and UI listings); every
+  other method is refused with `forbidden`. `MCPFABRIC_TOOLSETS=readonly` (alone or with other sets)
+  serves only the read-only tools to match. Fabric and NeoForge.
+- Approve risky calls in the game: groups listed in the new `requireApproval` config value
+  (`command`, `world_write`, `players_admin`; also `/` commands sent through chat) wait up to 60
+  seconds for the player. Requests show in chat and on the action bar; **Y** / **N** (rebindable) or
+  `/mcpfabric approve|deny [id]` answer them, silence and pausing the AI deny them. `get_status`
+  reports `requireApproval`, and the events `approval_requested` / `approval_answered` are emitted.
+  Client only; on a dedicated server those groups are refused. Fabric and NeoForge.
 - `screenshot` with `marks: true` (Set-of-Mark prompting): mobs and players in view get numbered
   labels drawn on the image, and a legend maps each number to the entity's uuid, type, name and
   distance, so a vision model can act on "#2". The mod reports where each entity's centre falls in
@@ -63,8 +80,18 @@ All notable changes to this project are documented here. The format is based on
 - Client events: `chat` events now carry `kind` (`chat`, `whisper_in`, `whisper_out`, `team`, `say`,
   `emote`, `other`) and `self` for the local player's own messages; new `self_health`,
   `self_death` and `left_world` events from the local player (Fabric and NeoForge).
+- The walker (`navigate_to`, `travel_to`, `explore`, `collect_blocks`) swims at the surface, climbs
+  ladders and vines, opens wooden doors and fence gates, digs through blocks with the best hotbar
+  tool when going around is longer, and pillars up on cobblestone, dirt or similar from the hotbar.
+  It never digs next to water or lava, under its own feet or under falling blocks over its head,
+  and drops more than three blocks only into water or onto a ladder. `nav.pathTo` takes
+  `allowDig`, `allowPillar` and `allowSwim` (all on by default) and returns the path's move counts;
+  `nav.status` reports the current `move`. `travel_to` takes the same flags, and `collect_blocks`
+  tunnels to buried blocks up to 16 blocks away (`dig: false` turns that off).
 
 ### Changed
+- `navigate_to`, `travel_to` and `explore` are now marked destructive, since they may break and
+  place blocks.
 - MCP server: results of tools that can return text written by other players or the world
   (`get_recent_chat`, `poll_events`, `query_entities`, `get_entity`, `raycast`, `describe_scene`,
   `get_inventory`, `get_equipment`, `attack_entity`, `use_entity`, `get_screen`, `get_ui`,

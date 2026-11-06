@@ -95,7 +95,9 @@ public final class HttpBridgeServer {
 			respond(ex, 405, Json.GSON.toJson(Json.envelopeError("method_not_allowed", "Use POST.", null)));
 			return;
 		}
-		if (fromBrowser(ex) || !authorize(ex)) return;
+		if (fromBrowser(ex)) return;
+		Access access = access(ex);
+		if (access == null) return;
 		// A page can send a cross-site text/plain POST without a CORS preflight; JSON cannot.
 		String type = ex.getRequestHeaders().getFirst("Content-Type");
 		if (type == null || !type.toLowerCase(Locale.ROOT).startsWith("application/json")) {
@@ -124,6 +126,11 @@ public final class HttpBridgeServer {
 		String method = req.has("method") && !req.get("method").isJsonNull() ? req.get("method").getAsString() : null;
 		JsonObject params = req.has("params") && req.get("params").isJsonObject() ? req.getAsJsonObject("params") : new JsonObject();
 
+		if (access == Access.READ && !ReadAccess.allowed(method)) {
+			respond(ex, 403, Json.GSON.toJson(Json.envelopeError("forbidden",
+					"This token may only read the game; '" + method + "' needs the full token.", null)));
+			return;
+		}
 		JsonObject env = router.dispatch(method, params);
 		respond(ex, 200, Json.GSON.toJson(env));
 	}
@@ -176,18 +183,27 @@ public final class HttpBridgeServer {
 		return true;
 	}
 
+	/** What a request may do: the full token, the read-only token, or nothing (null, already answered). */
+	enum Access { FULL, READ }
+
 	private boolean authorize(HttpExchange ex) throws IOException {
+		return access(ex) != null;
+	}
+
+	private Access access(HttpExchange ex) throws IOException {
 		if (!cfg.requireAuth || cfg.token == null || cfg.token.isBlank()) {
-			return true;
+			return Access.FULL;
 		}
 		String auth = ex.getRequestHeaders().getFirst("Authorization");
-		String expected = "Bearer " + cfg.token;
-		if (auth != null && constantTimeEquals(auth, expected)) {
-			return true;
+		if (auth != null && constantTimeEquals(auth, "Bearer " + cfg.token)) {
+			return Access.FULL;
+		}
+		if (auth != null && cfg.readToken != null && !cfg.readToken.isBlank() && constantTimeEquals(auth, "Bearer " + cfg.readToken)) {
+			return Access.READ;
 		}
 		ex.getResponseHeaders().set("WWW-Authenticate", "Bearer");
 		respond(ex, 401, Json.GSON.toJson(Json.envelopeError("unauthorized", "Missing or invalid bearer token.", null)));
-		return false;
+		return null;
 	}
 
 	private static boolean constantTimeEquals(String a, String b) {
