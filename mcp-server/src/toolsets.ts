@@ -31,6 +31,17 @@ const METHOD_GROUPS: Record<string, string> = {
 /** Every group a tool can belong to; `agent` holds the agent runtime tools, `script` run_script and the skills. */
 export const TOOL_GROUPS = [...new Set([...Object.values(METHOD_GROUPS), "agent", "script"])].sort();
 
+/**
+ * Not a group but a filter: with it, only tools whose readOnlyHint is true are served (pair it with
+ * the mod's `readToken`, which may only call those).
+ */
+export const READONLY = "readonly";
+
+/** Whether a tool with these hints is served for these groups (the group itself is checked apart). */
+export function servesHints(groups: Set<string>, annotations: { readOnlyHint: boolean }): boolean {
+  return !groups.has(READONLY) || annotations.readOnlyHint;
+}
+
 /** Named profiles, each a union of groups. */
 export const TOOL_PROFILES: Record<string, readonly string[]> = {
   all: TOOL_GROUPS,
@@ -51,11 +62,14 @@ export function groupOfMethod(method: string): string {
  * Throws on an unknown name, so a typo does not silently serve the wrong tools.
  */
 export function parseToolsets(value: string | undefined): Set<string> {
-  const names = (value ?? "")
+  let names = (value ?? "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter((s) => s.length > 0);
-  if (names.length === 0) return new Set(TOOL_GROUPS);
+  // `readonly` is a filter on top of the other names: only tools that just read are served.
+  const readonly = names.includes(READONLY);
+  names = names.filter((n) => n !== READONLY);
+  if (names.length === 0) return new Set([...TOOL_GROUPS, ...(readonly ? [READONLY] : [])]);
   const groups = new Set<string>(["info"]);
   for (const name of names) {
     const profile = TOOL_PROFILES[name];
@@ -65,10 +79,11 @@ export function parseToolsets(value: string | undefined): Set<string> {
       groups.add(name);
     } else {
       throw new Error(
-        `MCPFABRIC_TOOLSETS: unknown tool set "${name}". Profiles: ${Object.keys(TOOL_PROFILES).join(", ")}; groups: ${TOOL_GROUPS.join(", ")}`,
+        `MCPFABRIC_TOOLSETS: unknown tool set "${name}". Profiles: ${Object.keys(TOOL_PROFILES).join(", ")}; groups: ${TOOL_GROUPS.join(", ")}; filter: ${READONLY}`,
       );
     }
   }
+  if (readonly) groups.add(READONLY);
   return groups;
 }
 

@@ -72,3 +72,16 @@ test("the server only serves the tools of the chosen sets", async () => {
   assert.ok(play.includes("navigate_to") && !play.includes("run_command") && !play.includes("set_block"));
   assert.equal(play.length, TOOLS.filter((t) => TOOL_PROFILES.play.includes(groupOfMethod(t.method))).length + AGENT_TOOLS.length + SCRIPT_TOOLS.length + DASHBOARD_TOOLS.length);
 });
+
+test("readonly serves only the tools that just read", async () => {
+  assert.ok(parseToolsets("readonly").has("readonly"));
+  assert.deepEqual([...parseToolsets("world,readonly")].sort(), ["info", "readonly", "world"]);
+  const names = await listTools("readonly");
+  const all = [...TOOLS, ...AGENT_TOOLS];
+  for (const n of names) {
+    const def = all.find((t) => t.name === n);
+    if (def) assert.equal(def.annotations.readOnlyHint, true, `${n} is served under readonly`);
+  }
+  assert.ok(names.includes("get_block") && names.includes("agent_brief"));
+  assert.ok(!names.includes("set_block") && !names.includes("run_command") && !names.includes("travel_to"));
+});

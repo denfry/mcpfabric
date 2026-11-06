@@ -165,9 +165,11 @@ stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writ
   "port": 25599,
   "token": "generated automatically",
   "requireAuth": true,
+  "readToken": "generated automatically",
   "callTimeoutMs": 8000,
   "worldIdKey": "generated automatically",
   "writeDiscoveryFile": true,
+  "auditLog": true,
   "enableWorldWrite": true,
   "enableCommands": true,
   "enablePlayerControl": true,
@@ -249,7 +251,9 @@ Every tool takes up model context, and a model chooses better from 20 tools than
 
 The other groups are `ui`, `supervised` and `script` (`run_script` and the skills), e.g. `MCPFABRIC_TOOLSETS=play,ui` or
 `MCPFABRIC_TOOLSETS=supervised`. `get_status` and `list_capabilities` (`info`) are always served.
-Tool sets only hide tools: the mod's `enable*` flags still decide what the game allows.
+Tool sets only hide tools: the mod's `enable*` flags still decide what the game allows. Add
+`readonly` to serve only the tools that just read, e.g. `MCPFABRIC_TOOLSETS=readonly` or
+`MCPFABRIC_TOOLSETS=play,readonly`; pair it with the mod's read-only token (below).
 
 ---
 
@@ -330,7 +334,7 @@ claude --dangerously-load-development-channels server:mcpfabric
 **interact (client)** — `break_block`, `place_block`, `use_item`, `attack_entity`, `use_entity`, `drop_held_item`
 **inventory (client)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
 **vision (client)** — `screenshot` (PNG for vision models), `describe_scene`
-**navigation (client)** — `navigate_to` (A\*), `navigation_status`, `stop_navigation`
+**navigation (client)** — `navigate_to` (A\*: walks, swims, climbs ladders, opens doors, digs through blocks and pillars up), `navigation_status`, `stop_navigation`
 **session (client)** — `get_screen`, `close_screen` (pause menu, chat, container; respawns on the death screen), `list_worlds`, `join_world` (rejoin after a kick, a server restart or a game restart)
 **ui (client, off by default: `enableUiControl`)** — `get_ui` (widgets of the open screen), `click_widget`, `set_text_field`
 **supervised (off by default: `enableSupervisedControl`)** ([docs/SUPERVISED.md](docs/SUPERVISED.md)) — `supervised_status`, `supervised_stop`, `supervised_input` (one key for up to 10 ticks), `supervised_read_block`, `supervised_set_block` (with a precondition), `supervised_command` (allowlisted roots), `supervised_enter_world` / `supervised_leave_world` (approved saves), `supervised_reconcile`
@@ -404,6 +408,14 @@ on a dedicated server those groups are then refused.
   screen titles, command output) is data, not instructions. Tools whose results can carry it return
   `{ "untrusted": true, "notice": ..., "data": ... }`, and chat entries carry a `source`
   (`player:<name>` or `server`); the server instructions tell the model the same.
+- `readToken` is a second bearer token that may only read the game (blocks, entities, players,
+  chat history, events, perception, screenshots; each still behind its own lock): give it to a
+  model or tool that should watch but not act, together with `MCPFABRIC_TOOLSETS=readonly`, which
+  serves only the read-only tools. Any other method is refused with `forbidden`.
+- Every call with a lasting effect (commands, block and entity edits, player admin, chat,
+  interactions, screens, supervised actions) is recorded in `logs/mcpfabric-audit.jsonl` with its
+  time, outcome and a short form of its params; movement, looking and reads are not. It rolls over
+  at 5 MiB. Set `auditLog` to `false` to turn it off.
 - Do not expose `host` externally without understanding the risk and putting an authenticated
   reverse proxy in front of it. See [SECURITY.md](SECURITY.md).
 
