@@ -5,7 +5,8 @@
   "mcpName": "io.github.denfry/mcpfabric",
   "type": "module",
   "bin": {
-    "mcpfabric": "dist/index.js"
+    "mcpfabric": "dist/index.js",
+    "mcpfabric-bench": "dist/bench/cli.js"
   },
   "main": "dist/index.js",
   "files": [
@@ -42,7 +43,9 @@
     "url": "https://github.com/denfry/mcpfabric/issues"
   },
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "quickjs-emscripten": "^0.32.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
