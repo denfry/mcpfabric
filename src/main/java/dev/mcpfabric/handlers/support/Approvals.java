@@ -130,12 +130,12 @@ public final class Approvals {
 		if (("command.run".equals(method) || "chat.send".equals(method)) && params != null) {
 			String key = "command.run".equals(method) ? "command" : "message";
 			String c = params.has(key) && params.get(key).isJsonPrimitive() ? params.get(key).getAsString().strip() : "";
-			text = c.startsWith("/") ? c : "/" + c;
+			text = c.startsWith("/") || "chat.send".equals(method) ? c : "/" + c;
 		} else {
 			text = method + " " + (params == null ? "{}" : params.toString());
 		}
 		// Formatting codes and control characters could disguise what is asked.
-		text = text.replaceAll("[\u00a7\p{Cntrl}]", "");
+		text = text.replaceAll("[\u00a7\\p{Cntrl}]", "");
 		return text.length() > MAX_SUMMARY ? text.substring(0, MAX_SUMMARY) + "..." : text;
 	}
 }
