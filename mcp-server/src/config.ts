@@ -1,3 +1,5 @@
+import { parseToolsets } from "./toolsets.js";
+
 /**
  * Runtime configuration for the mcpfabric MCP server.
  *
@@ -23,6 +25,8 @@ export interface ServerConfig {
   world: string | undefined;
   /** Serve the script tools (run_script; the skill tools also need the agent runtime). */
   scripts: boolean;
+  /** Tool groups to serve (MCPFABRIC_TOOLSETS); all of them by default. */
+  toolsets: Set<string>;
 }
 
 function int(value: string | undefined, fallback: number): number {
@@ -50,5 +54,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     dataDir: env.MCPFABRIC_DATA_DIR || undefined,
     world: env.MCPFABRIC_WORLD || undefined,
     scripts: !/^(0|false|off|no)$/i.test(env.MCPFABRIC_SCRIPTS ?? ""),
+    toolsets: parseToolsets(env.MCPFABRIC_TOOLSETS),
   };
 }

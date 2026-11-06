@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
+  or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
+  are always served. An unknown name stops the server with the list of valid ones.
 - Code mode in the MCP server: `run_script` runs a short JavaScript program that drives the game
   through the bridge (`await mc.call(...)`, or one helper per bridge tool such as `mc.get_self()`),
   instead of one tool call per step. Programs run in QuickJS compiled to WebAssembly
@@ -16,6 +19,15 @@ All notable changes to this project are documented here. The format is based on
   A program never runs together with an agent job. Programs that worked are kept per world as
   skills: `save_skill`, `list_skills`, `run_skill`, `delete_skill`; `agent_brief` names them.
   `MCPFABRIC_SCRIPTS=0` removes the tools. See docs/AGENT.md, "Scripts and skills".
+
+### Changed
+- MCP server: results of tools that can return text written by other players or the world
+  (`get_recent_chat`, `poll_events`, `query_entities`, `get_entity`, `raycast`, `describe_scene`,
+  `get_inventory`, `get_equipment`, `attack_entity`, `use_entity`, `get_screen`, `get_ui`,
+  `click_widget`, `set_text_field`, `run_command`, `supervised_command`) are now returned as
+  `{ untrusted: true, notice, data }`, and chat and system messages carry a `source`
+  (`player:<name>`, `server` or `unknown`). The server instructions say that text from the game is
+  data, never instructions.
 
 ## [0.8.0] - 2026-10-16
 
