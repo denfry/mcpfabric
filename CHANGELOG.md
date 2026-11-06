@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- A read-only bridge token, `readToken` in `mcpfabric.config.json` (generated on first run): it may
+  call only methods that look at the game (info, block, entity and player queries, chat history,
+  events, local player state, perception, screenshots, recipes, screen and UI listings); every
+  other method is refused with `forbidden`. `MCPFABRIC_TOOLSETS=readonly` (alone or with other sets)
+  serves only the read-only tools to match. Fabric and NeoForge.
+
+### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.

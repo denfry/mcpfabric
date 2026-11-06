@@ -19,7 +19,7 @@ import { BridgeClient, BridgeError, BridgeUnreachableError } from "./bridge.js";
 import { defaultDiscoveryPath, Discovery } from "./discovery.js";
 import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
-import { groupOfMethod } from "./toolsets.js";
+import { groupOfMethod, servesHints } from "./toolsets.js";
 import { SupervisedSession } from "./supervised.js";
 import { markUntrusted, UNTRUSTED_INSTRUCTIONS } from "./untrusted.js";
 import { AgentRuntime, defaultDbPath } from "./agent/runtime.js";
@@ -88,7 +88,7 @@ function imageResult(result: unknown): CallToolResult {
 
 function registerTools(server: McpServer, bridge: BridgeClient, supervised: SupervisedSession, groups: Set<string>): void {
   for (const def of TOOLS as ToolDef[]) {
-    if (!groups.has(groupOfMethod(def.method))) continue;
+    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations)) continue;
     const config = {
       title: def.title,
       description: def.description,
@@ -111,9 +111,10 @@ function registerTools(server: McpServer, bridge: BridgeClient, supervised: Supe
 }
 
 /** Registers the agent tools; returns what to do when the MCP session closes. */
-function registerAgentTools(server: McpServer, runtime: AgentRuntime): () => void {
+function registerAgentTools(server: McpServer, runtime: AgentRuntime, groups: Set<string>): () => void {
   const session = new AgentSession();
   for (const def of AGENT_TOOLS) {
+    if (!servesHints(groups, def.annotations)) continue;
     const config = {
       title: def.title,
       description: def.description,
@@ -157,7 +158,7 @@ function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, gr
   );
   const supervised = new SupervisedSession(bridge);
   registerTools(server, bridge, supervised, groups);
-  const closeAgent = runtime ? registerAgentTools(server, runtime) : undefined;
+  const closeAgent = runtime ? registerAgentTools(server, runtime, groups) : undefined;
   // Grants of this MCP session must not outlive it.
   server.server.onclose = () => {
     closeAgent?.();

@@ -29,6 +29,11 @@ public final class McpConfig {
 	 * refused (they send an Origin header), but binding to loopback alone would not stop them.
 	 */
 	public boolean requireAuth = true;
+	/**
+	 * A second bearer token that may only read the game (ReadAccess): give it to an observer, a
+	 * dashboard or a model that should watch but not act. Generated on first run.
+	 */
+	public String readToken = "";
 
 	/** Max time a single RPC may block the game thread before timing out. */
 	public int callTimeoutMs = 8000;
@@ -82,6 +87,9 @@ public final class McpConfig {
 		}
 		if (cfg.token == null || cfg.token.isBlank()) {
 			cfg.token = UUID.randomUUID().toString().replace("-", "");
+		}
+		if (cfg.readToken == null || cfg.readToken.isBlank()) {
+			cfg.readToken = UUID.randomUUID().toString().replace("-", "");
 		}
 		if (cfg.worldIdKey == null || cfg.worldIdKey.isBlank()) {
 			cfg.worldIdKey = UUID.randomUUID().toString().replace("-", "");

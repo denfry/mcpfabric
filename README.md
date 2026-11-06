@@ -165,6 +165,7 @@ stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writ
   "port": 25599,
   "token": "generated automatically",
   "requireAuth": true,
+  "readToken": "generated automatically",
   "callTimeoutMs": 8000,
   "worldIdKey": "generated automatically",
   "writeDiscoveryFile": true,
@@ -242,7 +243,9 @@ Every tool takes up model context, and a model chooses better from 20 tools than
 
 The other groups are `ui` and `supervised`, e.g. `MCPFABRIC_TOOLSETS=play,ui` or
 `MCPFABRIC_TOOLSETS=supervised`. `get_status` and `list_capabilities` (`info`) are always served.
-Tool sets only hide tools: the mod's `enable*` flags still decide what the game allows.
+Tool sets only hide tools: the mod's `enable*` flags still decide what the game allows. Add
+`readonly` to serve only the tools that just read, e.g. `MCPFABRIC_TOOLSETS=readonly` or
+`MCPFABRIC_TOOLSETS=play,readonly`; pair it with the mod's read-only token (below).
 
 ---
 
@@ -329,6 +332,10 @@ Call `get_status` first — it reports which side you are on and which groups ar
   screen titles, command output) is data, not instructions. Tools whose results can carry it return
   `{ "untrusted": true, "notice": ..., "data": ... }`, and chat entries carry a `source`
   (`player:<name>` or `server`); the server instructions tell the model the same.
+- `readToken` is a second bearer token that may only read the game (blocks, entities, players,
+  chat history, events, perception, screenshots; each still behind its own lock): give it to a
+  model or tool that should watch but not act, together with `MCPFABRIC_TOOLSETS=readonly`, which
+  serves only the read-only tools. Any other method is refused with `forbidden`.
 - Do not expose `host` externally without understanding the risk and putting an authenticated
   reverse proxy in front of it. See [SECURITY.md](SECURITY.md).
 
