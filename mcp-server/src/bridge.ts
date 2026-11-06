@@ -6,6 +6,8 @@
  * It also exposes `GET /health`, `GET /info`, and `GET /events` (SSE).
  */
 
+import type { BridgeTarget } from "./discovery.js";
+
 export interface BridgeErrorBody {
   code: string;
   message: string;
@@ -41,30 +43,42 @@ interface RpcEnvelope<T> {
 }
 
 export class BridgeClient {
+  /**
+   * @param discover where to look for the running game when no token is configured
+   *   (`~/.mcpfabric/bridge.json`, see discovery.ts); its address and token are used instead.
+   */
   constructor(
     private readonly baseUrl: string,
     private readonly token: string | undefined,
     private readonly timeoutMs: number,
+    private readonly discover?: () => BridgeTarget | undefined,
   ) {}
 
-  private headers(): Record<string, string> {
+  /** Address and token for the next request. */
+  target(): BridgeTarget {
+    if (this.token || !this.discover) return { url: this.baseUrl, token: this.token };
+    return this.discover() ?? { url: this.baseUrl, token: undefined };
+  }
+
+  private headers(token: string | undefined): Record<string, string> {
     const h: Record<string, string> = { "content-type": "application/json" };
-    if (this.token) h.authorization = `Bearer ${this.token}`;
+    if (token) h.authorization = `Bearer ${token}`;
     return h;
   }
 
   private async fetchWithTimeout(path: string, init: RequestInit): Promise<Response> {
+    const { url, token } = this.target();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      return await fetch(this.baseUrl + path, { ...init, signal: controller.signal });
+      return await fetch(url + path, { ...init, headers: this.headers(token), signal: controller.signal });
     } catch (err) {
       const reason =
         err instanceof Error && err.name === "AbortError"
           ? `timed out after ${this.timeoutMs}ms`
           : (err as Error)?.message ?? String(err);
       throw new BridgeUnreachableError(
-        `Could not reach the mcpfabric bridge at ${this.baseUrl} (${reason}). ` +
+        `Could not reach the mcpfabric bridge at ${url} (${reason}). ` +
           `Is Minecraft running with the mod loaded, and is MCPFABRIC_URL correct?`,
         err,
       );
@@ -77,7 +91,6 @@ export class BridgeClient {
   async call<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     const res = await this.fetchWithTimeout("/rpc", {
       method: "POST",
-      headers: this.headers(),
       body: JSON.stringify({ method, params }),
     });
 
@@ -85,8 +98,8 @@ export class BridgeClient {
       throw new BridgeError({
         code: "unauthorized",
         message:
-          "Bridge rejected the auth token. Set MCPFABRIC_TOKEN to the token the mod printed on startup " +
-          "(also stored in mcpfabric.config.json next to the world / in the run dir).",
+          "Bridge rejected the auth token. Set MCPFABRIC_TOKEN to the token in config/mcpfabric.config.json " +
+          "of the game, or unset it so the token is read from ~/.mcpfabric/bridge.json while the game runs.",
       });
     }
 
@@ -108,7 +121,7 @@ export class BridgeClient {
 
   /** Lightweight liveness probe. Returns the parsed `/info` payload or throws if unreachable. */
   async info<T = unknown>(): Promise<T> {
-    const res = await this.fetchWithTimeout("/info", { method: "GET", headers: this.headers() });
+    const res = await this.fetchWithTimeout("/info", { method: "GET" });
     return (await res.json()) as T;
   }
 }
