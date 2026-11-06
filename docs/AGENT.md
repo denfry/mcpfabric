@@ -105,6 +105,15 @@ keep pushing the bot back until navigation gives up.
   tool) through the recipe book, and uses the 2×2 grid or a crafting table. It walks to a table
   nearby, or places one from the inventory if there is none.
 
+## Dashboard
+
+`open_dashboard` is an [MCP App](https://modelcontextprotocol.io/extensions/apps): hosts that render
+MCP Apps (Claude among them) show a live panel with the position, health and food, the running job,
+the explored map, the goal tree and the inventory. It refreshes every 3 seconds while it is visible,
+through the app-only tool `dashboard_state`. Its **STOP** button calls `dashboard_stop`, which cancels
+the running job and stops navigation, mining, held keys and supervised input. The model does not see
+these two tools. Other hosts get a short text summary from `open_dashboard`.
+
 ## Known limits
 
 - The walker cannot swim, climb ladders, pillar up or dig tunnels. `collect_blocks` skips buried
