@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- No token to copy: while the bridge runs, the mod writes its address and token to
+  `~/.mcpfabric/bridge.json` (readable only by the user, removed when the game stops), and the MCP
+  server uses it when `MCPFABRIC_TOKEN` is not set. It reads the file again on every call, so it can
+  start before the game and follows a restart; a file left by a game that crashed is ignored. New
+  config value `writeDiscoveryFile` (default `true`) and environment variable `MCPFABRIC_DISCOVERY`.
+
 ## [0.8.0] - 2026-10-16
 
 Fabric and NeoForge. Implements #27, thanks to @faizsaifulnizam.
