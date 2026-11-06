@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
+  or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
+  are always served. An unknown name stops the server with the list of valid ones.
 - MCP server: optional Claude Code channel (research preview). With `MCPFABRIC_CHANNEL=1` on the
   stdio transport the server declares `claude/channel` and pushes `notifications/claude/channel`
   messages: the local player's chat starting with `MCPFABRIC_CHANNEL_PREFIX` (default `@ai`),

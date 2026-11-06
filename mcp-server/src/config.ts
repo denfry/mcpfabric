@@ -1,3 +1,5 @@
+import { parseToolsets } from "./toolsets.js";
+
 /**
  * Runtime configuration for the mcpfabric MCP server.
  *
@@ -23,6 +25,8 @@ export interface ServerConfig {
   world: string | undefined;
   /** Act as a Claude Code channel (stdio only): push chat addressed to the AI and important events. */
   channel: ChannelConfig;
+  /** Tool groups to serve (MCPFABRIC_TOOLSETS); all of them by default. */
+  toolsets: Set<string>;
 }
 
 export interface ChannelConfig {
@@ -71,5 +75,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
       healthThreshold: Math.max(0, int(env.MCPFABRIC_CHANNEL_HEALTH, 6)),
       maxPerMinute: Math.max(1, int(env.MCPFABRIC_CHANNEL_RATE, 6)),
     },
+    toolsets: parseToolsets(env.MCPFABRIC_TOOLSETS),
   };
 }
