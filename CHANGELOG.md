@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Audit log: every bridge call with a lasting effect (commands, block and entity edits, player
+  admin, chat, interactions, inventory drops, containers, crafting, screens, joining a world,
+  supervised actions) is appended to `logs/mcpfabric-audit.jsonl` with the time, the outcome, the
+  duration and its params (long values cut at 200 characters, session ids left out). Written off the
+  game thread; rolls over to `.1` at 5 MiB. New config value `auditLog` (default `true`). Fabric and
+  NeoForge.
+
+### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.

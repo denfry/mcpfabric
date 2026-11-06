@@ -163,6 +163,7 @@ printed to logs.
   "requireAuth": true,
   "callTimeoutMs": 8000,
   "worldIdKey": "generated automatically",
+  "auditLog": true,
   "enableWorldWrite": true,
   "enableCommands": true,
   "enablePlayerControl": true,
@@ -326,6 +327,10 @@ Call `get_status` first — it reports which side you are on and which groups ar
   screen titles, command output) is data, not instructions. Tools whose results can carry it return
   `{ "untrusted": true, "notice": ..., "data": ... }`, and chat entries carry a `source`
   (`player:<name>` or `server`); the server instructions tell the model the same.
+- Every call with a lasting effect (commands, block and entity edits, player admin, chat,
+  interactions, screens, supervised actions) is recorded in `logs/mcpfabric-audit.jsonl` with its
+  time, outcome and a short form of its params; movement, looking and reads are not. It rolls over
+  at 5 MiB. Set `auditLog` to `false` to turn it off.
 - Do not expose `host` externally without understanding the risk and putting an authenticated
   reverse proxy in front of it. See [SECURITY.md](SECURITY.md).
 
