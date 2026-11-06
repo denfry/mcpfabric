@@ -11,12 +11,14 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 // Runs against the compiled server: npm run build first (npm test does).
 import { TOOLS } from "../dist/tools.js";
 import { AGENT_TOOLS } from "../dist/agent/tools.js";
+import { SCRIPT_TOOLS } from "../dist/script/tools.js";
+import { DASHBOARD_TOOLS } from "../dist/dashboard/register.js";
 import { groupOfMethod, parseToolsets, TOOL_GROUPS, TOOL_PROFILES } from "../dist/toolsets.js";
 
 const serverEntry = join(dirname(fileURLToPath(import.meta.url)), "..", "dist", "index.js");
 
 test("every bridge tool belongs to a group, and every group has tools", () => {
-  const used = new Set(["agent"]);
+  const used = new Set(["agent", "script"]);
   for (const tool of TOOLS) used.add(groupOfMethod(tool.method));
   assert.deepEqual([...used].sort(), TOOL_GROUPS);
 });
@@ -68,5 +70,5 @@ test("the server only serves the tools of the chosen sets", async () => {
   const play = await listTools("play");
   assert.ok(play.includes("agent_brief"), "play serves the agent tools");
   assert.ok(play.includes("navigate_to") && !play.includes("run_command") && !play.includes("set_block"));
-  assert.equal(play.length, TOOLS.filter((t) => TOOL_PROFILES.play.includes(groupOfMethod(t.method))).length + AGENT_TOOLS.length);
+  assert.equal(play.length, TOOLS.filter((t) => TOOL_PROFILES.play.includes(groupOfMethod(t.method))).length + AGENT_TOOLS.length + SCRIPT_TOOLS.length + DASHBOARD_TOOLS.length);
 });

@@ -171,7 +171,7 @@ before(async () => {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [serverEntry],
-    env: { ...process.env, MCPFABRIC_URL: `http://127.0.0.1:${port}`, MCPFABRIC_TOKEN: TOKEN, MCPFABRIC_AGENT: "0" },
+    env: { ...process.env, MCPFABRIC_URL: `http://127.0.0.1:${port}`, MCPFABRIC_TOKEN: TOKEN, MCPFABRIC_AGENT: "0", MCPFABRIC_SCRIPTS: "0" },
     stderr: "ignore",
   });
   client = new Client({ name: "bridge-tools-test", version: "0.0.0" });

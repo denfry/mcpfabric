@@ -4,6 +4,7 @@
  * `job_status`, and gets a summary at the end — the tick-level feedback loop stays out of the LLM.
  *
  * One job runs at a time because there is one body; starting another requires cancelling first.
+ * A script holds the body the same way (see {@link JobManager.hold}), so no job starts while it runs.
  * A job belongs to the MCP session that started it: only that session sees and cancels it, and
  * closing the session cancels it. Every job also stops at an overall time limit.
  */
@@ -56,6 +57,9 @@ export class JobManager {
   private nextId = 1;
   private current?: { job: Job; abort: AbortController; done: Promise<void> };
   private readonly history: Job[] = [];
+  private readonly endListeners = new Set<(job: Job) => void>();
+  /** What holds the body instead of a job (a script), if anything. */
+  private held?: { what: string };
 
   constructor(
     /** Called once when a job ends (not when cancelled): record it in episodic memory, etc. */
@@ -65,12 +69,40 @@ export class JobManager {
     private readonly maxMs: number = JOB_MAX_MS,
   ) {}
 
+  /** Calls `listener` whenever a job ends as done or failed (not when cancelled); returns an unsubscribe. */
+  onEnd(listener: (job: Job) => void): () => void {
+    this.endListeners.add(listener);
+    return () => this.endListeners.delete(listener);
+  }
+
   /** The running job, whoever started it. */
   running(): Job | undefined {
     return this.current?.job;
   }
 
+  /**
+   * Keep the body for something that is not a job (a script): until `release` is called, no job
+   * starts. Throws if a job is running or the body is already held.
+   */
+  hold(what: string, owner?: string): () => void {
+    if (this.current) {
+      const cur = this.current.job;
+      throw new Error(
+        visibleTo(cur, owner)
+          ? `Job #${cur.id} (${cur.kind}) is running; wait for it or job_cancel it first.`
+          : "Another MCP session is running a job; wait for it to finish.",
+      );
+    }
+    if (this.held) throw new Error(`${this.held.what} is running; wait for it to finish.`);
+    const token = { what };
+    this.held = token;
+    return () => {
+      if (this.held === token) this.held = undefined;
+    };
+  }
+
   start(kind: string, summary: string, run: (ctx: JobContext) => Promise<string>, owner?: string): Job {
+    if (this.held) throw new Error(`${this.held.what} is running; wait for it to finish.`);
     if (this.current) {
       const cur = this.current.job;
       throw new Error(
@@ -148,6 +180,13 @@ export class JobManager {
             this.onFinish(job);
           } catch {
             // recording the outcome must never break the job manager
+          }
+          for (const listener of this.endListeners) {
+            try {
+              listener(job);
+            } catch {
+              // a listener must never break the job manager either
+            }
           }
         }
       }
