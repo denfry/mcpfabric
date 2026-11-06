@@ -302,7 +302,7 @@ only for a game with `writeDiscoveryFile: false` or on another port than the one
 **events** — `poll_events` (recent damage, deaths, chat, spawns, player join/leave)
 
 **agent runtime** ([docs/AGENT.md](docs/AGENT.md)) — persistent per-world memory, goals, map and background jobs:
-`agent_brief`, `observe`, `map_view`, `remember`, `recall`, `memory_update`, `memory_verify`,
+`agent_brief`, `observe`, `map_view`, `surroundings` (mobs, items and places relative to your view), `remember`, `recall`, `memory_update`, `memory_verify`,
 `goal_add`, `goal_update`, `goal_list`, `plan_craft`, `get_recipes`, `explore_next`,
 jobs `travel_to` / `explore` / `collect_blocks` / `craft_item` with `job_status` / `job_cancel`,
 and `open_container` / `container_transfer` / `close_container`; `open_dashboard` shows a live
