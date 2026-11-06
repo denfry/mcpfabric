@@ -15,6 +15,11 @@ All notable changes to this project are documented here. The format is based on
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.
+- No token to copy: while the bridge runs, the mod writes its address and token to
+  `~/.mcpfabric/bridge.json` (readable only by the user, removed when the game stops), and the MCP
+  server uses it when `MCPFABRIC_TOKEN` is not set. It reads the file again on every call, so it can
+  start before the game and follows a restart; a file left by a game that crashed is ignored. New
+  config value `writeDiscoveryFile` (default `true`) and environment variable `MCPFABRIC_DISCOVERY`.
 
 ### Changed
 - MCP server: results of tools that can return text written by other players or the world
