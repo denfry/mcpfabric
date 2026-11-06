@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `mcpfabric-bench` (`docs/BENCH.md`): seven reproducible tasks (logs, crafting table, stone
+  pickaxe, walking to a marked block, chest loot, smelting, climbing a ledge) set up with server
+  commands relative to the player, played by any agent command, and scored from the game's state.
+  It refuses to set up anything unless `--world` names the world the game is in.
+
+### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.

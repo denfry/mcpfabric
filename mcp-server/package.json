@@ -4,7 +4,8 @@
   "description": "MCP server that bridges AI agents to the mcpfabric Minecraft mod, exposing full read & control of the game as MCP tools.",
   "type": "module",
   "bin": {
-    "mcpfabric": "dist/index.js"
+    "mcpfabric": "dist/index.js",
+    "mcpfabric-bench": "dist/bench/cli.js"
   },
   "main": "dist/index.js",
   "files": [

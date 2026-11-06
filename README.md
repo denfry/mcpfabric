@@ -308,6 +308,13 @@ Call `get_status` first — it reports which side you are on and which groups ar
 
 ---
 
+## Benchmark
+
+`mcpfabric-bench` scores agents on small tasks in a test world (collect logs, craft a stone pickaxe,
+find a chest, smelt iron, climb a ledge): see [docs/BENCH.md](docs/BENCH.md).
+
+---
+
 ## Example prompts
 
 - "Look around and describe what's nearby" → `get_self` + `describe_scene` (+ `screenshot` for a vision model).
