@@ -22,6 +22,7 @@ import { groupOfMethod } from "./toolsets.js";
 import { SupervisedSession } from "./supervised.js";
 import { AgentRuntime, defaultDbPath } from "./agent/runtime.js";
 import { AGENT_TOOLS, AgentSession } from "./agent/tools.js";
+import { registerDashboard } from "./dashboard/register.js";
 
 // dist/index.js -> ../package.json, so the reported version always matches the published package.
 const PKG_VERSION = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
@@ -155,6 +156,7 @@ function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, gr
   const supervised = new SupervisedSession(bridge);
   registerTools(server, bridge, supervised, groups);
   const closeAgent = runtime ? registerAgentTools(server, runtime) : undefined;
+  if (runtime) registerDashboard(server, runtime, bridge);
   // Grants of this MCP session must not outlive it.
   server.server.onclose = () => {
     closeAgent?.();

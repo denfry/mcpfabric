@@ -297,7 +297,9 @@ Then set `MCPFABRIC_TOKEN` in the server's environment.
 `agent_brief`, `observe`, `map_view`, `remember`, `recall`, `memory_update`, `memory_verify`,
 `goal_add`, `goal_update`, `goal_list`, `plan_craft`, `get_recipes`, `explore_next`,
 jobs `travel_to` / `explore` / `collect_blocks` / `craft_item` with `job_status` / `job_cancel`,
-and `open_container` / `container_transfer` / `close_container`
+and `open_container` / `container_transfer` / `close_container`; `open_dashboard` shows a live
+panel (position, vitals, job, map, goals, inventory and a STOP button) in hosts that render
+[MCP Apps](https://modelcontextprotocol.io/extensions/apps), such as Claude
 
 Server tools require a running server (integrated on the client or dedicated). Client tools
 (`control` / `interact` / `vision` / `navigation` / `player` / `inventory`) only work on the client.
