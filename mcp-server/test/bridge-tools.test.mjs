@@ -83,7 +83,7 @@ const BRIDGE_TOOLS = {
   drop_slot: { method: "inventory.dropSlot", args: { slot: 40 }, invalid: { slot: 41 } },
   swap_slots: { method: "inventory.swapSlots", args: { slotA: 0, slotB: 36 }, invalid: { slotA: 0, slotB: 46 } },
   // vision
-  screenshot: { method: "vision.screenshot", args: {}, image: true },
+  screenshot: { method: "vision.screenshot", args: { marks: true }, image: true, invalid: { marks: "yes" } },
   describe_scene: { method: "vision.describeScene", args: { rayColumns: 3, rayRows: 3 }, invalid: { rayColumns: 34 } },
   // navigation
   navigate_to: { method: "nav.pathTo", args: { ...pos, sprint: true, allowDig: false, allowPillar: true, allowSwim: false }, invalid: { ...pos, reachRadius: 17 } },

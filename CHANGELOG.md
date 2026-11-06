@@ -35,6 +35,10 @@ All notable changes to this project are documented here. The format is based on
   `/mcpfabric approve|deny [id]` answer them, silence and pausing the AI deny them. `get_status`
   reports `requireApproval`, and the events `approval_requested` / `approval_answered` are emitted.
   Client only; on a dedicated server those groups are refused. Fabric and NeoForge.
+- `screenshot` with `marks: true` (Set-of-Mark prompting): mobs and players in view get numbered
+  labels drawn on the image, and a legend maps each number to the entity's uuid, type, name and
+  distance, so a vision model can act on "#2". The mod reports where each entity's centre falls in
+  the frame (`vision.screenshot` `marks`), the MCP server draws the labels. Fabric and NeoForge.
 
 ### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,

@@ -333,7 +333,7 @@ claude --dangerously-load-development-channels server:mcpfabric
 **control (client)** — `set_movement`, `stop_movement`, `look`, `look_at`, `jump`, `start_using_item`, `stop_using_item`
 **interact (client)** — `break_block`, `place_block`, `use_item`, `attack_entity`, `use_entity`, `drop_held_item`
 **inventory (client)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
-**vision (client)** — `screenshot` (PNG for vision models), `describe_scene`
+**vision (client)** — `screenshot` (PNG for vision models; `marks: true` numbers the mobs and players in view and lists their uuids), `describe_scene`
 **navigation (client)** — `navigate_to` (A\*: walks, swims, climbs ladders, opens doors, digs through blocks and pillars up), `navigation_status`, `stop_navigation`
 **session (client)** — `get_screen`, `close_screen` (pause menu, chat, container; respawns on the death screen), `list_worlds`, `join_world` (rejoin after a kick, a server restart or a game restart)
 **ui (client, off by default: `enableUiControl`)** — `get_ui` (widgets of the open screen), `click_widget`, `set_text_field`
