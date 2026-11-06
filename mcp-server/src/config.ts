@@ -25,6 +25,8 @@ export interface ServerConfig {
   world: string | undefined;
   /** Act as a Claude Code channel (stdio only): push chat addressed to the AI and important events. */
   channel: ChannelConfig;
+  /** Serve the script tools (run_script; the skill tools also need the agent runtime). */
+  scripts: boolean;
   /** Tool groups to serve (MCPFABRIC_TOOLSETS); all of them by default. */
   toolsets: Set<string>;
 }
@@ -75,6 +77,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
       healthThreshold: Math.max(0, int(env.MCPFABRIC_CHANNEL_HEALTH, 6)),
       maxPerMinute: Math.max(1, int(env.MCPFABRIC_CHANNEL_RATE, 6)),
     },
+    scripts: !/^(0|false|off|no)$/i.test(env.MCPFABRIC_SCRIPTS ?? ""),
     toolsets: parseToolsets(env.MCPFABRIC_TOOLSETS),
   };
 }

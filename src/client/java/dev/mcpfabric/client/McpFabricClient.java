@@ -55,6 +55,7 @@ public final class McpFabricClient {
 	public static void onClientTick(Minecraft client) {
 		BotController.get().onClientTick(client);
 		ClientEvents.onClientTick(client);
+		AiControl.onClientTick(client);
 		SessionScreenHandlers.onClientTick(client);
 		SupervisedClientHandlers.onClientTick(client);
 	}

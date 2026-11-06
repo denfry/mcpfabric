@@ -14,12 +14,15 @@ import { JobManager, type Job } from "./jobs.js";
 import { MemoryStore } from "./memory.js";
 import { ingestScan, type ObserveReport } from "./observe.js";
 import { WorldMap } from "./worldmap.js";
+import { SkillStore } from "../script/skills.js";
 
 export interface RuntimeOptions {
   /** SQLite file path, or ":memory:". */
   dbPath: string;
   /** Force a world id instead of asking the game (MCPFABRIC_WORLD). */
   worldOverride?: string;
+  /** Script tools are served (MCPFABRIC_SCRIPTS), so agent_brief lists the saved skills. Default true. */
+  scripts?: boolean;
 }
 
 export function defaultDbPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -35,6 +38,7 @@ interface Stores {
   goals: GoalStore;
   map: WorldMap;
   kv: KeyValue;
+  skills: SkillStore;
 }
 
 export class AgentRuntime {
@@ -47,8 +51,12 @@ export class AgentRuntime {
   /** Opened on first use, so a server whose agent tools are never called writes no file. */
   private stores?: Stores;
 
+  /** Whether the script tools are served alongside the runtime. */
+  readonly scripts: boolean;
+
   constructor(bridge: Bridge, private readonly opts: RuntimeOptions) {
     requireSqlite();
+    this.scripts = opts.scripts ?? true;
     this.body = new Body(bridge);
     this.jobs = new JobManager(
       (job) => this.recordJob(job),
@@ -63,7 +71,7 @@ export class AgentRuntime {
   private open(): Stores {
     if (!this.stores) {
       const db = openDatabase(this.opts.dbPath);
-      this.stores = { db, memory: new MemoryStore(db), goals: new GoalStore(db), map: new WorldMap(db), kv: new KeyValue(db) };
+      this.stores = { db, memory: new MemoryStore(db), goals: new GoalStore(db), map: new WorldMap(db), kv: new KeyValue(db), skills: new SkillStore(db) };
     }
     return this.stores;
   }
@@ -82,6 +90,9 @@ export class AgentRuntime {
   }
   get kv(): KeyValue {
     return this.open().kv;
+  }
+  get skills(): SkillStore {
+    return this.open().skills;
   }
 
   /** Id of the world being played; all memory is scoped to it. */
