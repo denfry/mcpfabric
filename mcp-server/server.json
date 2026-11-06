@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.denfry/mcpfabric",
+  "title": "MCP Fabric (Minecraft)",
+  "description": "See and play Minecraft: Java Edition through the mcpfabric mod (Fabric and NeoForge).",
+  "repository": {
+    "url": "https://github.com/denfry/mcpfabric",
+    "source": "github",
+    "subfolder": "mcp-server"
+  },
+  "websiteUrl": "https://modrinth.com/mod/mcpfabric",
+  "version": "0.8.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "mcpfabric-mcp-server",
+      "version": "0.8.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MCPFABRIC_TOKEN",
+          "description": "Bridge token; not needed while the game writes ~/.mcpfabric/bridge.json.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "MCPFABRIC_TOOLSETS",
+          "description": "Serve only some tools: profiles play, admin, build or tool groups.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}
