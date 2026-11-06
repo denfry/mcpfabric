@@ -95,6 +95,21 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 4. Watch the **Release** workflow in the Actions tab. On success you get the Modrinth versions and a
    GitHub Release.
 
+5. **MCP server** (when `mcp-server/` changed; its version follows `mod_version`): bump `version` in
+   `mcp-server/package.json`, `package-lock.json` (`npm version <x.y.z> --no-git-tag-version`) and
+   both `version` fields of `mcp-server/server.json` in the release commit, then from `mcp-server/`:
+
+   ```bash
+   npm publish --access public          # needs `npm login`; prepublishOnly runs the tests
+   npm run bundle                       # dist-mcpb/mcpfabric-<x.y.z>.mcpb for Claude Desktop
+   gh release upload v<x.y.z> dist-mcpb/mcpfabric-<x.y.z>.mcpb
+   mcp-publisher login github           # once; https://github.com/modelcontextprotocol/registry
+   mcp-publisher publish                # lists the npm version in the MCP Registry
+   ```
+
+   The registry checks that `mcpName` in `package.json` matches `name` in `server.json`
+   (`io.github.denfry/mcpfabric`), so publish to npm first.
+
 ### Manual / re-run
 
 The workflow also has a `workflow_dispatch` trigger (Actions tab → **Release** → **Run workflow**),
