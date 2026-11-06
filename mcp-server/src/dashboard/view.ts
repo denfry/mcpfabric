@@ -49,6 +49,7 @@ h1{font-size:15px;margin:0;flex:1}
 .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px}
 .bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:3px 0 8px}.bar>i{display:block;height:100%}
 pre{margin:0;font:12px/1.15 ui-monospace,Consolas,monospace;overflow-x:auto}
+#job{white-space:pre-wrap;overflow-wrap:anywhere}
 .legend{color:var(--muted);font-size:11px;margin-top:6px}
 ul{list-style:none;margin:0;padding:0}li{padding:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .next{font-weight:600;color:var(--accent)}.done{color:var(--muted);text-decoration:line-through}
