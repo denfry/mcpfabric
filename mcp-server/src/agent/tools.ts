@@ -549,7 +549,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "travel_to",
     title: "Travel to a position (job)",
     description:
-      "Background job: walk to a position (or a remembered place by id) in path-finding segments, routing around obstacles and stopping if health gets low. Longer range than navigate_to. Returns a job id at once.",
+      "Background job: go to a position (or a remembered place by id) in path-finding segments, routing around obstacles and stopping if health gets low. Walks, swims, climbs ladders, opens doors, and where needed digs through blocks and pillars up on cobblestone/dirt from the hotbar. Longer range than navigate_to. Returns a job id at once.",
     inputSchema: {
       x: z.number().optional(),
       y: z.number().optional().describe("Defaults to the mapped surface height there, else your height."),
@@ -557,9 +557,12 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       place: z.number().int().optional().describe("Memory id of a place to go to instead of coordinates."),
       reach: z.number().min(0.5).max(16).optional().default(2),
       sprint: z.boolean().optional(),
+      allowDig: z.boolean().optional().default(true).describe("Dig through blocks when going around is longer."),
+      allowPillar: z.boolean().optional().default(true).describe("Pillar up on throwaway blocks from the hotbar."),
+      allowSwim: z.boolean().optional().default(true).describe("Swim across water."),
       waitSeconds,
     },
-    annotations: ACT,
+    annotations: WRITE,
     run: async (rt, session, args) => {
       const world = await rt.world();
       let target: { x: number; y: number; z: number; dim?: string };
@@ -582,7 +585,13 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         throw new Error("give x and z (and optionally y), or place");
       }
       return startJob(rt, session, "travel", `to ${label}`, args.waitSeconds, (ctx) =>
-        travel(rt, ctx, target, { reach: args.reach, ...(args.sprint ? { sprint: true } : {}) }),
+        travel(rt, ctx, target, {
+          reach: args.reach,
+          ...(args.sprint ? { sprint: true } : {}),
+          allowDig: args.allowDig,
+          allowPillar: args.allowPillar,
+          allowSwim: args.allowSwim,
+        }),
       );
     },
   },
@@ -590,12 +599,12 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "explore",
     title: "Explore (job)",
     description:
-      "Background job: repeatedly walk to the best frontier of the map, observing as it goes, and report new chunks, places and ores. Unreachable frontiers are remembered and skipped.",
+      "Background job: repeatedly walk to the best frontier of the map, observing as it goes (moving like travel_to, digging and pillaring where needed), and report new chunks, places and ores. Unreachable frontiers are remembered and skipped.",
     inputSchema: {
       legs: z.number().int().min(1).max(20).optional().default(4).describe("How many frontier targets to visit."),
       waitSeconds,
     },
-    annotations: ACT,
+    annotations: WRITE,
     run: async (rt, session, args) =>
       startJob(rt, session, "explore", `${args.legs} legs`, args.waitSeconds, (ctx) => explore(rt, ctx, { legs: args.legs })),
   },
@@ -603,18 +612,19 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "collect_blocks",
     title: "Collect blocks (job)",
     description:
-      "Background job: find the nearest exposed blocks of the given types, walk to them, pick the best hotbar tool, mine them and pick up the drops, until `count` are broken. Refuses blocks your tools cannot harvest. Does not tunnel to buried blocks.",
+      "Background job: find the nearest exposed blocks of the given types, walk to them, pick the best hotbar tool, mine them and pick up the drops, until `count` are broken. When none are exposed, tunnels to buried ones up to 16 blocks away (dig: false turns that off). Refuses blocks your tools cannot harvest.",
     inputSchema: {
       blocks: z.array(z.string()).min(1).describe('Block ids, e.g. ["oak_log","birch_log"] or ["iron_ore","deepslate_iron_ore"].'),
       count: z.number().int().min(1).max(256),
       radius: z.number().int().min(8).max(128).optional().default(48).describe("Search radius in blocks."),
       maxSeconds: z.number().int().min(10).max(1800).optional().default(300),
+      dig: z.boolean().optional().default(true).describe("Tunnel to buried blocks and dig on the way."),
       waitSeconds,
     },
     annotations: WRITE,
     run: async (rt, session, args) =>
       startJob(rt, session, "collect", `${args.count}× ${(args.blocks as string[]).map((b) => shortId(fullId(b))).join("/")}`, args.waitSeconds, (ctx) =>
-        collect(rt, ctx, { blocks: args.blocks, count: args.count, radius: args.radius, maxSeconds: args.maxSeconds }),
+        collect(rt, ctx, { blocks: args.blocks, count: args.count, radius: args.radius, maxSeconds: args.maxSeconds, dig: args.dig }),
       ),
   },
   {

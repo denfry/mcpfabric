@@ -18,8 +18,18 @@ All notable changes to this project are documented here. The format is based on
 - A one-click Claude Desktop extension: `npm run bundle` in `mcp-server/` builds
   `mcpfabric-<version>.mcpb` (MCP Bundle) with optional settings for the token, address and tool
   sets. `mcp-server/server.json` and `mcpName` prepare the listing in the MCP Registry.
+- The walker (`navigate_to`, `travel_to`, `explore`, `collect_blocks`) swims at the surface, climbs
+  ladders and vines, opens wooden doors and fence gates, digs through blocks with the best hotbar
+  tool when going around is longer, and pillars up on cobblestone, dirt or similar from the hotbar.
+  It never digs next to water or lava, under its own feet or under falling blocks over its head,
+  and drops more than three blocks only into water or onto a ladder. `nav.pathTo` takes
+  `allowDig`, `allowPillar` and `allowSwim` (all on by default) and returns the path's move counts;
+  `nav.status` reports the current `move`. `travel_to` takes the same flags, and `collect_blocks`
+  tunnels to buried blocks up to 16 blocks away (`dig: false` turns that off).
 
 ### Changed
+- `navigate_to`, `travel_to` and `explore` are now marked destructive, since they may break and
+  place blocks.
 - MCP server: results of tools that can return text written by other players or the world
   (`get_recent_chat`, `poll_events`, `query_entities`, `get_entity`, `raycast`, `describe_scene`,
   `get_inventory`, `get_equipment`, `attack_entity`, `use_entity`, `get_screen`, `get_ui`,

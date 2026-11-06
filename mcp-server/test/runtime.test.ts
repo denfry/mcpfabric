@@ -102,6 +102,22 @@ test("collect_blocks mines exposed ore with a pickaxe and refuses without one", 
   assert.equal(events.length, 2, "both job outcomes were logged as events");
 });
 
+test("collect_blocks tunnels to a buried block nearby unless digging is off", async () => {
+  const { world, tool } = setup();
+  world.give("minecraft:stone_pickaxe", 1, 0);
+  const ore = { x: 5, y: 62, z: 3 };
+  world.set(ore, "minecraft:iron_ore");
+  for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const) {
+    world.set({ x: ore.x + dx, y: ore.y + dy, z: ore.z + dz }, "minecraft:stone");
+  }
+  const refused = await tool("collect_blocks", { blocks: ["iron_ore"], count: 1, dig: false, waitSeconds: 20 });
+  assert.match(refused, /\[failed\][\s\S]*only buried iron_ore left[\s\S]*digging is off/);
+
+  const ok = await tool("collect_blocks", { blocks: ["iron_ore"], count: 1, waitSeconds: 30 });
+  assert.match(ok, /\[done\][\s\S]*broke 1\/1 iron_ore/);
+  assert.ok(world.calls.includes("nav.pathTo"), "it went to the buried block first");
+});
+
 test("collect_blocks walks onto drops that are not at arm's length and fights off a zombie", async () => {
   const { world, tool } = setup();
   world.set({ x: 6, y: 64, z: 2 }, "minecraft:oak_log").set({ x: -5, y: 64, z: 7 }, "minecraft:oak_log");

@@ -604,20 +604,24 @@ export const TOOLS: ToolDef[] = [
     method: "nav.pathTo",
     title: "Navigate to a position",
     description:
-      "Client-only. Asynchronously walk the player to a target position using A* pathfinding (handles walking, jumping up 1 block, and dropping down). Returns immediately; poll navigation_status to track progress and stop_navigation to cancel.",
+      "Client-only. Asynchronously move the player to a target position using A* pathfinding: walks, jumps up 1 block, drops down (at most 3 blocks unless into water), swims at the surface, climbs ladders and vines, and opens wooden doors and fence gates. Unless turned off it also digs through blocks with the best hotbar tool when going around is longer (never next to water or lava, never under its own feet, never bedrock or containers), and pillars up by jumping and placing cobblestone, dirt or similar from the hotbar. Returns immediately with the path's move counts; poll navigation_status (it reports the current move) and stop_navigation to cancel.",
     inputSchema: {
       ...vec3(),
       reachRadius: z.number().min(0).max(16).optional().default(1).describe("Stop when within this many blocks of the target."),
       sprint: z.boolean().optional().default(false),
       timeoutSeconds: z.number().int().min(1).max(600).optional().default(60),
+      allowDig: z.boolean().optional().default(true).describe("Break blocks in the way when that is shorter than going around."),
+      allowPillar: z.boolean().optional().default(true).describe("Pillar up on throwaway blocks (cobblestone, dirt, netherrack...) from the hotbar."),
+      allowSwim: z.boolean().optional().default(true).describe("Swim across deep water."),
     },
-    annotations: STEER,
+    annotations: WRITE,
   },
   {
     name: "navigation_status",
     method: "nav.status",
     title: "Navigation status",
-    description: "Client-only. Report whether navigation is active, the target, remaining distance/steps, and whether the bot appears stuck.",
+    description:
+      "Client-only. Report whether navigation is active, the target, remaining distance/steps, the current move (walk, jump, fall, swim, climb, door, dig, pillar), and whether the bot appears stuck. When it ended, `state` says why (reached, timeout, dig_failed, unsafe_dig, no_blocks, pillar_failed, step_timeout, stopped).",
     inputSchema: {},
     annotations: READ,
   },

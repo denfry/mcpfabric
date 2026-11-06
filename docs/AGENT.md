@@ -84,12 +84,19 @@ keep pushing the bot back until navigation gives up.
 
 - **travel_to**: walks in segments of about 40 blocks, since the A* walker has a node budget. It
   fans out to the sides when the straight line is blocked and uses the mapped surface height of
-  the chunks along the way.
+  the chunks along the way. The walker (the same one behind `navigate_to`) walks, steps up one
+  block, drops at most three blocks (more only into water or onto a ladder), swims at the surface,
+  climbs ladders and vines, and opens wooden doors and fence gates. Where going around is longer it
+  digs through blocks with the best hotbar tool, and it pillars up by jumping and placing
+  cobblestone, dirt, netherrack or similar from the hotbar. Digging costs by break time, so it
+  tunnels through dirt sooner than through stone. `allowDig`, `allowPillar` and `allowSwim` turn
+  the moves off.
 - **explore**: moves to the best frontier chunk, meaning an unexplored chunk next to an explored
   one. It keeps its previous direction and avoids water, remembers unreachable frontiers, and
   reports new chunks, places and ores.
 - **collect_blocks**: finds the nearest *exposed* blocks, picks the best hotbar tool, and refuses
-  blocks that no tool it has can harvest. It walks within reach, mines and confirms the block broke.
+  blocks that no tool it has can harvest. When none are exposed, it tunnels to a buried one up to
+  16 blocks away (`dig: false` turns that off). It walks within reach, mines and confirms the block broke.
   It then walks onto the dropped item where it actually landed, found through the entity list,
   because the pickup range is barely more than a block. At the end it sweeps up any drops that
   bounced away.
@@ -99,8 +106,13 @@ keep pushing the bot back until navigation gives up.
 
 ## Known limits
 
-- The walker cannot swim, climb ladders, pillar up or dig tunnels. `collect_blocks` skips buried
-  blocks, and travel fails with a clear message when no walkable route exists.
+- The walker never digs a block next to water or lava, under its own feet, under sand or gravel
+  that would fall on its head, nor bedrock, containers, ice or waterlogged blocks. It does not
+  build bridges, swim under water, sprint-jump gaps, or move diagonally, and it pillars only with
+  throwaway blocks that are in the hotbar. Doors it opens stay open. A path is planned once per
+  segment against the blocks the client sees; when the world changes on the way, the step fails
+  (`dig_failed`, `unsafe_dig`, `pillar_failed`) and the job plans again.
+- Break times are estimated without enchantments or effects, so digging may be quicker than planned.
 - On 1.21.2+ **multiplayer**, the client only sees the recipes it has unlocked. The rest cannot be
   planned or placed. In singleplayer, the integrated server's full recipe list is used for planning
   (`known: false` marks what the recipe book cannot place yet).
