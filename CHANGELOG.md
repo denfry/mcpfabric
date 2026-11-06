@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-06
+
+Fabric and NeoForge.
+
 ### Added
 - `open_dashboard`: a live agent panel as an MCP App (position, vitals, running job, explored map,
   goal tree, inventory) with a STOP button that cancels the job and releases movement, navigation,
