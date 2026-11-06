@@ -2,6 +2,7 @@
   "name": "mcpfabric-mcp-server",
   "version": "0.8.0",
   "description": "MCP server that bridges AI agents to the mcpfabric Minecraft mod, exposing full read & control of the game as MCP tools.",
+  "mcpName": "io.github.denfry/mcpfabric",
   "type": "module",
   "bin": {
     "mcpfabric": "dist/index.js",
@@ -17,7 +18,8 @@
     "test": "npm run build && tsc -p tsconfig.test.json && node --test \"test/*.test.mjs\" \".test-build/test/*.test.js\"",
     "prepublishOnly": "npm test",
     "start": "node dist/index.js",
-    "dev": "node --experimental-strip-types --watch src/index.ts"
+    "dev": "node --experimental-strip-types --watch src/index.ts",
+    "bundle": "node mcpb/bundle.mjs"
   },
   "engines": {
     "node": ">=22.16"
