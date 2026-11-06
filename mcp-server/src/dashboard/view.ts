@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 
 let cached: string | undefined;
 
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+
 /**
  * The ext-apps browser bundle as a classic script: its trailing `export{a as B,...}` becomes
  * `window.__mcpApps={B:a,...}`, so the page needs no module loading (hosts restrict it).
@@ -22,11 +24,16 @@ function appBundle(): string {
     .map((s) => s.trim())
     .filter(Boolean)
     .map((s) => {
-      const [local, exported] = s.split(/\s+as\s+/);
-      return `${JSON.stringify(exported ?? local)}:${local}`;
+      const [local, exported = local] = s.split(/\s+as\s+/);
+      // Both names go into the page as code, so anything but a plain identifier is refused.
+      if (!IDENTIFIER.test(local!) || !IDENTIFIER.test(exported!)) throw new Error(`unexpected ext-apps export: ${s}`);
+      return `${exported}:${local}`;
     });
   // Wrapped in a function so the bundle's top-level names stay out of the page's global scope.
-  return `(function(){${code.slice(0, match.index)}\nwindow.__mcpApps={${pairs.join(",")}};})();`;
+  const script = `(function(){${code.slice(0, match.index)}\nwindow.__mcpApps={${pairs.join(",")}};})();`;
+  // Inlined in a <script> element: "</script" anywhere in the code would end it early. "<\/" means
+  // the same in JS strings, regexes and comments.
+  return script.replace(/<\/(script)/gi, "<\\/$1");
 }
 
 const STYLE = `

@@ -46,7 +46,7 @@ test("the view is one page with the ext-apps client inlined as a classic script"
   const html = dashboardHtml();
   assert.ok(html.startsWith("<!doctype html>"));
   assert.ok(html.includes("window.__mcpApps={"), "bundle exports rewritten");
-  assert.ok(html.includes('"App":'), "the App class is exposed");
+  assert.ok(/[{,]App:/.test(html), "the App class is exposed");
   assert.ok(!/\bexport\s*\{[^}]*\}\s*;?\s*\n?window/.test(html), "no module export left");
   assert.ok(html.includes("dashboard_state") && html.includes("dashboard_stop"));
 });
