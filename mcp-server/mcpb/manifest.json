@@ -1,0 +1,64 @@
+{
+  "manifest_version": "0.3",
+  "name": "mcpfabric",
+  "display_name": "MCP Fabric (Minecraft)",
+  "version": "0.0.0",
+  "description": "Let Claude see and play Minecraft: Java Edition through the mcpfabric mod (Fabric and NeoForge, 1.21.1 to 26.3).",
+  "long_description": "Install the mcpfabric mod (https://modrinth.com/mod/mcpfabric) and start Minecraft. The extension finds the running game on its own; set the token only if you turned writeDiscoveryFile off in config/mcpfabric.config.json. The mod's enable* flags decide what the AI may do.",
+  "author": {
+    "name": "denfry",
+    "url": "https://github.com/denfry"
+  },
+  "homepage": "https://modrinth.com/mod/mcpfabric",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/denfry/mcpfabric"
+  },
+  "support": "https://github.com/denfry/mcpfabric/issues",
+  "icon": "icon.png",
+  "license": "MIT",
+  "keywords": ["minecraft", "fabric", "neoforge", "game", "agent"],
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "MCPFABRIC_TOKEN": "${user_config.token}",
+        "MCPFABRIC_URL": "${user_config.url}",
+        "MCPFABRIC_TOOLSETS": "${user_config.toolsets}"
+      }
+    }
+  },
+  "user_config": {
+    "token": {
+      "type": "string",
+      "title": "Bridge token (optional)",
+      "description": "Only if the mod does not write ~/.mcpfabric/bridge.json (writeDiscoveryFile: false): the token from config/mcpfabric.config.json.",
+      "sensitive": true,
+      "required": false,
+      "default": ""
+    },
+    "url": {
+      "type": "string",
+      "title": "Bridge address",
+      "description": "Used together with the token above.",
+      "required": false,
+      "default": "http://127.0.0.1:25599"
+    },
+    "toolsets": {
+      "type": "string",
+      "title": "Tool sets (optional)",
+      "description": "Comma-separated profiles or groups, e.g. play or admin. Empty: all tools.",
+      "required": false,
+      "default": ""
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=22.16.0"
+    }
+  }
+}
