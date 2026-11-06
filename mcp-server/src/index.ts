@@ -16,6 +16,7 @@ import { createRequire } from "node:module";
 
 import { loadConfig, type ServerConfig } from "./config.js";
 import { BridgeClient, BridgeError, BridgeUnreachableError } from "./bridge.js";
+import { defaultDiscoveryPath, Discovery } from "./discovery.js";
 import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
 import { groupOfMethod } from "./toolsets.js";
@@ -201,7 +202,7 @@ async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined,
   const server = buildServer(bridge, runtime, scripts, groups);
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  log(`stdio transport ready (bridge: ${process.env.MCPFABRIC_URL ?? "http://127.0.0.1:25599"})`);
+  log(`stdio transport ready (bridge: ${bridge.target().url})`);
 }
 
 async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
@@ -274,7 +275,10 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
-  const bridge = new BridgeClient(cfg.bridgeUrl, cfg.token, cfg.timeoutMs);
+  // Without MCPFABRIC_TOKEN, find the running game through the file the mod writes.
+  const discovery = cfg.token ? undefined : new Discovery(defaultDiscoveryPath());
+  const bridge = new BridgeClient(cfg.bridgeUrl, cfg.token, cfg.timeoutMs, discovery ? () => discovery.read() : undefined);
+  if (discovery) log(`MCPFABRIC_TOKEN not set: connecting to the game found in ${discovery.path}`);
 
   // Best-effort connectivity hint (does not block startup; the mod may launch later).
   bridge

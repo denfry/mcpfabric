@@ -37,7 +37,9 @@ dedicated servers across Minecraft 1.21.1–1.21.11 and 26.1–26.3, on Fabric a
    [Fabric API](https://modrinth.com/mod/fabric-api), or [NeoForge](https://neoforged.net/).
 2. Download the jar matching your Minecraft version and loader from
    [Modrinth](https://modrinth.com/mod/mcpfabric/versions) and place it in `mods/`.
-3. Launch Minecraft once, then copy `token` from `config/mcpfabric.config.json`.
+3. Launch Minecraft. While it runs, the mod writes its address and token to
+   `~/.mcpfabric/bridge.json` (readable only by you), and the MCP server connects through it: no token
+   to copy.
 4. Build the MCP server with `cd mcp-server && npm ci && npm run build`.
 5. Add it to your MCP client using the [ready-to-copy examples](#3-connect-to-claude).
 
@@ -150,8 +152,10 @@ On first launch the mod creates `config/mcpfabric.config.json` and logs where to
 [mcpfabric] ready — bridge http://127.0.0.1:25599 (token: .../config/mcpfabric.config.json)
 ```
 
-Copy the `token` value from that file — the MCP server needs it. The token is intentionally not
-printed to logs.
+The token is intentionally not printed to logs. While the game runs, the mod also writes the bridge
+address and token to `~/.mcpfabric/bridge.json` (readable only by your user, removed when the game
+stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writeDiscoveryFile` to
+`false` to turn that off and copy `token` into `MCPFABRIC_TOKEN` instead.
 
 ### Mod config (`config/mcpfabric.config.json`)
 
@@ -163,6 +167,7 @@ printed to logs.
   "requireAuth": true,
   "callTimeoutMs": 8000,
   "worldIdKey": "generated automatically",
+  "writeDiscoveryFile": true,
   "enableWorldWrite": true,
   "enableCommands": true,
   "enablePlayerControl": true,
@@ -208,7 +213,7 @@ npm run build      # compiles to dist/
 Usually your MCP client launches it for you (see below). Manually:
 
 ```bash
-MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
+node dist/index.js        # finds the running game through ~/.mcpfabric/bridge.json
 ```
 
 ### Environment variables
@@ -216,7 +221,8 @@ MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
 | Variable               | Default                  | Description                                       |
 |------------------------|--------------------------|---------------------------------------------------|
 | `MCPFABRIC_URL`        | `http://127.0.0.1:25599` | Address of the mod's HTTP bridge.                 |
-| `MCPFABRIC_TOKEN`      | —                        | Bearer token from the mod config (required by default). |
+| `MCPFABRIC_TOKEN`      | from `bridge.json`       | Bearer token from the mod config. Unset: address and token come from `~/.mcpfabric/bridge.json`, read again on every call. |
+| `MCPFABRIC_DISCOVERY`  | `~/.mcpfabric/bridge.json` | Where to find the running game when `MCPFABRIC_TOKEN` is not set. |
 | `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge.                   |
 | `MCPFABRIC_TRANSPORT`  | `stdio`                  | `stdio` or `http`.                                |
 | `MCPFABRIC_HTTP_PORT`  | `25600`                  | Port for the `http` transport (`/mcp`).           |
@@ -251,12 +257,8 @@ Tool sets only hide tools: the mod's `enable*` flags still decide what the game 
 {
   "mcpServers": {
     "mcpfabric": {
-      "command": "node",
-      "args": ["/absolute/path/to/mcpfabric/mcp-server/dist/index.js"],
-      "env": {
-        "MCPFABRIC_URL": "http://127.0.0.1:25599",
-        "MCPFABRIC_TOKEN": "paste-the-token-from-the-mod-log"
-      }
+      "command": "npx",
+      "args": ["-y", "mcpfabric-mcp-server"]
     }
   }
 }
@@ -267,10 +269,11 @@ Tool sets only hide tools: the mod's `enable*` flags still decide what the game 
 Use the `.mcp.json` in the project root (see `examples/mcp.json`) or:
 
 ```bash
-claude mcp add mcpfabric -- node /absolute/path/to/mcpfabric/mcp-server/dist/index.js
+claude mcp add mcpfabric -- npx -y mcpfabric-mcp-server
 ```
 
-Then set `MCPFABRIC_TOKEN` in the server's environment.
+With the game running, the server finds it on its own. Set `MCPFABRIC_URL` and `MCPFABRIC_TOKEN`
+only for a game with `writeDiscoveryFile: false` or on another port than the one in `bridge.json`.
 
 ---
 
