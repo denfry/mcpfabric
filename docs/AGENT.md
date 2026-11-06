@@ -66,6 +66,14 @@ The design borrows from the `codebase-index` workflow:
 Kinds: `note`, `place`, `container` (last seen contents), `event` (every finished job is logged,
 so earlier failures inform later plans), `skill` (a procedure that worked).
 
+## Relative directions
+
+Models confuse world axes easily, so `surroundings` describes what is near relative to where the
+player looks: `zombie 20hp: 5 ahead, 3 left · 5.8 m (11 o'clock) · 4 64 6`. It lists hostile mobs,
+players, passive mobs, dropped items, points of interest (containers, workstations, beds, portals)
+and, with `find`, the blocks you name, nearest first. Each line ends with the coordinates for tools
+that need them. It reads `perception.entities` and `perception.scan`, so it needs `enableVision`.
+
 ## Jobs
 
 `travel_to`, `explore`, `collect_blocks` and `craft_item` start background jobs and return at once.

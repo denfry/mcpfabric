@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `surroundings` (agent runtime): nearby mobs, players, dropped items, points of interest and named
+  blocks, described relative to where the player looks ("5 ahead, 3 left · 5.8 m (11 o'clock)"),
+  each with its coordinates.
+
+### Added
 - `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
   or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
   are always served. An unknown name stops the server with the list of valid ones.
