@@ -19,7 +19,9 @@ import { BridgeClient, BridgeError, BridgeUnreachableError } from "./bridge.js";
 import { defaultDiscoveryPath, Discovery } from "./discovery.js";
 import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
+import { groupOfMethod } from "./toolsets.js";
 import { SupervisedSession } from "./supervised.js";
+import { markUntrusted, UNTRUSTED_INSTRUCTIONS } from "./untrusted.js";
 import { AgentRuntime, defaultDbPath } from "./agent/runtime.js";
 import { AGENT_TOOLS, AgentSession } from "./agent/tools.js";
 
@@ -84,8 +86,9 @@ function imageResult(result: unknown): CallToolResult {
   };
 }
 
-function registerTools(server: McpServer, bridge: BridgeClient, supervised: SupervisedSession): void {
+function registerTools(server: McpServer, bridge: BridgeClient, supervised: SupervisedSession, groups: Set<string>): void {
   for (const def of TOOLS as ToolDef[]) {
+    if (!groups.has(groupOfMethod(def.method))) continue;
     const config = {
       title: def.title,
       description: def.description,
@@ -96,7 +99,8 @@ function registerTools(server: McpServer, bridge: BridgeClient, supervised: Supe
     const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
       try {
         const result = def.supervised ? await supervised.call(def.method, args ?? {}) : await bridge.call(def.method, args ?? {});
-        return def.kind === "image" ? imageResult(result) : jsonResult(result);
+        if (def.kind === "image") return imageResult(result);
+        return jsonResult(def.untrusted ? markUntrusted(result) : result);
       } catch (err) {
         return errorResult(err);
       }
@@ -146,13 +150,13 @@ const AGENT_INSTRUCTIONS =
   "(travel_to, explore, collect_blocks, craft_item) run as background jobs — follow them with job_status " +
   "and do not drive movement manually while one runs.";
 
-function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined): McpServer {
+function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, groups: Set<string>): McpServer {
   const server = new McpServer(
     { name: "mcpfabric", version: PKG_VERSION },
-    { instructions: BASE_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") },
+    { instructions: BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") },
   );
   const supervised = new SupervisedSession(bridge);
-  registerTools(server, bridge, supervised);
+  registerTools(server, bridge, supervised, groups);
   const closeAgent = runtime ? registerAgentTools(server, runtime) : undefined;
   // Grants of this MCP session must not outlive it.
   server.server.onclose = () => {
@@ -162,8 +166,8 @@ function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined): M
   return server;
 }
 
-async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined): Promise<void> {
-  const server = buildServer(bridge, runtime);
+async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined, groups: Set<string>): Promise<void> {
+  const server = buildServer(bridge, runtime, groups);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   log(`stdio transport ready (bridge: ${bridge.target().url})`);
@@ -225,7 +229,7 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
       transport.onclose = () => {
         if (transport.sessionId) sessions.delete(transport.sessionId);
       };
-      const server = buildServer(bridge, runtime);
+      const server = buildServer(bridge, runtime, cfg.toolsets);
       await server.connect(transport);
       entry = { server, transport, lastSeen: Date.now() };
     }
@@ -251,7 +255,8 @@ async function main(): Promise<void> {
     .catch((err) => log("bridge not reachable yet:", (err as Error).message));
 
   let runtime: AgentRuntime | undefined;
-  if (cfg.agent) {
+  // The agent tools are a tool group too: leaving it out of MCPFABRIC_TOOLSETS turns the runtime off.
+  if (cfg.agent && cfg.toolsets.has("agent")) {
     const dbPath = cfg.dataDir ? defaultDbPath({ MCPFABRIC_DATA_DIR: cfg.dataDir }) : defaultDbPath();
     try {
       runtime = new AgentRuntime(bridge, { dbPath, ...(cfg.world ? { worldOverride: cfg.world } : {}) });
@@ -265,7 +270,7 @@ async function main(): Promise<void> {
   if (cfg.transport === "http") {
     await runHttp(bridge, runtime, cfg);
   } else {
-    await runStdio(bridge, runtime);
+    await runStdio(bridge, runtime, cfg.toolsets);
   }
 }
 
