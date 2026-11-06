@@ -6,6 +6,7 @@ import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.Json;
 import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
+import dev.mcpfabric.client.ClientEvents;
 import dev.mcpfabric.client.ClientMc;
 import dev.mcpfabric.handlers.support.Gates;
 import net.minecraft.client.Minecraft;
@@ -188,6 +189,9 @@ public final class SessionScreenHandlers {
 		if (inWorld && !wasInWorld) {
 			lastWorldId = PerceptionHandlers.worldId(mc);
 			lastServer = mc.getSingleplayerServer() == null ? mc.getCurrentServer() : null;
+		} else if (!inWorld && wasInWorld) {
+			// A kick or a lost connection opens the disconnected screen in the same tick.
+			ClientEvents.onLeftWorld(kind(ContainerHandlers.currentScreen()));
 		}
 		wasInWorld = inWorld;
 	}

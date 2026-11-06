@@ -57,6 +57,7 @@ export class JobManager {
   private nextId = 1;
   private current?: { job: Job; abort: AbortController; done: Promise<void> };
   private readonly history: Job[] = [];
+  private readonly endListeners = new Set<(job: Job) => void>();
   /** What holds the body instead of a job (a script), if anything. */
   private held?: { what: string };
 
@@ -67,6 +68,12 @@ export class JobManager {
     private readonly onStop: () => Promise<void> = async () => {},
     private readonly maxMs: number = JOB_MAX_MS,
   ) {}
+
+  /** Calls `listener` whenever a job ends as done or failed (not when cancelled); returns an unsubscribe. */
+  onEnd(listener: (job: Job) => void): () => void {
+    this.endListeners.add(listener);
+    return () => this.endListeners.delete(listener);
+  }
 
   /** The running job, whoever started it. */
   running(): Job | undefined {
@@ -173,6 +180,13 @@ export class JobManager {
             this.onFinish(job);
           } catch {
             // recording the outcome must never break the job manager
+          }
+          for (const listener of this.endListeners) {
+            try {
+              listener(job);
+            } catch {
+              // a listener must never break the job manager either
+            }
           }
         }
       }

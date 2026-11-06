@@ -226,6 +226,11 @@ node dist/index.js        # finds the running game through ~/.mcpfabric/bridge.j
 | `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge.                   |
 | `MCPFABRIC_TRANSPORT`  | `stdio`                  | `stdio` or `http`.                                |
 | `MCPFABRIC_HTTP_PORT`  | `25600`                  | Port for the `http` transport (`/mcp`).           |
+| `MCPFABRIC_CHANNEL`    | off                      | `1`: act as a Claude Code channel (stdio only), see below. |
+| `MCPFABRIC_CHANNEL_PREFIX` | `@ai`                | Chat prefix that addresses the AI.                |
+| `MCPFABRIC_CHANNEL_WHISPERS` | off                | `1`: also push whispers to the local player.      |
+| `MCPFABRIC_CHANNEL_HEALTH` | `6`                  | Low-health alert below this health (20 = full).   |
+| `MCPFABRIC_CHANNEL_RATE` | `6`                    | At most this many channel messages per minute.    |
 | `MCPFABRIC_SCRIPTS`    | on                       | `0` / `false` / `off` removes the script tools (`run_script`, skills). |
 | `MCPFABRIC_TOOLSETS`   | all tools                | Serve only some tools; see [Tool sets](#tool-sets). |
 
@@ -280,6 +285,34 @@ claude mcp add mcpfabric -- npx -y mcpfabric-mcp-server
 With the game running, the server finds it on its own. Set `MCPFABRIC_URL` and `MCPFABRIC_TOKEN`
 only for a game with `writeDiscoveryFile: false` or on another port than the one in `bridge.json`.
 
+### Talk to the AI from the game (Claude Code channel)
+
+Claude Code [channels](https://code.claude.com/docs/en/channels-reference) (research preview) let
+the MCP server push messages into a running Claude Code session. With `MCPFABRIC_CHANNEL=1` and the
+stdio transport, mcpfabric declares the `claude/channel` capability, keeps one event stream to the
+bridge open (reconnecting with a backoff) and pushes:
+
+- your own chat messages that start with the prefix (`@ai build a hut here`) as `kind="request"`;
+  messages from other players never count as requests;
+- with `MCPFABRIC_CHANNEL_WHISPERS=1`, whispers other players send you, as `kind="whisper"` with
+  `untrusted="true"` and `source="player:<name>"`: data, never instructions;
+- alerts: your player died (`death`), health fell below `MCPFABRIC_CHANNEL_HEALTH` (`low_health`, at
+  most one per minute), the client was kicked or lost the connection (`disconnected`), and an agent
+  job finished or failed (`job`).
+
+At most `MCPFABRIC_CHANNEL_RATE` messages per minute are pushed; the next one after a burst says how
+many were dropped. The AI answers in the game with `send_chat` (a tool that shows a reply only to
+you is coming separately). The requests, whispers and alerts come from the client, so the mod has to
+run on the client; chat that a server plugin turns into system messages is not seen as yours.
+
+Register the server (for example in `.mcp.json`) with `"MCPFABRIC_CHANNEL": "1"` in its `env`, then
+start Claude Code with the development flag, since custom channels are not on the research preview
+allowlist:
+
+```bash
+claude --dangerously-load-development-channels server:mcpfabric
+```
+
 ---
 
 ## Tools (50+)
@@ -300,7 +333,7 @@ only for a game with `writeDiscoveryFile: false` or on another port than the one
 **session (client)** — `get_screen`, `close_screen` (pause menu, chat, container; respawns on the death screen), `list_worlds`, `join_world` (rejoin after a kick, a server restart or a game restart)
 **ui (client, off by default: `enableUiControl`)** — `get_ui` (widgets of the open screen), `click_widget`, `set_text_field`
 **supervised (off by default: `enableSupervisedControl`)** ([docs/SUPERVISED.md](docs/SUPERVISED.md)) — `supervised_status`, `supervised_stop`, `supervised_input` (one key for up to 10 ticks), `supervised_read_block`, `supervised_set_block` (with a precondition), `supervised_command` (allowlisted roots), `supervised_enter_world` / `supervised_leave_world` (approved saves), `supervised_reconcile`
-**events** — `poll_events` (recent damage, deaths, chat, spawns, player join/leave)
+**events** — `poll_events` (recent damage, deaths, chat, spawns, player join/leave; on the client also `self_health`, `self_death` and `left_world`)
 
 **agent runtime** ([docs/AGENT.md](docs/AGENT.md)) — persistent per-world memory, goals, map and background jobs:
 `agent_brief`, `observe`, `map_view`, `surroundings` (mobs, items and places relative to your view), `remember`, `recall`, `memory_update`, `memory_verify`,
