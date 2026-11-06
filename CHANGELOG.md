@@ -15,6 +15,9 @@ All notable changes to this project are documented here. The format is based on
   server uses it when `MCPFABRIC_TOKEN` is not set. It reads the file again on every call, so it can
   start before the game and follows a restart; a file left by a game that crashed is ignored. New
   config value `writeDiscoveryFile` (default `true`) and environment variable `MCPFABRIC_DISCOVERY`.
+- A one-click Claude Desktop extension: `npm run bundle` in `mcp-server/` builds
+  `mcpfabric-<version>.mcpb` (MCP Bundle) with optional settings for the token, address and tool
+  sets. `mcp-server/server.json` and `mcpName` prepare the listing in the MCP Registry.
 - MCP server: optional Claude Code channel (research preview). With `MCPFABRIC_CHANNEL=1` on the
   stdio transport the server declares `claude/channel` and pushes `notifications/claude/channel`
   messages: the local player's chat starting with `MCPFABRIC_CHANNEL_PREFIX` (default `@ai`),
