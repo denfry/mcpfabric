@@ -34,7 +34,7 @@ public final class AuditLog {
 			"world.setBlock", "world.fill", "world.setTime", "world.setWeather",
 			"entities.summon", "entities.remove",
 			"players.applyEffect", "players.give", "players.kick", "players.message", "players.setGameMode", "players.teleport",
-			"interact.breakBlock", "interact.placeBlock", "interact.attackEntity", "interact.useEntity", "interact.useItem", "interact.dropItem",
+			"interact.breakBlock", "interact.placeBlock", "interact.placeAt", "interact.attackEntity", "interact.useEntity", "interact.useItem", "interact.dropItem",
 			"inventory.dropSlot", "container.click", "container.transfer", "craft.place",
 			"session.join", "ui.click", "ui.setText",
 			"supervised.setBlock", "supervised.command", "supervised.enterWorld", "supervised.leaveWorld");

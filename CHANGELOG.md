@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- Block states in build results: `get_blocks_region` takes `includeState` and then returns each
+  block with its properties (`minecraft:oak_stairs[facing=east,half=bottom,...]`), `set_block`
+  reads the block back and returns it as `state`, and `place_block` returns the placed block as
+  `target.serverState`. A block facing the wrong way is now visible without a `get_block` per block.
+- `place_block_at` (`interact.placeAt`, needs `enablePlayerControl`): place the held block into a
+  cell with the properties asked for (facing, half, axis, hinge...). The mod tries every click within
+  reach against the block's own placement rules, turns the player to one that gives that state and
+  waits until the server has the new rotation; it reports when no click from here can.
+- Building from a plan in the agent runtime: `build_plan` saves a palette-and-layers plan with
+  must-stay-empty cells and spots that must be reachable, and lists materials and warnings (a door
+  opening into a wall, a torch hanging on nothing, a stair without facing); `build_verify` compares
+  it with the world, including whether each spot can be walked to and which blocks are in the way;
+  the `build_structure` job builds or repairs it and verifies the result.
+- `perception.blocks` returns each block's full state, collision height and whether it is
+  climbable.
+
 ## [0.9.1] - 2026-11-06
 
 Fabric and NeoForge.

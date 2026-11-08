@@ -117,11 +117,12 @@ export const TOOLS: ToolDef[] = [
     method: "world.getBlocks",
     title: "Scan a cuboid region",
     description:
-      "Scan all blocks in the cuboid between two corners (inclusive) and return their ids. Regions above 16,777,216 positions (e.g. 256x256x256) are refused to protect the server: split larger areas. The answer is capped at maxBlocks (default 32768, truncated=true when hit); air is omitted unless includeAir is true.",
+      "Scan all blocks in the cuboid between two corners (inclusive) and return their ids. Regions above 16,777,216 positions (e.g. 256x256x256) are refused to protect the server: split larger areas. The answer is capped at maxBlocks (default 32768, truncated=true when hit); air is omitted unless includeAir is true. With includeState each block also has 'state', the id with its properties (facing, half, open, ...), to check that what was built faces the right way.",
     inputSchema: {
       from: z.object(vec3()).describe("One corner of the cuboid."),
       to: z.object(vec3()).describe("Opposite corner of the cuboid."),
       includeAir: z.boolean().optional().default(false).describe("Include air blocks in the result."),
+      includeState: z.boolean().optional().default(false).describe("Add each block's full state, e.g. \"minecraft:oak_stairs[facing=east,half=bottom,shape=straight,waterlogged=false]\"."),
       maxBlocks: z.number().int().min(1).max(200000).optional().describe("Override the per-call block cap."),
       ...dimensionOpt,
     },
@@ -185,7 +186,7 @@ export const TOOLS: ToolDef[] = [
     method: "world.setBlock",
     title: "Set a block",
     description:
-      "Place/replace the block at an exact position with the given block id (optionally with blockstate properties as a string like 'minecraft:oak_log[axis=y]'). Requires a server (integrated client or dedicated).",
+      "Place/replace the block at an exact position with the given block id (optionally with blockstate properties as a string like 'minecraft:oak_log[axis=y]'). Properties left out take their defaults. 'state' is the block read back afterwards, with all its properties. Requires a server (integrated client or dedicated).",
     inputSchema: { ...vec3(), blockId: z.string().describe('Block id, optionally with state, e.g. "minecraft:stone" or "minecraft:oak_stairs[facing=east]".'), ...dimensionOpt },
     annotations: OVERWRITE,
   },
@@ -519,8 +520,20 @@ export const TOOLS: ToolDef[] = [
     method: "interact.placeBlock",
     title: "Place held block",
     description:
-      "Client-only. Place the currently held block against the given position/face. Out of reach, nothing is sent (result OUT_OF_REACH). 'result' is the client's prediction; 'placed' is what the integrated server did (null on a remote server). Equip the desired block first with select_hotbar_slot.",
+      "Client-only. Place the currently held block against the given position/face. Out of reach, nothing is sent (result OUT_OF_REACH). 'result' is the client's prediction; 'placed' is what the integrated server did (null on a remote server); target.serverState is the placed block with its properties (facing, half, ...), which follow the player's look direction and the clicked spot, so check them. Equip the desired block first with select_hotbar_slot.",
     inputSchema: { ...vec3(), face: z.enum(["up", "down", "north", "south", "east", "west"]).optional().default("up") },
+    annotations: WRITE,
+  },
+  {
+    name: "place_block_at",
+    method: "interact.placeAt",
+    title: "Place held block with a given state",
+    description:
+      "Client-only. Place the held block INTO the given cell so that it gets the properties you ask for (facing, half, axis, hinge, type...): the bridge tries every click within reach (which neighbour and face, which spot on it, which way to turn) against the block's own placement rules and uses one that gives that state, turning the player first. Properties left out are free. Answers with NO_SUPPORT (nothing next to the cell to place against), OUT_OF_REACH, OCCUPIED, CANNOT_PLACE, or NO_CLICK_GIVES_THAT_STATE with 'reachable' (the states possible from here: walk around or add a support block); on an integrated server 'matches' says whether the placed block has the wanted properties. Hold the item first (select_hotbar_slot); a torch item places wall_torch on walls. A stair climbs toward its facing (a roof's stairs face the ridge).",
+    inputSchema: {
+      ...vec3(),
+      state: z.string().max(256).describe('Wanted block with the properties that matter, e.g. "oak_stairs[facing=north,half=top]" or "wall_torch[facing=east]".'),
+    },
     annotations: WRITE,
   },
   {

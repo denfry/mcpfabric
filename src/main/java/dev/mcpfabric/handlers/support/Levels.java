@@ -1,5 +1,6 @@
 package dev.mcpfabric.handlers.support;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.mcpfabric.bridge.RpcException;
 import net.minecraft.core.BlockPos;
@@ -74,6 +75,35 @@ public final class Levels {
 		return property.getName(value);
 	}
 
+	/** The blockstate properties by name, empty for a block without any. */
+	public static JsonObject properties(BlockState state) {
+		JsonObject props = new JsonObject();
+		//? if <26.1 {
+		for (Map.Entry<Property<?>, Comparable<?>> e : state.getValues().entrySet()) {
+			props.addProperty(e.getKey().getName(), propertyValue(e.getKey(), e.getValue()));
+		}
+		//?} else
+		/*state.getValues().forEach(v -> props.addProperty(v.property().getName(), v.valueName()));*/
+		return props;
+	}
+
+	/**
+	 * The block with its properties in the form set_block accepts, e.g.
+	 * {@code minecraft:oak_stairs[facing=east,half=bottom,shape=straight,waterlogged=false]}.
+	 */
+	public static String blockState(BlockState state) {
+		JsonObject props = properties(state);
+		if (props.size() == 0) return blockId(state);
+		StringBuilder sb = new StringBuilder(blockId(state)).append('[');
+		boolean first = true;
+		for (Map.Entry<String, JsonElement> e : props.entrySet()) {
+			if (!first) sb.append(',');
+			sb.append(e.getKey()).append('=').append(e.getValue().getAsString());
+			first = false;
+		}
+		return sb.append(']').toString();
+	}
+
 	public static JsonObject describeBlock(Level level, BlockPos pos, BlockState state) {
 		JsonObject o = new JsonObject();
 		o.addProperty("x", pos.getX());
@@ -82,21 +112,8 @@ public final class Levels {
 		o.addProperty("id", blockId(state));
 		o.addProperty("air", state.isAir());
 		o.addProperty("liquid", !state.getFluidState().isEmpty());
-
-		//? if <26.1 {
-		Map<Property<?>, Comparable<?>> values = state.getValues();
-		if (!values.isEmpty()) {
-			JsonObject props = new JsonObject();
-			for (Map.Entry<Property<?>, Comparable<?>> e : values.entrySet()) {
-				props.addProperty(e.getKey().getName(), propertyValue(e.getKey(), e.getValue()));
-			}
-			o.add("properties", props);
-		}
-		//?} else {
-		/*JsonObject props = new JsonObject();
-		state.getValues().forEach(v -> props.addProperty(v.property().getName(), v.valueName()));
+		JsonObject props = properties(state);
 		if (props.size() > 0) o.add("properties", props);
-		*///?}
 		return o;
 	}
 }

@@ -66,6 +66,7 @@ public final class WorldHandlers {
 			int minX = Math.min(from.getX(), to.getX()), minY = Math.min(from.getY(), to.getY()), minZ = Math.min(from.getZ(), to.getZ());
 			int maxX = Math.max(from.getX(), to.getX()), maxY = Math.max(from.getY(), to.getY()), maxZ = Math.max(from.getZ(), to.getZ());
 			boolean includeAir = ctx.optBool("includeAir", false);
+			boolean includeState = ctx.optBool("includeState", false);
 			long volume = (long) (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
 			if (volume > MAX_REGION_VOLUME) {
 				throw RpcException.badRequest("Region has " + volume + " positions; the limit is " + MAX_REGION_VOLUME
@@ -90,6 +91,7 @@ public final class WorldHandlers {
 						b.addProperty("y", y);
 						b.addProperty("z", z);
 						b.addProperty("id", Levels.blockId(state));
+						if (includeState) b.addProperty("state", Levels.blockState(state));
 						blocks.add(b);
 					}
 				}
@@ -208,7 +210,11 @@ public final class WorldHandlers {
 			int z = (int) Math.floor(ctx2.getDouble("z"));
 			String block = ctx2.getString("blockId");
 			Gates.dataTags(block);
-			return CommandRunner.run(server, level, "setblock " + x + " " + y + " " + z + " " + block).toJson();
+			JsonObject o = CommandRunner.run(server, level, "setblock " + x + " " + y + " " + z + " " + block).toJson();
+			// Read back the result: properties left out take their defaults, and some (stairs shape, fence
+			// connections) follow the neighbours.
+			o.addProperty("state", Levels.blockState(level.getBlockState(new BlockPos(x, y, z))));
+			return o;
 		}));
 
 		router.register("world.fill", ctx -> writeCommand(ctx, ctx2 -> {

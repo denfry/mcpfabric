@@ -331,7 +331,7 @@ claude --dangerously-load-development-channels server:mcpfabric
 **chat** — `send_chat`, `show_message` (client: only the local player sees it), `get_recent_chat`
 **player (local, client)** — `get_self`, `get_inventory`, `get_equipment`, `get_status_effects`
 **control (client)** — `set_movement`, `stop_movement`, `look`, `look_at`, `jump`, `start_using_item`, `stop_using_item`
-**interact (client)** — `break_block`, `place_block`, `use_item`, `attack_entity`, `use_entity`, `drop_held_item`
+**interact (client)** — `break_block`, `place_block`, `place_block_at` (into a cell with a given facing/half/hinge), `use_item`, `attack_entity`, `use_entity`, `drop_held_item`
 **inventory (client)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
 **vision (client)** — `screenshot` (PNG for vision models; `marks: true` numbers the mobs and players in view and lists their uuids), `describe_scene`
 **navigation (client)** — `navigate_to` (A\*: walks, swims, climbs ladders, opens doors, digs through blocks and pillars up), `navigation_status`, `stop_navigation`
@@ -344,7 +344,8 @@ claude --dangerously-load-development-channels server:mcpfabric
 `agent_brief`, `observe`, `map_view`, `surroundings` (mobs, items and places relative to your view), `remember`, `recall`, `memory_update`, `memory_verify`,
 `goal_add`, `goal_update`, `goal_list`, `plan_craft`, `get_recipes`, `explore_next`,
 jobs `travel_to` / `explore` / `collect_blocks` / `craft_item` with `job_status` / `job_cancel`,
-and `open_container` / `container_transfer` / `close_container`; `open_dashboard` shows a live
+`open_container` / `container_transfer` / `close_container`, building from a plan:
+`build_plan`, `build_verify`, `build_structure`; `open_dashboard` shows a live
 panel (position, vitals, job, map, goals, inventory and a STOP button) in hosts that render
 [MCP Apps](https://modelcontextprotocol.io/extensions/apps), such as Claude
 
@@ -372,7 +373,9 @@ find a chest, smelt iron, climb a ledge): see [docs/BENCH.md](docs/BENCH.md).
 - "Get a stone pickaxe" → `plan_craft` → `collect_blocks` (logs, stone) → `craft_item`; progress is
   kept in the goal tree and memory, so a later session resumes with `agent_brief`.
 - "What's happening on the server" → `list_players` + `poll_events`.
-- "Build a wall" → `fill_blocks` or a series of `set_block` / `run_command`.
+- "Build a house" → `build_plan` (palette + layers, doorways marked as must-stay-empty, spots that must
+  be reachable) → `build_structure` → `build_verify` reports blocks facing the wrong way, filled
+  doorways and unreachable rooms. A plain wall is still `fill_blocks`.
 
 ---
 
