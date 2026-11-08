@@ -68,3 +68,26 @@ test("the bridge client sends the discovered token to the discovered address, an
     server.close();
   }
 });
+
+test("a slow answer is not reported as an unreachable game, and calls that may wait for approval get longer", async () => {
+  const server = http.createServer((req, res) => {
+    setTimeout(() => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, result: { done: true } })), 300);
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const client = new BridgeClient(url, "t", 100);
+    await assert.rejects(client.call("info.status"), (err) => {
+      assert.equal(err.name, "BridgeUnreachableError");
+      assert.match(err.message, /did not answer within 100ms/);
+      assert.match(err.message, /may still complete/);
+      assert.doesNotMatch(err.message, /Is Minecraft running/);
+      return true;
+    });
+    // command.run may wait for the player's approval in the game: the short timeout does not apply.
+    assert.deepEqual(await client.call("command.run", { command: "time set day" }), { done: true });
+  } finally {
+    server.closeAllConnections?.();
+    server.close();
+  }
+});

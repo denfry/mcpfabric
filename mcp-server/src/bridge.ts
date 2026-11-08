@@ -50,6 +50,32 @@ interface RpcEnvelope<T> {
   error?: BridgeErrorBody;
 }
 
+/**
+ * Methods the mod may hold until the player approves them (`requireApproval`, see the mod's
+ * Approvals.java and the contract test): up to 60 s, plus the game-thread call that follows. With the
+ * default timeout the MCP server would give up first and report a failure for a call the player may
+ * still approve and the game then run.
+ */
+export const APPROVAL_METHODS: ReadonlySet<string> = new Set([
+  "command.run",
+  "chat.send",
+  "world.setBlock",
+  "world.fill",
+  "world.setTime",
+  "world.setWeather",
+  "entities.summon",
+  "entities.remove",
+  "players.applyEffect",
+  "players.give",
+  "players.kick",
+  "players.message",
+  "players.setGameMode",
+  "players.teleport",
+]);
+
+/** Timeout floor for {@link APPROVAL_METHODS}: the mod's 60 s approval wait plus its game-thread timeout and a margin. */
+export const APPROVAL_TIMEOUT_MS = 75_000;
+
 export class BridgeClient {
   /**
    * @param discover where to look for the running game when no token is configured
@@ -74,19 +100,23 @@ export class BridgeClient {
     return h;
   }
 
-  private async fetchWithTimeout(path: string, init: RequestInit): Promise<Response> {
+  private async fetchWithTimeout(path: string, init: RequestInit, timeoutMs = this.timeoutMs): Promise<Response> {
     const { url, token } = this.target();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       return await fetch(url + path, { ...init, headers: this.headers(token), signal: controller.signal });
     } catch (err) {
-      const reason =
-        err instanceof Error && err.name === "AbortError"
-          ? `timed out after ${this.timeoutMs}ms`
-          : (err as Error)?.message ?? String(err);
+      if (err instanceof Error && err.name === "AbortError") {
+        // The request may have reached the game: it is not known to have failed.
+        throw new BridgeUnreachableError(
+          `The mcpfabric bridge at ${url} did not answer within ${timeoutMs}ms. ` +
+            `The call may still complete in the game: check the game state before retrying it.`,
+          err,
+        );
+      }
       throw new BridgeUnreachableError(
-        `Could not reach the mcpfabric bridge at ${url} (${reason}). ` +
+        `Could not reach the mcpfabric bridge at ${url} (${(err as Error)?.message ?? String(err)}). ` +
           `Is Minecraft running with the mod loaded, and is MCPFABRIC_URL correct?`,
         err,
       );
@@ -97,10 +127,15 @@ export class BridgeClient {
 
   /** Invoke a bridge RPC method. Throws BridgeError / BridgeUnreachableError on failure. */
   async call<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-    const res = await this.fetchWithTimeout("/rpc", {
-      method: "POST",
-      body: JSON.stringify({ method, params }),
-    });
+    const timeoutMs = APPROVAL_METHODS.has(method) ? Math.max(this.timeoutMs, APPROVAL_TIMEOUT_MS) : this.timeoutMs;
+    const res = await this.fetchWithTimeout(
+      "/rpc",
+      {
+        method: "POST",
+        body: JSON.stringify({ method, params }),
+      },
+      timeoutMs,
+    );
 
     if (res.status === 401 || res.status === 403) {
       throw new BridgeError({

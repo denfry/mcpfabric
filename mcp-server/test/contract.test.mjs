@@ -78,3 +78,14 @@ test("the read-only token allows exactly the methods of the read-only bridge too
   const writing = TOOLS.filter((t) => !t.annotations.readOnlyHint && allowed.has(t.method));
   assert.deepEqual(writing.map((t) => t.name).sort(), [], "ReadAccess allows a method of a tool that is not read-only");
 });
+
+test("the bridge client waits long enough for every call the player may have to approve", async () => {
+  const { APPROVAL_METHODS, APPROVAL_TIMEOUT_MS } = await import("../dist/bridge.js");
+  const java = readFileSync(join(repoRoot, "src", "main", "java", "dev", "mcpfabric", "handlers", "support", "Approvals.java"), "utf8");
+  const block = /GROUP_OF = Map\.ofEntries\(([\s\S]*?)\);/.exec(java)[1];
+  // chat.send needs approval when its message is a command (Approvals.groupOf).
+  const gated = new Set([...[...block.matchAll(/Map\.entry\("([^"]+)"/g)].map((m) => m[1]), "chat.send"]);
+  assert.deepEqual([...gated].sort(), [...APPROVAL_METHODS].sort(), "APPROVAL_METHODS (bridge.ts) differs from Approvals.GROUP_OF");
+  const seconds = Number(/TIMEOUT_SECONDS = (\d+);/.exec(java)[1]);
+  assert.ok(APPROVAL_TIMEOUT_MS > seconds * 1000, `APPROVAL_TIMEOUT_MS must exceed the mod's ${seconds} s approval wait`);
+});

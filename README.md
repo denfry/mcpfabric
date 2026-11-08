@@ -228,7 +228,7 @@ node dist/index.js        # finds the running game through ~/.mcpfabric/bridge.j
 | `MCPFABRIC_URL`        | `http://127.0.0.1:25599` | Address of the mod's HTTP bridge.                 |
 | `MCPFABRIC_TOKEN`      | from `bridge.json`       | Bearer token from the mod config. Unset: address and token come from `~/.mcpfabric/bridge.json`, read again on every call. |
 | `MCPFABRIC_DISCOVERY`  | `~/.mcpfabric/bridge.json` | Where to find the running game when `MCPFABRIC_TOKEN` is not set. |
-| `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge.                   |
+| `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge. Calls that may wait for the player's approval (`requireApproval`) wait at least 75 s. |
 | `MCPFABRIC_TRANSPORT`  | `stdio`                  | `stdio` or `http`.                                |
 | `MCPFABRIC_HTTP_PORT`  | `25600`                  | Port for the `http` transport (`/mcp`).           |
 | `MCPFABRIC_CHANNEL`    | off                      | `1`: act as a Claude Code channel (stdio only), see below. |

@@ -32,6 +32,10 @@ All notable changes to this project are documented here. The format is based on
   locked until it is fixed, instead of being replaced by the defaults (which turn most groups on).
   The config and discovery files are written in one step and, on Linux and macOS, readable only by
   the user. Fabric and NeoForge.
+- MCP server: calls that may wait for the player's approval (`requireApproval`, up to 60 s in the
+  game) wait at least 75 s instead of failing after `MCPFABRIC_TIMEOUT_MS` (15 s) while the player
+  still decides. A call that times out no longer says the game is unreachable: it says the call may
+  still complete and to check the game before retrying.
 
 ## [0.9.1] - 2026-11-06
 
