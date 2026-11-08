@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // Runs against the compiled server: npm run build first (npm test does).
-import { BridgeClient } from "../dist/bridge.js";
+import { BridgeClient, BridgeTimeoutError, BridgeUnreachableError } from "../dist/bridge.js";
 import { Discovery, parse } from "../dist/discovery.js";
 
 function touch(file, date) {
@@ -78,7 +78,8 @@ test("a slow answer is not reported as an unreachable game, and calls that may w
   try {
     const client = new BridgeClient(url, "t", 100);
     await assert.rejects(client.call("info.status"), (err) => {
-      assert.equal(err.name, "BridgeUnreachableError");
+      assert.ok(err instanceof BridgeTimeoutError, err.name);
+      assert.ok(err instanceof BridgeUnreachableError, "a timeout is still a kind of no-answer");
       assert.match(err.message, /did not answer within 100ms/);
       assert.match(err.message, /may still complete/);
       assert.doesNotMatch(err.message, /Is Minecraft running/);

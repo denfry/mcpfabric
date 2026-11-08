@@ -9,7 +9,7 @@
  */
 import { z } from "zod";
 
-import { BridgeError, BridgeUnreachableError } from "../bridge.js";
+import { BridgeError, BridgeTimeoutError, BridgeUnreachableError } from "../bridge.js";
 import type { Bridge } from "../agent/body.js";
 import type { AgentRuntime } from "../agent/runtime.js";
 import { OVERWRITE, READ, TOOLS, type ToolAnnotations, type ToolDef } from "../tools.js";
@@ -75,6 +75,7 @@ export class ScriptHost {
       return await this.bridge.call(def.method, parsed.data as Record<string, unknown>);
     } catch (err) {
       if (err instanceof BridgeError) throw new HostError(err.code, err.message, err.data);
+      if (err instanceof BridgeTimeoutError) throw new HostError("timeout", err.message);
       if (err instanceof BridgeUnreachableError) throw new HostError("unreachable", err.message);
       throw err;
     }

@@ -36,6 +36,18 @@ export class BridgeUnreachableError extends Error {
   }
 }
 
+/**
+ * The bridge did not answer in time. Unlike a refused connection, the request may have reached the
+ * game, so the call is not known to have failed. A BridgeUnreachableError, so code that handles "no
+ * answer" still does.
+ */
+export class BridgeTimeoutError extends BridgeUnreachableError {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
+    this.name = "BridgeTimeoutError";
+  }
+}
+
 /** One event from the bridge's ring buffer, as `GET /events` and `events.getRecent` send it. */
 export interface BridgeEvent {
   id: number;
@@ -108,12 +120,7 @@ export class BridgeClient {
       return await fetch(url + path, { ...init, headers: this.headers(token), signal: controller.signal });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
-        // The request may have reached the game: it is not known to have failed.
-        throw new BridgeUnreachableError(
-          `The mcpfabric bridge at ${url} did not answer within ${timeoutMs}ms. ` +
-            `The call may still complete in the game: check the game state before retrying it.`,
-          err,
-        );
+        throw new BridgeTimeoutError(`The mcpfabric bridge at ${url} did not answer within ${timeoutMs}ms.`, err);
       }
       throw new BridgeUnreachableError(
         `Could not reach the mcpfabric bridge at ${url} (${(err as Error)?.message ?? String(err)}). ` +
@@ -125,17 +132,18 @@ export class BridgeClient {
     }
   }
 
-  /** Invoke a bridge RPC method. Throws BridgeError / BridgeUnreachableError on failure. */
+  /** Invoke a bridge RPC method. Throws BridgeError / BridgeTimeoutError / BridgeUnreachableError on failure. */
   async call<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     const timeoutMs = APPROVAL_METHODS.has(method) ? Math.max(this.timeoutMs, APPROVAL_TIMEOUT_MS) : this.timeoutMs;
-    const res = await this.fetchWithTimeout(
-      "/rpc",
-      {
-        method: "POST",
-        body: JSON.stringify({ method, params }),
-      },
-      timeoutMs,
-    );
+    let res: Response;
+    try {
+      res = await this.fetchWithTimeout("/rpc", { method: "POST", body: JSON.stringify({ method, params }) }, timeoutMs);
+    } catch (err) {
+      if (err instanceof BridgeTimeoutError) {
+        throw new BridgeTimeoutError(`${err.message} The call may still complete in the game: check the game state before retrying it.`, err.cause);
+      }
+      throw err;
+    }
 
     if (res.status === 401 || res.status === 403) {
       throw new BridgeError({

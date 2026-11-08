@@ -15,7 +15,7 @@ import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 
 import { loadConfig, type ServerConfig } from "./config.js";
-import { BridgeClient, BridgeError, BridgeUnreachableError } from "./bridge.js";
+import { BridgeClient, BridgeError, BridgeTimeoutError, BridgeUnreachableError } from "./bridge.js";
 import { defaultDiscoveryPath, Discovery } from "./discovery.js";
 import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
@@ -47,7 +47,9 @@ function log(...args: unknown[]): void {
 
 function errorResult(err: unknown): CallToolResult {
   let text: string;
-  if (err instanceof BridgeUnreachableError) {
+  if (err instanceof BridgeTimeoutError) {
+    text = `Bridge timeout: ${err.message}`;
+  } else if (err instanceof BridgeUnreachableError) {
     text = `Bridge unreachable: ${err.message}`;
   } else if (err instanceof BridgeError) {
     text = `Bridge error [${err.code}]: ${err.message}`;
@@ -300,7 +302,10 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
         res.end(`Request body larger than ${MAX_HTTP_BODY_BYTES} bytes.`);
         return;
       }
-      if (!req.destroyed && !req.readableAborted) log("HTTP request failed:", (err as Error)?.message ?? String(err));
+      // A client that hung up mid-request is not worth a log line; anything else is. (A fully read
+      // request is already destroyed, so `req.destroyed` cannot tell the two apart.)
+      const hungUp = req.readableAborted || (err as NodeJS.ErrnoException)?.code === "ECONNRESET";
+      if (!hungUp) log("HTTP request failed:", err);
       if (!res.headersSent && !res.destroyed) {
         res.writeHead(500, { "Content-Type": "text/plain", Connection: "close" }).end("Internal error.");
       } else {

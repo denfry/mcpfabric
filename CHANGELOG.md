@@ -37,10 +37,12 @@ All notable changes to this project are documented here. The format is based on
   Fabric and NeoForge.
 - MCP server: calls that may wait for the player's approval (`requireApproval`, up to 60 s in the
   game) wait at least 75 s instead of failing after `MCPFABRIC_TIMEOUT_MS` (15 s) while the player
-  still decides. A call that times out no longer says the game is unreachable: it says the call may
-  still complete and to check the game before retrying.
+  still decides. A call that times out is reported as `Bridge timeout` (script error code
+  `timeout`) instead of an unreachable game, and says the call may still complete, so check the
+  game before retrying.
 - MCP server, `http` transport: a client that closes the connection in the middle of a request no
-  longer stops the server, and request bodies over 4 MiB are refused (413).
+  longer stops the server, other failed requests are logged, and request bodies over 4 MiB are
+  refused (413).
 
 ## [0.9.1] - 2026-11-06
 

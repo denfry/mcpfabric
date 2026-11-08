@@ -65,7 +65,7 @@ after(() => {
   child?.kill();
 });
 
-test("a client that hangs up in the middle of a request body does not stop the server", async () => {
+test("a client that hangs up in the middle of a request body does not stop the server", { timeout: 10_000 }, async () => {
   await new Promise((resolve) => {
     const sock = net.connect(port, "127.0.0.1", () => {
       sock.write(
@@ -86,7 +86,7 @@ test("a client that hangs up in the middle of a request body does not stop the s
   assert.ok(status >= 400 && status < 500, `unexpected status ${status}`);
 });
 
-test("a request body over the limit is refused with 413", async () => {
+test("a request body over the limit is refused with 413", { timeout: 10_000 }, async () => {
   // The declared length is enough to refuse it, before any of the body is read.
   const status = await request("POST", {
     host: `127.0.0.1:${port}`,
@@ -97,7 +97,7 @@ test("a request body over the limit is refused with 413", async () => {
   assert.equal(exited, null, "the server exited");
 });
 
-test("a request naming another host is refused (DNS rebinding)", async () => {
+test("a request naming another host is refused (DNS rebinding)", { timeout: 10_000 }, async () => {
   const status = await request("GET", { host: `evil.example:${port}` });
   assert.equal(status, 403);
 });
