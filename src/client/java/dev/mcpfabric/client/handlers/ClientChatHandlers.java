@@ -19,6 +19,8 @@ public final class ClientChatHandlers {
 
 	public static void register(RpcRouter router) {
 		router.register("chat.send", ctx -> ClientMc.call(() -> {
+			// Speaks to the server as the player, so it stops while the player has paused the AI.
+			Gates.notPaused();
 			LocalPlayer p = ClientMc.player();
 			String message = ctx.getString("message");
 			boolean isCommand = message.startsWith("/");
@@ -35,8 +37,8 @@ public final class ClientChatHandlers {
 			return o;
 		}));
 
-		// Prints to the local player only, nothing reaches the server or other players; like chat.send,
-		// it is always available (it is how the AI answers while the player has paused it).
+		// Prints to the local player only, nothing reaches the server or other players; it needs no
+		// lock and stays available while the player has paused the AI (it is how the AI answers then).
 		router.register("chat.showLocal", ctx -> {
 			String text = ctx.getString("text");
 			boolean actionBar = ctx.optBool("actionBar", false);

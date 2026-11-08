@@ -23,6 +23,12 @@ All notable changes to this project are documented here. The format is based on
 - `perception.blocks` returns each block's full state, collision height and whether it is
   climbable.
 
+### Fixed
+- Pausing the AI (K or `/mcpfabric stop`) now refuses every action over the bridge, as documented:
+  also commands, world and entity writes, player admin calls and chat sent as the player. A call
+  that needs the player's approval is refused at once instead of asking them while the AI is paused.
+  Fabric and NeoForge.
+
 ## [0.9.1] - 2026-11-06
 
 Fabric and NeoForge.

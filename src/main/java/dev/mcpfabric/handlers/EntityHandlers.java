@@ -213,9 +213,7 @@ public final class EntityHandlers {
 	}
 
 	private static JsonElement writeOnServer(ServerWork work) throws RpcException {
-		if (!McpFabric.config().enableWorldWrite) {
-			throw RpcException.unavailable("World writes are disabled in mcpfabric.config.json (enableWorldWrite=false).");
-		}
+		Gates.worldWrite();
 		return onServer(work);
 	}
 }

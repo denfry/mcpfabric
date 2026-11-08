@@ -6,6 +6,7 @@ import dev.mcpfabric.bridge.MainThread;
 import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.handlers.support.CommandRunner;
+import dev.mcpfabric.handlers.support.Gates;
 import net.minecraft.server.MinecraftServer;
 
 /** {@code command.run} — execute an arbitrary server command and capture its output. */
@@ -17,6 +18,7 @@ public final class CommandHandlers {
 			if (!McpFabric.config().enableCommands) {
 				throw RpcException.unavailable("Command execution is disabled in mcpfabric.config.json (enableCommands=false).");
 			}
+			Gates.notPaused();
 			MinecraftServer server = ServerHolder.get();
 			if (server == null) throw RpcException.noServer();
 

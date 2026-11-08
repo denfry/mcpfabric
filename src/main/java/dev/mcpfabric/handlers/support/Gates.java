@@ -66,6 +66,15 @@ public final class Gates {
 		if (!McpFabric.config().enableCommands) {
 			throw RpcException.unavailable("Commands are disabled in mcpfabric.config.json (enableCommands=false).");
 		}
+		notPaused();
+	}
+
+	/** Block, time, weather and entity changes made on the server (world.set*, world.fill, entities.summon/remove). */
+	public static void worldWrite() throws RpcException {
+		if (!McpFabric.config().enableWorldWrite) {
+			throw RpcException.unavailable("World writes are disabled in mcpfabric.config.json (enableWorldWrite=false).");
+		}
+		notPaused();
 	}
 
 	/**

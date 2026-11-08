@@ -379,9 +379,7 @@ public final class WorldHandlers {
 	}
 
 	private static JsonElement writeCommand(RpcContext ctx, CtxWork work) throws RpcException {
-		if (!McpFabric.config().enableWorldWrite) {
-			throw RpcException.unavailable("World writes are disabled in mcpfabric.config.json (enableWorldWrite=false).");
-		}
+		Gates.worldWrite();
 		MinecraftServer server = ServerHolder.get();
 		if (server == null) throw RpcException.noServer();
 		return MainThread.call(server, McpFabric.config().callTimeoutMs, () -> work.run(ctx));

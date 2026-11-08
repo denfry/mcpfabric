@@ -64,6 +64,8 @@ public final class Approvals {
 	public static void require(String method, JsonObject params) throws RpcException {
 		String group = groupOf(method, params);
 		if (group == null || !McpFabric.config().requireApproval.contains(group)) return;
+		// The player paused the AI: the call is refused anyway, so do not ask them about it.
+		Gates.notPaused();
 		Consumer<Pending> show = prompt;
 		if (show == null) {
 			throw RpcException.unavailable("'" + group + "' needs the player's approval (requireApproval), and only a game client can give it.");
