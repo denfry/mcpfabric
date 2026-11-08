@@ -10,6 +10,7 @@ import dev.mcpfabric.client.BotController;
 import dev.mcpfabric.client.ClientMc;
 import dev.mcpfabric.handlers.support.Gates;
 import dev.mcpfabric.handlers.support.Levels;
+import dev.mcpfabric.handlers.support.Takeover;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -322,6 +323,8 @@ public final class InteractHandlers {
 
 		router.register("interact.stopBreaking", ctx -> ClientMc.call(() -> {
 			BotController.get().stopMining();
+			// Pausing already stopped the AI's mining; a block being broken now is the player's.
+			if (Takeover.paused()) return Json.ok("the AI is paused; the player's mining is left alone");
 			ClientMc.gameMode().stopDestroyBlock();
 			return Json.ok("stopped breaking");
 		}));

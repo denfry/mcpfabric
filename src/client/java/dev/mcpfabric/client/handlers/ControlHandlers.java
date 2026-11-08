@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import dev.mcpfabric.bridge.Json;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.handlers.support.Gates;
+import dev.mcpfabric.handlers.support.Takeover;
 import dev.mcpfabric.client.BotController;
 import dev.mcpfabric.client.ClientMc;
 import net.minecraft.client.player.LocalPlayer;
@@ -72,6 +73,8 @@ public final class ControlHandlers {
 		}));
 
 		router.register("control.stopUsing", ctx -> ClientMc.call(() -> {
+			// Pausing already released the AI's use key; now the key and the item in use are the player's.
+			if (Takeover.paused()) return Json.ok("the AI is paused; the player's input is left alone");
 			ClientMc.mc().options.keyUse.setDown(false);
 			ClientMc.player().stopUsingItem();
 			return Json.ok("stopped using");

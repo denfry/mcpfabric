@@ -7,6 +7,7 @@ import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.client.ClientMc;
 import dev.mcpfabric.handlers.support.Gates;
+import dev.mcpfabric.handlers.support.Takeover;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
@@ -119,6 +120,8 @@ public final class ContainerHandlers {
 		}));
 
 		router.register("container.close", ctx -> ClientMc.call(() -> {
+			// While the AI is paused the open screen is the player's: leave it.
+			if (Takeover.paused()) return Json.ok("the AI is paused; the player's screen is left open");
 			LocalPlayer p = ClientMc.player();
 			if (p.containerMenu != p.inventoryMenu || currentScreen() != null) {
 				p.closeContainer();
