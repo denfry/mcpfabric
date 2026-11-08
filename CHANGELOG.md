@@ -36,6 +36,8 @@ All notable changes to this project are documented here. The format is based on
   game) wait at least 75 s instead of failing after `MCPFABRIC_TIMEOUT_MS` (15 s) while the player
   still decides. A call that times out no longer says the game is unreachable: it says the call may
   still complete and to check the game before retrying.
+- MCP server, `http` transport: a client that closes the connection in the middle of a request no
+  longer stops the server, and request bodies over 4 MiB are refused (413).
 
 ## [0.9.1] - 2026-11-06
 

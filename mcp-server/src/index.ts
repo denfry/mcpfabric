@@ -35,6 +35,10 @@ const PKG_VERSION = (createRequire(import.meta.url)("../package.json") as { vers
 /** HTTP transport: sessions idle this long are closed, and at most MAX_HTTP_SESSIONS stay open. */
 const SESSION_IDLE_MS = 30 * 60 * 1000;
 const MAX_HTTP_SESSIONS = 32;
+/** HTTP transport: largest request body read. MCP messages are small JSON; the bridge itself takes at most 1 MiB. */
+const MAX_HTTP_BODY_BYTES = 4 * 1024 * 1024;
+
+class BodyTooLargeError extends Error {}
 
 function log(...args: unknown[]): void {
   // stderr only — stdout is reserved for the stdio transport.
@@ -269,9 +273,16 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
   }, 60_000);
   sweep.unref();
 
+  /** The JSON body, or undefined when empty or not JSON; throws BodyTooLargeError past MAX_HTTP_BODY_BYTES. */
   async function readBody(req: http.IncomingMessage): Promise<unknown> {
+    if (Number(req.headers["content-length"]) > MAX_HTTP_BODY_BYTES) throw new BodyTooLargeError();
     const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk as Buffer);
+    let size = 0;
+    for await (const chunk of req) {
+      size += (chunk as Buffer).length;
+      if (size > MAX_HTTP_BODY_BYTES) throw new BodyTooLargeError();
+      chunks.push(chunk as Buffer);
+    }
     if (chunks.length === 0) return undefined;
     try {
       return JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -280,7 +291,25 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
     }
   }
 
-  const httpServer = http.createServer(async (req, res) => {
+  const httpServer = http.createServer((req, res) => {
+    // A request that fails (a client that hangs up mid-body, a transport error) must not take the
+    // whole server down as an unhandled rejection.
+    handle(req, res).catch((err: unknown) => {
+      if (err instanceof BodyTooLargeError) {
+        if (!res.headersSent) res.writeHead(413, { "Content-Type": "text/plain", Connection: "close" });
+        res.end(`Request body larger than ${MAX_HTTP_BODY_BYTES} bytes.`);
+        return;
+      }
+      if (!req.destroyed && !req.readableAborted) log("HTTP request failed:", (err as Error)?.message ?? String(err));
+      if (!res.headersSent && !res.destroyed) {
+        res.writeHead(500, { "Content-Type": "text/plain", Connection: "close" }).end("Internal error.");
+      } else {
+        res.destroy();
+      }
+    });
+  });
+
+  async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     if (!req.url || !req.url.startsWith("/mcp")) {
       res.writeHead(404).end("Not found");
       return;
@@ -314,7 +343,7 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
       entry = { server, transport, lastSeen: Date.now() };
     }
     await entry.transport.handleRequest(req, res, body);
-  });
+  }
 
   httpServer.listen(cfg.httpPort, "127.0.0.1", () => {
     log(`streamable-HTTP transport ready on http://127.0.0.1:${cfg.httpPort}/mcp`);
