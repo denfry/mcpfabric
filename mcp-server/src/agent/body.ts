@@ -93,7 +93,16 @@ export interface NavStatus {
   state: string;
   target?: Pos;
   remainingNodes?: number;
+  /** Kind of the current step: walk, jump, fall, swim, climb, pillar, dig or door. */
+  move?: string;
   distance?: number;
+}
+
+/** What the walker may do on the way; the bridge allows all three by default. */
+export interface NavMoves {
+  allowDig?: boolean;
+  allowPillar?: boolean;
+  allowSwim?: boolean;
 }
 
 export interface SlotItem {
@@ -181,7 +190,10 @@ export class Body {
     return this.bridge.call("interact.attackEntity", { uuid });
   }
 
-  pathTo(target: Pos, opts: { reachRadius?: number; sprint?: boolean; timeoutSeconds?: number } = {}): Promise<{ pathLength: number }> {
+  pathTo(
+    target: Pos,
+    opts: { reachRadius?: number; sprint?: boolean; timeoutSeconds?: number } & NavMoves = {},
+  ): Promise<{ pathLength: number; moves?: Record<string, number> }> {
     return this.bridge.call("nav.pathTo", { ...target, ...opts });
   }
 

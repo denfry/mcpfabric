@@ -95,6 +95,35 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 4. Watch the **Release** workflow in the Actions tab. On success you get the Modrinth versions and a
    GitHub Release.
 
+5. **MCP server** (when `mcp-server/` changed; its version follows `mod_version`): bump `version` in
+   `mcp-server/package.json`, `package-lock.json` (`npm version <x.y.z> --no-git-tag-version`) and
+   both `version` fields of `mcp-server/server.json` in the release commit. Pushing the Fabric tag
+   `v<x.y.z>` then runs [`publish-mcp-server.yml`](../.github/workflows/publish-mcp-server.yml),
+   which checks that these versions match the tag and:
+
+   - publishes `mcpfabric-mcp-server` to npm with provenance (npm trusted publishing, no token);
+   - lists it in the MCP Registry as `io.github.denfry/mcpfabric` (`mcp-publisher login github-oidc`);
+   - attaches `mcpfabric-<x.y.z>.mcpb` (Claude Desktop) to the `v<x.y.z>` GitHub Release once the
+     release workflow has created it.
+
+   Each step skips what is already published, so a failed run can be re-run (Actions →
+   **Publish MCP server** → **Run workflow** with the version). One-time setup on npmjs.com:
+   package `mcpfabric-mcp-server` → **Settings** → **Trusted Publisher** → GitHub Actions, owner
+   `denfry`, repository `mcpfabric`, workflow `publish-mcp-server.yml`.
+
+   By hand, from `mcp-server/` (needs `npm login` with 2FA in an interactive terminal, and a fresh
+   `mcp-publisher login github`, whose token expires quickly):
+
+   ```bash
+   npm publish --access public          # prepublishOnly runs the tests
+   npm run bundle                       # dist-mcpb/mcpfabric-<x.y.z>.mcpb
+   gh release upload v<x.y.z> dist-mcpb/mcpfabric-<x.y.z>.mcpb
+   mcp-publisher login github && mcp-publisher publish
+   ```
+
+   The registry checks that `mcpName` in `package.json` matches `name` in `server.json`
+   (`io.github.denfry/mcpfabric`) on the npm package, so npm comes first.
+
 ### Manual / re-run
 
 The workflow also has a `workflow_dispatch` trigger (Actions tab → **Release** → **Run workflow**),

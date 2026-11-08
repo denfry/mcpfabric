@@ -6,6 +6,8 @@
  * It also exposes `GET /health`, `GET /info`, and `GET /events` (SSE).
  */
 
+import type { BridgeTarget } from "./discovery.js";
+
 export interface BridgeErrorBody {
   code: string;
   message: string;
@@ -34,6 +36,14 @@ export class BridgeUnreachableError extends Error {
   }
 }
 
+/** One event from the bridge's ring buffer, as `GET /events` and `events.getRecent` send it. */
+export interface BridgeEvent {
+  id: number;
+  type: string;
+  gameTime: number;
+  data: Record<string, unknown>;
+}
+
 interface RpcEnvelope<T> {
   ok: boolean;
   result?: T;
@@ -41,30 +51,42 @@ interface RpcEnvelope<T> {
 }
 
 export class BridgeClient {
+  /**
+   * @param discover where to look for the running game when no token is configured
+   *   (`~/.mcpfabric/bridge.json`, see discovery.ts); its address and token are used instead.
+   */
   constructor(
     private readonly baseUrl: string,
     private readonly token: string | undefined,
     private readonly timeoutMs: number,
+    private readonly discover?: () => BridgeTarget | undefined,
   ) {}
 
-  private headers(): Record<string, string> {
+  /** Address and token for the next request. */
+  target(): BridgeTarget {
+    if (this.token || !this.discover) return { url: this.baseUrl, token: this.token };
+    return this.discover() ?? { url: this.baseUrl, token: undefined };
+  }
+
+  private headers(token: string | undefined): Record<string, string> {
     const h: Record<string, string> = { "content-type": "application/json" };
-    if (this.token) h.authorization = `Bearer ${this.token}`;
+    if (token) h.authorization = `Bearer ${token}`;
     return h;
   }
 
   private async fetchWithTimeout(path: string, init: RequestInit): Promise<Response> {
+    const { url, token } = this.target();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      return await fetch(this.baseUrl + path, { ...init, signal: controller.signal });
+      return await fetch(url + path, { ...init, headers: this.headers(token), signal: controller.signal });
     } catch (err) {
       const reason =
         err instanceof Error && err.name === "AbortError"
           ? `timed out after ${this.timeoutMs}ms`
           : (err as Error)?.message ?? String(err);
       throw new BridgeUnreachableError(
-        `Could not reach the mcpfabric bridge at ${this.baseUrl} (${reason}). ` +
+        `Could not reach the mcpfabric bridge at ${url} (${reason}). ` +
           `Is Minecraft running with the mod loaded, and is MCPFABRIC_URL correct?`,
         err,
       );
@@ -77,7 +99,6 @@ export class BridgeClient {
   async call<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     const res = await this.fetchWithTimeout("/rpc", {
       method: "POST",
-      headers: this.headers(),
       body: JSON.stringify({ method, params }),
     });
 
@@ -85,8 +106,8 @@ export class BridgeClient {
       throw new BridgeError({
         code: "unauthorized",
         message:
-          "Bridge rejected the auth token. Set MCPFABRIC_TOKEN to the token the mod printed on startup " +
-          "(also stored in mcpfabric.config.json next to the world / in the run dir).",
+          "Bridge rejected the auth token. Set MCPFABRIC_TOKEN to the token in config/mcpfabric.config.json " +
+          "of the game, or unset it so the token is read from ~/.mcpfabric/bridge.json while the game runs.",
       });
     }
 
@@ -106,9 +127,80 @@ export class BridgeClient {
     return body.result as T;
   }
 
+  /**
+   * Opens one `GET /events` stream (only `types`, if given) and calls `onEvent` for each event
+   * until the stream ends, `signal` aborts, or nothing (not even a keepalive) arrives for
+   * `idleMs`. Resolves when the stream ends; throws when it cannot be opened. The bridge caps the
+   * number of open streams, so callers keep at most one and reconnect with a backoff.
+   */
+  async streamEvents(
+    types: string[],
+    signal: AbortSignal,
+    onEvent: (event: BridgeEvent) => void,
+    idleMs = 45_000,
+  ): Promise<void> {
+    const query = types.length > 0 ? `?types=${types.map(encodeURIComponent).join(",")}` : "";
+    const local = new AbortController();
+    const abort = () => local.abort();
+    signal.addEventListener("abort", abort, { once: true });
+    let idle: NodeJS.Timeout | undefined;
+    const touch = () => {
+      clearTimeout(idle);
+      idle = setTimeout(abort, idleMs);
+      idle.unref?.();
+    };
+    try {
+      touch();
+      // Resolved per stream, so a reconnect follows a game that restarted (discovery file).
+      const { url, token } = this.target();
+      let res: Response;
+      try {
+        res = await fetch(url + "/events" + query, { method: "GET", headers: this.headers(token), signal: local.signal });
+      } catch (err) {
+        throw new BridgeUnreachableError(`Could not open the event stream at ${url} (${(err as Error)?.message ?? String(err)}).`, err);
+      }
+      if (!res.ok || !res.body) {
+        await res.body?.cancel().catch(() => undefined);
+        throw new BridgeError({ code: res.status === 503 ? "too_many_streams" : "bad_response", message: `Event stream refused (HTTP ${res.status}).` });
+      }
+      const decoder = new TextDecoder();
+      let buffer = "";
+      try {
+        for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+          touch();
+          buffer += decoder.decode(chunk, { stream: true }).replace(/\r\n/g, "\n");
+          let end: number;
+          while ((end = buffer.indexOf("\n\n")) >= 0) {
+            const block = buffer.slice(0, end);
+            buffer = buffer.slice(end + 2);
+            const data = block
+              .split("\n")
+              .filter((line) => line.startsWith("data:"))
+              .map((line) => line.slice(5).replace(/^ /, ""))
+              .join("\n");
+            if (!data) continue; // comment or keepalive
+            let event: BridgeEvent;
+            try {
+              event = JSON.parse(data) as BridgeEvent;
+            } catch {
+              continue;
+            }
+            onEvent(event);
+          }
+        }
+      } catch (err) {
+        // An abort (ours, idle or the caller's) just ends the stream.
+        if (!local.signal.aborted) throw err;
+      }
+    } finally {
+      clearTimeout(idle);
+      signal.removeEventListener("abort", abort);
+    }
+  }
+
   /** Lightweight liveness probe. Returns the parsed `/info` payload or throws if unreachable. */
   async info<T = unknown>(): Promise<T> {
-    const res = await this.fetchWithTimeout("/info", { method: "GET", headers: this.headers() });
+    const res = await this.fetchWithTimeout("/info", { method: "GET" });
     return (await res.json()) as T;
   }
 }

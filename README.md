@@ -37,7 +37,9 @@ dedicated servers across Minecraft 1.21.1–1.21.11 and 26.1–26.3, on Fabric a
    [Fabric API](https://modrinth.com/mod/fabric-api), or [NeoForge](https://neoforged.net/).
 2. Download the jar matching your Minecraft version and loader from
    [Modrinth](https://modrinth.com/mod/mcpfabric/versions) and place it in `mods/`.
-3. Launch Minecraft once, then copy `token` from `config/mcpfabric.config.json`.
+3. Launch Minecraft. While it runs, the mod writes its address and token to
+   `~/.mcpfabric/bridge.json` (readable only by you), and the MCP server connects through it: no token
+   to copy.
 4. Build the MCP server with `cd mcp-server && npm ci && npm run build`.
 5. Add it to your MCP client using the [ready-to-copy examples](#3-connect-to-claude).
 
@@ -150,8 +152,10 @@ On first launch the mod creates `config/mcpfabric.config.json` and logs where to
 [mcpfabric] ready — bridge http://127.0.0.1:25599 (token: .../config/mcpfabric.config.json)
 ```
 
-Copy the `token` value from that file — the MCP server needs it. The token is intentionally not
-printed to logs.
+The token is intentionally not printed to logs. While the game runs, the mod also writes the bridge
+address and token to `~/.mcpfabric/bridge.json` (readable only by your user, removed when the game
+stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writeDiscoveryFile` to
+`false` to turn that off and copy `token` into `MCPFABRIC_TOKEN` instead.
 
 ### Mod config (`config/mcpfabric.config.json`)
 
@@ -161,8 +165,11 @@ printed to logs.
   "port": 25599,
   "token": "generated automatically",
   "requireAuth": true,
+  "readToken": "generated automatically",
   "callTimeoutMs": 8000,
   "worldIdKey": "generated automatically",
+  "writeDiscoveryFile": true,
+  "auditLog": true,
   "enableWorldWrite": true,
   "enableCommands": true,
   "enablePlayerControl": true,
@@ -170,7 +177,8 @@ printed to logs.
   "enableUiControl": false,
   "enableSupervisedControl": false,
   "supervisedWorlds": [],
-  "supervisedCommands": ["time", "weather"]
+  "supervisedCommands": ["time", "weather"],
+  "requireApproval": []
 }
 ```
 
@@ -196,6 +204,9 @@ run. See [docs/SUPERVISED.md](docs/SUPERVISED.md).
 
 ## 2. MCP server
 
+The server is on npm as [`mcpfabric-mcp-server`](https://www.npmjs.com/package/mcpfabric-mcp-server):
+`npx -y mcpfabric-mcp-server` runs it without a checkout. To build it from source:
+
 ```bash
 cd mcp-server
 npm install
@@ -205,7 +216,7 @@ npm run build      # compiles to dist/
 Usually your MCP client launches it for you (see below). Manually:
 
 ```bash
-MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
+node dist/index.js        # finds the running game through ~/.mcpfabric/bridge.json
 ```
 
 ### Environment variables
@@ -213,10 +224,36 @@ MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
 | Variable               | Default                  | Description                                       |
 |------------------------|--------------------------|---------------------------------------------------|
 | `MCPFABRIC_URL`        | `http://127.0.0.1:25599` | Address of the mod's HTTP bridge.                 |
-| `MCPFABRIC_TOKEN`      | —                        | Bearer token from the mod config (required by default). |
+| `MCPFABRIC_TOKEN`      | from `bridge.json`       | Bearer token from the mod config. Unset: address and token come from `~/.mcpfabric/bridge.json`, read again on every call. |
+| `MCPFABRIC_DISCOVERY`  | `~/.mcpfabric/bridge.json` | Where to find the running game when `MCPFABRIC_TOKEN` is not set. |
 | `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge.                   |
 | `MCPFABRIC_TRANSPORT`  | `stdio`                  | `stdio` or `http`.                                |
 | `MCPFABRIC_HTTP_PORT`  | `25600`                  | Port for the `http` transport (`/mcp`).           |
+| `MCPFABRIC_CHANNEL`    | off                      | `1`: act as a Claude Code channel (stdio only), see below. |
+| `MCPFABRIC_CHANNEL_PREFIX` | `@ai`                | Chat prefix that addresses the AI.                |
+| `MCPFABRIC_CHANNEL_WHISPERS` | off                | `1`: also push whispers to the local player.      |
+| `MCPFABRIC_CHANNEL_HEALTH` | `6`                  | Low-health alert below this health (20 = full).   |
+| `MCPFABRIC_CHANNEL_RATE` | `6`                    | At most this many channel messages per minute.    |
+| `MCPFABRIC_SCRIPTS`    | on                       | `0` / `false` / `off` removes the script tools (`run_script`, skills). |
+| `MCPFABRIC_TOOLSETS`   | all tools                | Serve only some tools; see [Tool sets](#tool-sets). |
+
+### Tool sets
+
+Every tool takes up model context, and a model chooses better from 20 tools than from 90. Set
+`MCPFABRIC_TOOLSETS` to a comma-separated list of profiles and groups to serve only those:
+
+| Profile | Groups | For |
+|---------|--------|-----|
+| `play`  | `player`, `vision`, `chat`, `events`, `session`, `agent`, `script` | playing as the local player |
+| `admin` | `world`, `entities`, `operator`, `chat`, `events` | running a server |
+| `build` | `world`, `vision`, `chat` | building with world edits |
+| `all`   | every group (the default) | |
+
+The other groups are `ui`, `supervised` and `script` (`run_script` and the skills), e.g. `MCPFABRIC_TOOLSETS=play,ui` or
+`MCPFABRIC_TOOLSETS=supervised`. `get_status` and `list_capabilities` (`info`) are always served.
+Tool sets only hide tools: the mod's `enable*` flags still decide what the game allows. Add
+`readonly` to serve only the tools that just read, e.g. `MCPFABRIC_TOOLSETS=readonly` or
+`MCPFABRIC_TOOLSETS=play,readonly`; pair it with the mod's read-only token (below).
 
 ---
 
@@ -224,18 +261,19 @@ MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
 
 ### Claude Desktop
 
-`claude_desktop_config.json` (see `examples/claude_desktop_config.json`):
+One click: download `mcpfabric-<version>.mcpb` from the
+[GitHub releases](https://github.com/denfry/mcpfabric/releases) and open it (or drag it into Claude
+Desktop, or Settings → Extensions → Install Extension). It needs Node.js ≥ 22.16 and finds the
+running game on its own. To build it yourself: `cd mcp-server && npm run bundle`.
+
+Or by hand, `claude_desktop_config.json` (see `examples/claude_desktop_config.json`):
 
 ```json
 {
   "mcpServers": {
     "mcpfabric": {
-      "command": "node",
-      "args": ["/absolute/path/to/mcpfabric/mcp-server/dist/index.js"],
-      "env": {
-        "MCPFABRIC_URL": "http://127.0.0.1:25599",
-        "MCPFABRIC_TOKEN": "paste-the-token-from-the-mod-log"
-      }
+      "command": "npx",
+      "args": ["-y", "mcpfabric-mcp-server"]
     }
   }
 }
@@ -246,10 +284,39 @@ MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
 Use the `.mcp.json` in the project root (see `examples/mcp.json`) or:
 
 ```bash
-claude mcp add mcpfabric -- node /absolute/path/to/mcpfabric/mcp-server/dist/index.js
+claude mcp add mcpfabric -- npx -y mcpfabric-mcp-server
 ```
 
-Then set `MCPFABRIC_TOKEN` in the server's environment.
+With the game running, the server finds it on its own. Set `MCPFABRIC_URL` and `MCPFABRIC_TOKEN`
+only for a game with `writeDiscoveryFile: false` or on another port than the one in `bridge.json`.
+
+### Talk to the AI from the game (Claude Code channel)
+
+Claude Code [channels](https://code.claude.com/docs/en/channels-reference) (research preview) let
+the MCP server push messages into a running Claude Code session. With `MCPFABRIC_CHANNEL=1` and the
+stdio transport, mcpfabric declares the `claude/channel` capability, keeps one event stream to the
+bridge open (reconnecting with a backoff) and pushes:
+
+- your own chat messages that start with the prefix (`@ai build a hut here`) as `kind="request"`;
+  messages from other players never count as requests;
+- with `MCPFABRIC_CHANNEL_WHISPERS=1`, whispers other players send you, as `kind="whisper"` with
+  `untrusted="true"` and `source="player:<name>"`: data, never instructions;
+- alerts: your player died (`death`), health fell below `MCPFABRIC_CHANNEL_HEALTH` (`low_health`, at
+  most one per minute), the client was kicked or lost the connection (`disconnected`), and an agent
+  job finished or failed (`job`).
+
+At most `MCPFABRIC_CHANNEL_RATE` messages per minute are pushed; the next one after a burst says how
+many were dropped. The AI answers in the game with `send_chat` (a tool that shows a reply only to
+you is coming separately). The requests, whispers and alerts come from the client, so the mod has to
+run on the client; chat that a server plugin turns into system messages is not seen as yours.
+
+Register the server (for example in `.mcp.json`) with `"MCPFABRIC_CHANNEL": "1"` in its `env`, then
+start Claude Code with the development flag, since custom channels are not on the research preview
+allowlist:
+
+```bash
+claude --dangerously-load-development-channels server:mcpfabric
+```
 
 ---
 
@@ -261,28 +328,41 @@ Then set `MCPFABRIC_TOKEN` in the server's environment.
 **entities** — `query_entities`, `get_entity`, `summon_entity`, `remove_entity`
 **players (admin)** — `list_players`, `get_player`, `teleport_player`, `set_gamemode`, `give_item`, `apply_effect`, `message_player`, `kick_player`
 **command** — `run_command` (any operator-level command, with output capture)
-**chat** — `send_chat`, `get_recent_chat`
+**chat** — `send_chat`, `show_message` (client: only the local player sees it), `get_recent_chat`
 **player (local, client)** — `get_self`, `get_inventory`, `get_equipment`, `get_status_effects`
 **control (client)** — `set_movement`, `stop_movement`, `look`, `look_at`, `jump`, `start_using_item`, `stop_using_item`
 **interact (client)** — `break_block`, `place_block`, `place_block_at` (into a cell with a given facing/half/hinge), `use_item`, `attack_entity`, `use_entity`, `drop_held_item`
 **inventory (client)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
-**vision (client)** — `screenshot` (PNG for vision models), `describe_scene`
-**navigation (client)** — `navigate_to` (A\*), `navigation_status`, `stop_navigation`
+**vision (client)** — `screenshot` (PNG for vision models; `marks: true` numbers the mobs and players in view and lists their uuids), `describe_scene`
+**navigation (client)** — `navigate_to` (A\*: walks, swims, climbs ladders, opens doors, digs through blocks and pillars up), `navigation_status`, `stop_navigation`
 **session (client)** — `get_screen`, `close_screen` (pause menu, chat, container; respawns on the death screen), `list_worlds`, `join_world` (rejoin after a kick, a server restart or a game restart)
 **ui (client, off by default: `enableUiControl`)** — `get_ui` (widgets of the open screen), `click_widget`, `set_text_field`
 **supervised (off by default: `enableSupervisedControl`)** ([docs/SUPERVISED.md](docs/SUPERVISED.md)) — `supervised_status`, `supervised_stop`, `supervised_input` (one key for up to 10 ticks), `supervised_read_block`, `supervised_set_block` (with a precondition), `supervised_command` (allowlisted roots), `supervised_enter_world` / `supervised_leave_world` (approved saves), `supervised_reconcile`
-**events** — `poll_events` (recent damage, deaths, chat, spawns, player join/leave)
+**events** — `poll_events` (recent damage, deaths, chat, spawns, player join/leave; on the client also `self_health`, `self_death` and `left_world`)
 
 **agent runtime** ([docs/AGENT.md](docs/AGENT.md)) — persistent per-world memory, goals, map and background jobs:
-`agent_brief`, `observe`, `map_view`, `remember`, `recall`, `memory_update`, `memory_verify`,
+`agent_brief`, `observe`, `map_view`, `surroundings` (mobs, items and places relative to your view), `remember`, `recall`, `memory_update`, `memory_verify`,
 `goal_add`, `goal_update`, `goal_list`, `plan_craft`, `get_recipes`, `explore_next`,
 jobs `travel_to` / `explore` / `collect_blocks` / `craft_item` with `job_status` / `job_cancel`,
-`open_container` / `container_transfer` / `close_container`, and building from a plan:
-`build_plan`, `build_verify`, `build_structure`
+`open_container` / `container_transfer` / `close_container`, building from a plan:
+`build_plan`, `build_verify`, `build_structure`; `open_dashboard` shows a live
+panel (position, vitals, job, map, goals, inventory and a STOP button) in hosts that render
+[MCP Apps](https://modelcontextprotocol.io/extensions/apps), such as Claude
+
+**scripts** ([docs/AGENT.md](docs/AGENT.md#scripts-and-skills)) — code mode: one JavaScript program
+in a sandbox replaces dozens of tool calls: `run_script`; programs that worked are kept per world as
+skills: `save_skill`, `list_skills`, `run_skill`, `delete_skill` (the skill tools need the agent runtime)
 
 Server tools require a running server (integrated on the client or dedicated). Client tools
 (`control` / `interact` / `vision` / `navigation` / `player` / `inventory`) only work on the client.
 Call `get_status` first — it reports which side you are on and which groups are available.
+
+---
+
+## Benchmark
+
+`mcpfabric-bench` scores agents on small tasks in a test world (collect logs, craft a stone pickaxe,
+find a chest, smelt iron, climb a ledge): see [docs/BENCH.md](docs/BENCH.md).
 
 ---
 
@@ -299,12 +379,46 @@ Call `get_status` first — it reports which side you are on and which groups ar
 
 ---
 
+## Taking control back
+
+On the client, press **K** (rebind it under Controls → Miscellaneous) or run `/mcpfabric stop` to
+pause the AI: the keys it holds are released, navigation, mining and supervised grants stop, and
+every action over the bridge is refused until you press K again or run `/mcpfabric resume`. Reads
+keep working, and the AI can still answer you with `show_message`. `/mcpfabric status` shows the
+state; `get_status` reports it to the model as `aiPaused`, and the events `ai_paused` and
+`ai_resumed` are emitted. When the AI starts acting after a quiet spell, the action bar says so.
+
+---
+
+### Approving risky calls
+
+List capability groups in `requireApproval` (`"command"`, `"world_write"`, `"players_admin"`) and
+each call of those groups waits until you answer it in the game: the request shows in chat and on
+the action bar, **Y** approves and **N** denies the oldest one (rebindable), or
+`/mcpfabric approve|deny [id]`. No answer within 60 seconds is a denial, and pausing the AI denies
+everything that waits. `get_status` reports the list as `requireApproval`. Only a client can answer:
+on a dedicated server those groups are then refused.
+
+---
+
 ## Security
 
 - The bridge listens on **`127.0.0.1` only** and requires a **bearer token**.
 - Operator-level capabilities (`run_command`, world writes, player control) are **on by default** —
   this gives the AI full control. Turn off groups with the `enable*` flags if you need to, and use
   `enableSupervisedControl` if the model should only take single, approved actions.
+- Text that other players or the world wrote (chat, whispers, signs, books, item and entity names,
+  screen titles, command output) is data, not instructions. Tools whose results can carry it return
+  `{ "untrusted": true, "notice": ..., "data": ... }`, and chat entries carry a `source`
+  (`player:<name>` or `server`); the server instructions tell the model the same.
+- `readToken` is a second bearer token that may only read the game (blocks, entities, players,
+  chat history, events, perception, screenshots; each still behind its own lock): give it to a
+  model or tool that should watch but not act, together with `MCPFABRIC_TOOLSETS=readonly`, which
+  serves only the read-only tools. Any other method is refused with `forbidden`.
+- Every call with a lasting effect (commands, block and entity edits, player admin, chat,
+  interactions, screens, supervised actions) is recorded in `logs/mcpfabric-audit.jsonl` with its
+  time, outcome and a short form of its params; movement, looking and reads are not. It rolls over
+  at 5 MiB. Set `auditLog` to `false` to turn it off.
 - Do not expose `host` externally without understanding the risk and putting an authenticated
   reverse proxy in front of it. See [SECURITY.md](SECURITY.md).
 

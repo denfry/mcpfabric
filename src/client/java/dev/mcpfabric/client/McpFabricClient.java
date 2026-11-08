@@ -2,6 +2,7 @@ package dev.mcpfabric.client;
 
 import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.RpcRouter;
+import dev.mcpfabric.handlers.support.Approvals;
 import dev.mcpfabric.client.handlers.ClientChatHandlers;
 import dev.mcpfabric.client.handlers.ContainerHandlers;
 import dev.mcpfabric.client.handlers.ControlHandlers;
@@ -47,13 +48,16 @@ public final class McpFabricClient {
 		SessionScreenHandlers.register(router); // menus: rejoin a world after a disconnect or a restart
 		UiHandlers.register(router); // generic screen control, behind enableUiControl
 		SupervisedClientHandlers.register(router); // supervised input and approved saves, behind enableSupervisedControl
+		Approvals.onRequest(AiControl::showApproval); // requireApproval: the player answers here
 
 		McpFabric.LOGGER.info("[mcpfabric] client handlers registered");
 	}
 
-	/** End of every client tick: drives the {@link BotController}, remembers the world joined last, runs supervised input. */
+	/** End of every client tick: drives the {@link BotController}, watches the local player, remembers the world joined last, runs supervised input. */
 	public static void onClientTick(Minecraft client) {
 		BotController.get().onClientTick(client);
+		ClientEvents.onClientTick(client);
+		AiControl.onClientTick(client);
 		SessionScreenHandlers.onClientTick(client);
 		SupervisedClientHandlers.onClientTick(client);
 	}

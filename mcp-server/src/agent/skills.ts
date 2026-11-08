@@ -4,7 +4,7 @@
  * the model issues one call instead of dozens of move/poll/verify round-trips.
  */
 import { BridgeError } from "../bridge.js";
-import type { BlockProbe, ContainerState, NearbyEntity, Recipe, SelfState } from "./body.js";
+import type { BlockProbe, ContainerState, NavMoves, NearbyEntity, Recipe, SelfState } from "./body.js";
 import {
   canStand,
   compare,
@@ -114,12 +114,18 @@ export async function waitNavigation(rt: AgentRuntime, ctx: JobContext, timeoutM
   const deadline = Date.now() + timeoutMs;
   const guard = new Guard(rt, ctx);
   let best = Infinity;
+  let remaining = Infinity;
   let lastProgress = Date.now();
   for (;;) {
     await ctx.sleep(250);
     if (await guard.check()) lastProgress = Date.now(); // fighting back is not being stuck
     const st = await rt.body.navStatus();
     if (!st.active) return st.state;
+    // A finished step is progress even on a detour; digging and pillaring are bounded by the walker itself.
+    if ((st.remainingNodes !== undefined && st.remainingNodes < remaining) || st.move === "dig" || st.move === "pillar") {
+      remaining = Math.min(remaining, st.remainingNodes ?? remaining);
+      lastProgress = Date.now();
+    }
     if (st.distance !== undefined) {
       if (st.distance < best - 0.3) {
         best = st.distance;
@@ -186,10 +192,23 @@ function waypoints(rt: AgentRuntime, world: string, self: SelfState, target: Pos
   return out.slice(0, 10);
 }
 
-export interface TravelOptions {
+export interface TravelOptions extends NavMoves {
   reach?: number;
   sprint?: boolean;
   minHealth?: number;
+}
+
+/** The walker's move flags, all on unless the caller turned one off. */
+function navMoves(opts: NavMoves): Required<NavMoves> {
+  return { allowDig: opts.allowDig ?? true, allowPillar: opts.allowPillar ?? true, allowSwim: opts.allowSwim ?? true };
+}
+
+/** Why no route was found, naming the moves that were not allowed. */
+function noRouteHint(moves: Required<NavMoves>): string {
+  const off = [!moves.allowDig && "digging", !moves.allowSwim && "swimming", !moves.allowPillar && "pillaring"].filter(Boolean);
+  return off.length > 0
+    ? `${off.join(", ")} not allowed — allow ${off.length > 1 ? "them" : "it"}, pick another route or clear the way`
+    : "even digging, swimming and pillaring (needs cobblestone/dirt in the hotbar) found no way — pick another route";
 }
 
 /** Walk to `target` in segments, re-planning around obstacles. */
@@ -201,6 +220,7 @@ export async function travel(rt: AgentRuntime, ctx: JobContext, target: Pos & { 
   if (target.dim && target.dim !== first.dimension) {
     throw new JobFailure(`target is in ${target.dim} but you are in ${first.dimension}; use a portal first`);
   }
+  const moves = navMoves(opts);
   let failures = 0;
   let segments = 0;
   for (let i = 0; i < 300; i++) {
@@ -214,7 +234,8 @@ export async function travel(rt: AgentRuntime, ctx: JobContext, target: Pos & { 
     const candidates = waypoints(rt, world, self, target, reach);
     for (const wp of candidates) {
       try {
-        await rt.body.pathTo(wp.pos, { reachRadius: wp.reach, sprint: opts.sprint ?? false, timeoutSeconds: 45 });
+        // Digging through a segment takes longer than walking it.
+        await rt.body.pathTo(wp.pos, { reachRadius: wp.reach, sprint: opts.sprint ?? false, timeoutSeconds: 90, ...moves });
         started = wp;
         break;
       } catch (err) {
@@ -225,14 +246,12 @@ export async function travel(rt: AgentRuntime, ctx: JobContext, target: Pos & { 
       failures++;
       ctx.log(`no path from ${fmtPos(self)} (${candidates.length} waypoints tried)`);
       if (failures >= 3) {
-        throw new JobFailure(
-          `no walkable route toward ${fmtPos(target)} from ${fmtPos(self)}: the walker cannot swim, climb or dig — pick another route or clear the way`,
-        );
+        throw new JobFailure(`no route toward ${fmtPos(target)} from ${fmtPos(self)}: ${noRouteHint(moves)}`);
       }
       await ctx.sleep(400);
       continue;
     }
-    const end = await waitNavigation(rt, ctx, 50_000);
+    const end = await waitNavigation(rt, ctx, 95_000);
     segments++;
     if (end === "reached") {
       failures = 0;
@@ -311,7 +330,12 @@ export interface CollectOptions {
   radius?: number;
   maxSeconds?: number;
   minHealth?: number;
+  /** Tunnel to buried blocks (and dig on the way to exposed ones). Default true. */
+  dig?: boolean;
 }
+
+/** Buried blocks are only tunnelled to when this close: a long tunnel is better planned by the model. */
+const BURIED_RANGE = 16;
 
 function itemDelta(before: Record<string, number>, after: Record<string, number>): Record<string, number> {
   const out: Record<string, number> = {};
@@ -327,6 +351,7 @@ export async function collect(rt: AgentRuntime, ctx: JobContext, opts: CollectOp
   const ids = opts.blocks.map(fullId);
   const radius = opts.radius ?? 48;
   const minHealth = opts.minHealth ?? 6;
+  const dig = opts.dig ?? true;
   const deadline = Date.now() + (opts.maxSeconds ?? 300) * 1000;
   const before = await rt.body.itemCounts();
   const skip = new Set<string>();
@@ -348,13 +373,20 @@ export async function collect(rt: AgentRuntime, ctx: JobContext, opts: CollectOp
     const eye = eyeOf(self);
     const { scan } = await rt.observe({ radius: Math.max(1, Math.ceil(radius / 16)), find: ids, findLimit: 64 });
     const candidates = (scan.found ?? []).filter((b) => !skip.has(posKey(b)) && distance(b, self) <= radius);
-    const exposed = candidates.filter((b) => b.exposed !== false).sort((a, b) => distance(centerOf(a), eye) - distance(centerOf(b), eye));
-    const block = exposed[0];
+    const byDistance = (a: Pos, b: Pos) => distance(centerOf(a), eye) - distance(centerOf(b), eye);
+    const exposed = candidates.filter((b) => b.exposed !== false).sort(byDistance);
+    // With nothing exposed left, tunnel to the nearest buried one, but only a short way.
+    const buried = dig ? candidates.filter((b) => b.exposed === false && distance(b, self) <= BURIED_RANGE).sort(byDistance) : [];
+    const block = exposed[0] ?? buried[0];
+    const tunnel = !exposed[0] && block !== undefined;
     if (!block) {
-      const buried = candidates[0];
+      const far = candidates[0];
       throw new JobFailure(
-        buried
-          ? await done(`only buried ${what} left within ${radius}m (${candidates.length}, e.g. ${fmtPos(buried)}); the bot does not tunnel yet — dig toward it`)
+        far
+          ? await done(
+              `only buried ${what} left within ${radius}m (${candidates.length}, e.g. ${fmtPos(far)}), ` +
+                (dig ? `none within ${BURIED_RANGE}m to tunnel to — travel_to closer first` : "and digging is off — dig toward it"),
+            )
           : await done(`no ${what} within ${radius}m — explore, or recall where you saw some`),
       );
     }
@@ -370,11 +402,12 @@ export async function collect(rt: AgentRuntime, ctx: JobContext, opts: CollectOp
     if (probe.bestSlot !== undefined && probe.bestSlot !== self.selectedSlot) await rt.body.selectHotbar(probe.bestSlot);
 
     const centre = centerOf(block);
-    if (distance(eye, centre) > REACH - 0.3) {
-      ctx.progress(`walking to ${shortId(probe.id)} @ ${fmtPos(block)}`);
+    // A buried block is dug right up to, so the hole (and its drop) joins the tunnel.
+    if (tunnel ? horizontalDistance(self, centre) > 1.6 || Math.abs(self.y - block.y) > 1.5 : distance(eye, centre) > REACH - 0.3) {
+      ctx.progress(`${tunnel ? "tunnelling" : "walking"} to ${shortId(probe.id)} @ ${fmtPos(block)}`);
       try {
-        await rt.body.pathTo(block, { reachRadius: 3.5, timeoutSeconds: 40 });
-        await waitNavigation(rt, ctx, 45_000);
+        await rt.body.pathTo(block, { reachRadius: tunnel ? 1.5 : 3.5, timeoutSeconds: tunnel ? 90 : 40, allowDig: dig });
+        await waitNavigation(rt, ctx, tunnel ? 95_000 : 45_000);
       } catch (err) {
         if (!isNotFound(err)) throw err;
       }
@@ -436,7 +469,13 @@ export async function pickUpDrops(rt: AgentRuntime, ctx: JobContext, spots: Pos[
     const drop = drops[0];
     if (!drop) return got;
     try {
-      await rt.body.pathTo({ x: Math.floor(drop.x), y: Math.floor(drop.y + 0.2), z: Math.floor(drop.z) }, { reachRadius: 0.5, timeoutSeconds: 10 });
+      await rt.body.pathTo({ x: Math.floor(drop.x), y: Math.floor(drop.y + 0.2), z: Math.floor(drop.z) }, {
+        reachRadius: 0.5,
+        timeoutSeconds: 10,
+        // A drop is a few blocks away: not worth a tunnel or a pillar.
+        allowDig: false,
+        allowPillar: false,
+      });
       await waitNavigation(rt, ctx, 12_000);
     } catch (err) {
       if (!isNotFound(err)) throw err;

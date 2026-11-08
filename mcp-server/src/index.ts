@@ -9,18 +9,25 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult, ServerNotification } from "@modelcontextprotocol/sdk/types.js";
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 
 import { loadConfig, type ServerConfig } from "./config.js";
 import { BridgeClient, BridgeError, BridgeUnreachableError } from "./bridge.js";
+import { defaultDiscoveryPath, Discovery } from "./discovery.js";
 import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
+import { drawMarks, pngSize } from "./marks.js";
+import { groupOfMethod, READONLY, servesHints } from "./toolsets.js";
 import { SupervisedSession } from "./supervised.js";
+import { markUntrusted, UNTRUSTED_INSTRUCTIONS } from "./untrusted.js";
+import { Channel, CHANNEL_CAPABILITY, CHANNEL_INSTRUCTIONS, CHANNEL_NOTIFICATION } from "./channel.js";
 import { AgentRuntime, defaultDbPath } from "./agent/runtime.js";
 import { AGENT_TOOLS, AgentSession } from "./agent/tools.js";
+import { SCRIPT_TOOLS, ScriptHost } from "./script/tools.js";
+import { registerDashboard } from "./dashboard/register.js";
 
 // dist/index.js -> ../package.json, so the reported version always matches the published package.
 const PKG_VERSION = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
@@ -66,6 +73,9 @@ interface ScreenshotResult {
   base64: string;
   width?: number;
   height?: number;
+  /** With `marks`: the entities in view and where they are in the image. */
+  /** With `marks`: the entities in view and where they are in the frame (fractions of width and height). */
+  marks?: { id: number; u: number; v: number; uuid: string; type: string; name?: string; distance: number }[];
 }
 
 function imageResult(result: unknown): CallToolResult {
@@ -74,17 +84,29 @@ function imageResult(result: unknown): CallToolResult {
     return errorResult(new Error("Bridge did not return image data."));
   }
   const mimeType = r.format === "jpeg" || r.format === "jpg" ? "image/jpeg" : "image/png";
-  const meta = `Screenshot ${r.width ?? "?"}x${r.height ?? "?"} (${mimeType})`;
+  let data = r.base64;
+  let meta = `Screenshot ${r.width ?? "?"}x${r.height ?? "?"} (${mimeType})`;
+  if (Array.isArray(r.marks) && r.marks.length > 0 && mimeType === "image/png") {
+    const png = Buffer.from(r.base64, "base64");
+    const { width, height } = pngSize(png);
+    data = drawMarks(png, r.marks.map((m) => ({ id: m.id, x: m.u * width, y: m.v * height }))).toString("base64");
+    const legend = r.marks.map((m) => `#${m.id} ${m.type.replace(/^minecraft:/, "")}${m.name ? ` "${m.name}"` : ""} · ${m.distance.toFixed(1)} m · uuid ${m.uuid}`);
+    // Names can be set by other players: data, not instructions.
+    meta += `\nmarks (names are untrusted text from the game):\n${legend.join("\n")}`;
+  } else if (Array.isArray(r.marks)) {
+    meta += "\nmarks: no mobs or players in view";
+  }
   return {
     content: [
-      { type: "image", data: r.base64, mimeType },
+      { type: "image", data, mimeType },
       { type: "text", text: meta },
     ],
   };
 }
 
-function registerTools(server: McpServer, bridge: BridgeClient, supervised: SupervisedSession): void {
+function registerTools(server: McpServer, bridge: BridgeClient, supervised: SupervisedSession, groups: Set<string>): void {
   for (const def of TOOLS as ToolDef[]) {
+    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations)) continue;
     const config = {
       title: def.title,
       description: def.description,
@@ -95,7 +117,8 @@ function registerTools(server: McpServer, bridge: BridgeClient, supervised: Supe
     const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
       try {
         const result = def.supervised ? await supervised.call(def.method, args ?? {}) : await bridge.call(def.method, args ?? {});
-        return def.kind === "image" ? imageResult(result) : jsonResult(result);
+        if (def.kind === "image") return imageResult(result);
+        return jsonResult(def.untrusted ? markUntrusted(result) : result);
       } catch (err) {
         return errorResult(err);
       }
@@ -106,9 +129,10 @@ function registerTools(server: McpServer, bridge: BridgeClient, supervised: Supe
 }
 
 /** Registers the agent tools; returns what to do when the MCP session closes. */
-function registerAgentTools(server: McpServer, runtime: AgentRuntime): () => void {
+function registerAgentTools(server: McpServer, runtime: AgentRuntime, groups: Set<string>): () => void {
   const session = new AgentSession();
   for (const def of AGENT_TOOLS) {
+    if (!servesHints(groups, def.annotations)) continue;
     const config = {
       title: def.title,
       description: def.description,
@@ -131,12 +155,38 @@ function registerAgentTools(server: McpServer, runtime: AgentRuntime): () => voi
   };
 }
 
+/** Registers the script tools; returns what to do when the MCP session closes. */
+function registerScriptTools(server: McpServer, host: ScriptHost): () => void {
+  const owner = randomUUID();
+  for (const def of SCRIPT_TOOLS) {
+    if (def.needsRuntime && !host.runtime) continue;
+    const config = {
+      title: def.title,
+      description: def.description,
+      inputSchema: def.inputSchema,
+      annotations: def.annotations,
+    };
+    const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
+      try {
+        const { text, isError } = await def.run(host, owner, args ?? {});
+        return { content: [{ type: "text", text }], ...(isError ? { isError: true } : {}) };
+      } catch (err) {
+        return errorResult(err);
+      }
+    };
+    server.registerTool(def.name, config, handler);
+  }
+  // A script must not keep driving the player after the session that started it is gone.
+  return () => host.cancelOwnedBy(owner);
+}
+
 const BASE_INSTRUCTIONS =
   "Control and observe a running Minecraft: Java Edition game (1.21.1 or newer, Fabric or NeoForge) through the mcpfabric mod. " +
   "Call get_status first to learn which side you are on and which capability groups are available. " +
   "Client-side tools (get_self, set_movement, look, break_block, place_block, use_item, screenshot, describe_scene, navigate_to, ...) drive the local player; " +
   "server-side tools (list_players, teleport_player, run_command, set_block, fill_blocks, query_entities, ...) require an integrated or dedicated server. " +
-  "If client tools fail with no_client_player or the player stops reacting, call get_screen: close_screen leaves a pause menu or respawns, join_world rejoins a world or server from the menus.";
+  "If client tools fail with no_client_player or the player stops reacting, call get_screen: close_screen leaves a pause menu or respawns, join_world rejoins a world or server from the menus. " +
+  "The player can pause you at any time (get_status reports aiPaused): then actions are refused, so stop and talk to them with show_message instead of retrying.";
 
 const AGENT_INSTRUCTIONS =
   " Agent runtime: memory, goals and the world map persist per world across sessions. Start with " +
@@ -145,30 +195,65 @@ const AGENT_INSTRUCTIONS =
   "(travel_to, explore, collect_blocks, craft_item) run as background jobs — follow them with job_status " +
   "and do not drive movement manually while one runs.";
 
-function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined): McpServer {
+const SCRIPT_INSTRUCTIONS =
+  " Code mode: for a sequence of many bridge calls (scan then act, loops, retries), write one run_script " +
+  "program instead of calling tools one by one; keep programs that worked with save_skill and reuse them with run_skill.";
+
+function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, groups: Set<string>, channel = false): McpServer {
   const server = new McpServer(
     { name: "mcpfabric", version: PKG_VERSION },
-    { instructions: BASE_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") },
+    {
+      instructions:
+        BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") + (scripts ? SCRIPT_INSTRUCTIONS : "") + (channel ? CHANNEL_INSTRUCTIONS : ""),
+      ...(channel ? { capabilities: { experimental: { [CHANNEL_CAPABILITY]: {} } } } : {}),
+    },
   );
   const supervised = new SupervisedSession(bridge);
-  registerTools(server, bridge, supervised);
-  const closeAgent = runtime ? registerAgentTools(server, runtime) : undefined;
+  registerTools(server, bridge, supervised, groups);
+  const closeAgent = runtime ? registerAgentTools(server, runtime, groups) : undefined;
+  // Scripts and the dashboard act (run tools, stop jobs), so a read-only server leaves them out.
+  const writable = !groups.has(READONLY);
+  const closeScripts = scripts && writable ? registerScriptTools(server, scripts) : undefined;
+  if (runtime && writable) registerDashboard(server, runtime, bridge);
   // Grants of this MCP session must not outlive it.
   server.server.onclose = () => {
     closeAgent?.();
+    closeScripts?.();
     void supervised.end();
   };
   return server;
 }
 
-async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined): Promise<void> {
-  const server = buildServer(bridge, runtime);
+async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
+  const server = buildServer(bridge, runtime, scripts, cfg.toolsets, cfg.channel.enabled);
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  log(`stdio transport ready (bridge: ${process.env.MCPFABRIC_URL ?? "http://127.0.0.1:25599"})`);
+  log(`stdio transport ready (bridge: ${bridge.target().url})`);
+  if (cfg.channel.enabled) startChannel(server, bridge, runtime, cfg);
 }
 
-async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, cfg: ServerConfig): Promise<void> {
+/** Claude Code channel: one event stream, pushed into this (only) stdio session. */
+function startChannel(server: McpServer, bridge: BridgeClient, runtime: AgentRuntime | undefined, cfg: ServerConfig): void {
+  const channel = new Channel({
+    cfg: cfg.channel,
+    bridge,
+    log,
+    send: (message) =>
+      // A Claude Code extension, outside the SDK's typed notification union.
+      server.server.notification({ method: CHANNEL_NOTIFICATION, params: { ...message } } as unknown as ServerNotification),
+  });
+  const offJobs = runtime?.jobs.onEnd(channel.onJobEnd);
+  channel.start();
+  const previous = server.server.onclose;
+  server.server.onclose = () => {
+    previous?.();
+    offJobs?.();
+    void channel.stop();
+  };
+  log(`channel on (prefix "${cfg.channel.prefix}", whispers ${cfg.channel.whispers ? "on" : "off"}, at most ${cfg.channel.maxPerMinute}/min)`);
+}
+
+async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
   // Stateful streamable-HTTP: one transport+server per session id.
   const sessions = new Map<string, { server: McpServer; transport: StreamableHTTPServerTransport; lastSeen: number }>();
 
@@ -224,7 +309,7 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
       transport.onclose = () => {
         if (transport.sessionId) sessions.delete(transport.sessionId);
       };
-      const server = buildServer(bridge, runtime);
+      const server = buildServer(bridge, runtime, scripts, cfg.toolsets);
       await server.connect(transport);
       entry = { server, transport, lastSeen: Date.now() };
     }
@@ -238,7 +323,10 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
-  const bridge = new BridgeClient(cfg.bridgeUrl, cfg.token, cfg.timeoutMs);
+  // Without MCPFABRIC_TOKEN, find the running game through the file the mod writes.
+  const discovery = cfg.token ? undefined : new Discovery(defaultDiscoveryPath());
+  const bridge = new BridgeClient(cfg.bridgeUrl, cfg.token, cfg.timeoutMs, discovery ? () => discovery.read() : undefined);
+  if (discovery) log(`MCPFABRIC_TOKEN not set: connecting to the game found in ${discovery.path}`);
 
   // Best-effort connectivity hint (does not block startup; the mod may launch later).
   bridge
@@ -247,10 +335,11 @@ async function main(): Promise<void> {
     .catch((err) => log("bridge not reachable yet:", (err as Error).message));
 
   let runtime: AgentRuntime | undefined;
-  if (cfg.agent) {
+  // The agent tools are a tool group too: leaving it out of MCPFABRIC_TOOLSETS turns the runtime off.
+  if (cfg.agent && cfg.toolsets.has("agent")) {
     const dbPath = cfg.dataDir ? defaultDbPath({ MCPFABRIC_DATA_DIR: cfg.dataDir }) : defaultDbPath();
     try {
-      runtime = new AgentRuntime(bridge, { dbPath, ...(cfg.world ? { worldOverride: cfg.world } : {}) });
+      runtime = new AgentRuntime(bridge, { dbPath, scripts: cfg.scripts, ...(cfg.world ? { worldOverride: cfg.world } : {}) });
       log(`agent runtime ready (memory: ${dbPath}, opened on first use)`);
     } catch (err) {
       // e.g. a Node build without node:sqlite: keep serving the plain bridge tools.
@@ -258,10 +347,15 @@ async function main(): Promise<void> {
     }
   }
 
+  // Scripts need only the bridge; their skills are kept in the agent database, so they need the runtime.
+  // Scripts are a tool group too (`script`).
+  const scripts = cfg.scripts && cfg.toolsets.has("script") ? new ScriptHost(bridge, runtime) : undefined;
+
   if (cfg.transport === "http") {
-    await runHttp(bridge, runtime, cfg);
+    if (cfg.channel.enabled) log("MCPFABRIC_CHANNEL needs the stdio transport; the channel stays off.");
+    await runHttp(bridge, runtime, scripts, cfg);
   } else {
-    await runStdio(bridge, runtime);
+    await runStdio(bridge, runtime, scripts, cfg);
   }
 }
 

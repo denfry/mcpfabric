@@ -3,9 +3,29 @@
 Bridges an MCP client (Claude Desktop / Claude Code / any MCP host) to the in-game HTTP bridge
 exposed by the **mcpfabric** mod (Fabric / NeoForge), publishing ~50 tools to observe and control
 Minecraft, plus an agent runtime with persistent memory, goals, a world map and background jobs
-(see [../docs/AGENT.md](../docs/AGENT.md)). Requires Node.js ≥ 22.16.
+(see [docs/AGENT.md](https://github.com/denfry/mcpfabric/blob/main/docs/AGENT.md)). Requires Node.js ≥ 22.16.
 
-## Install & build
+## Install from npm
+
+```bash
+npx -y mcpfabric-mcp-server          # or: npm install -g mcpfabric-mcp-server && mcpfabric
+```
+
+In an MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "mcpfabric": {
+      "command": "npx",
+      "args": ["-y", "mcpfabric-mcp-server"],
+      "env": { "MCPFABRIC_TOKEN": "paste-the-token-from-the-mod-config" }
+    }
+  }
+}
+```
+
+## Build from source
 
 ```bash
 npm install
@@ -34,6 +54,7 @@ MCPFABRIC_URL=http://127.0.0.1:25599 MCPFABRIC_TOKEN=<token> node dist/index.js
 | `MCPFABRIC_AGENT`      | on                       | `0`/`false`/`off` disables the agent runtime tools. |
 | `MCPFABRIC_DATA_DIR`   | `~/.mcpfabric`           | Directory of the agent database (`agent.db`).   |
 | `MCPFABRIC_WORLD`      | reported by the game     | Force the world id that keys agent memory.      |
+| `MCPFABRIC_SCRIPTS`    | on                       | `0`/`false`/`off` removes the script tools (`run_script`, skills). |
 
 ## Architecture
 
@@ -45,6 +66,10 @@ image content block. `src/bridge.ts` is the HTTP client; `src/config.ts` reads e
 `src/agent/` is the agent runtime: its tools (`agent/tools.ts`) run in this process, store state in
 SQLite (`node:sqlite`) and drive the game through the same bridge. `test/fake-world.ts` simulates
 the bridge contract so jobs are tested without a game.
+
+`src/script/` is code mode: `run_script` runs a model-written JavaScript program in QuickJS
+(WebAssembly, `quickjs-emscripten`), which reaches the game only through the catalogue methods of
+`src/tools.ts`; `save_skill` / `run_skill` keep programs per world in the agent database.
 
 Keep tool names/methods in sync with the Java handler registry in the mod
 (`dev.mcpfabric.handlers.*` and `dev.mcpfabric.client.handlers.*`).

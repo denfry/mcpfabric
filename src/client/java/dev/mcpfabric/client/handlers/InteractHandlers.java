@@ -8,6 +8,7 @@ import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.client.BotController;
 import dev.mcpfabric.client.ClientMc;
+import dev.mcpfabric.handlers.support.Gates;
 import dev.mcpfabric.handlers.support.Levels;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
@@ -389,7 +390,7 @@ public final class InteractHandlers {
 	}
 
 	/** Main-hand swing for attacking / mining. 26.3 made the swing animation an explicit, per-item argument. */
-	private static void swingAttack(LocalPlayer p) {
+	public static void swingAttack(LocalPlayer p) {
 		//? if <26.3 {
 		p.swing(InteractionHand.MAIN_HAND);
 		//?} else
@@ -397,7 +398,7 @@ public final class InteractHandlers {
 	}
 
 	/** Main-hand swing for using an item on a block. */
-	private static void swingUse(LocalPlayer p) {
+	public static void swingUse(LocalPlayer p) {
 		//? if <26.3 {
 		p.swing(InteractionHand.MAIN_HAND);
 		//?} else
@@ -434,9 +435,7 @@ public final class InteractHandlers {
 	}
 
 	private static void requireControl() throws RpcException {
-		if (!McpFabric.config().enablePlayerControl) {
-			throw RpcException.unavailable("Player control is disabled in mcpfabric.config.json (enablePlayerControl=false).");
-		}
+		Gates.playerControl();
 	}
 
 	private static Entity findEntity(String uuidStr) throws RpcException {
@@ -458,7 +457,7 @@ public final class InteractHandlers {
 	}
 
 	/** The face of {@code pos} that points toward {@code eye}. */
-	static Direction faceToward(BlockPos pos, Vec3 eye) {
+	public static Direction faceToward(BlockPos pos, Vec3 eye) {
 		double dx = eye.x - (pos.getX() + 0.5);
 		double dy = eye.y - (pos.getY() + 0.5);
 		double dz = eye.z - (pos.getZ() + 0.5);

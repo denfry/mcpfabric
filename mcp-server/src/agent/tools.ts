@@ -20,8 +20,10 @@ import {
   shortDim,
   shortId,
   type Located,
+  type Pos,
 } from "./format.js";
 import { ACT, OVERWRITE, READ, STEER, WRITE, type ToolAnnotations } from "../tools.js";
+import { describe, facing, relative } from "./egocentric.js";
 import { formatGoalTree, GOAL_STATUSES, isOpen } from "./goals.js";
 import { formatJob, JobFailure, type JobContext } from "./jobs.js";
 import { formatMemory, MEMORY_KINDS, MEMORY_STATUSES, SentLedger, type Memory, type MemoryKind } from "./memory.js";
@@ -30,6 +32,7 @@ import { collectRecipes, formatPlan, plan } from "./planner.js";
 import type { AgentRuntime } from "./runtime.js";
 import { buildStructure, collect, containerItems, craft, explore, openContainerAt, recordContainer, travel, verifyPlan } from "./skills.js";
 import { chunkOf, renderMap, type MapMarker } from "./worldmap.js";
+import { briefSkills } from "../script/skills.js";
 
 /** Per-MCP-session state. */
 export class AgentSession {
@@ -103,7 +106,7 @@ async function startJob(
   return (done ?? job).state === "running" ? `${text}\n(poll job_status to follow it; job_cancel stops it)` : text;
 }
 
-function markersFor(memories: Memory[]): MapMarker[] {
+export function markersFor(memories: Memory[]): MapMarker[] {
   const markers: MapMarker[] = [];
   for (const m of memories) {
     if (!m.pos || m.status === "gone") continue;
@@ -127,7 +130,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "agent_brief",
     title: "Agent brief (resume here)",
     description:
-      "One-call situation report for resuming work after a restart or context loss: world id, your position/vitals/inventory, the active goal path, the running job, remembered places nearby and a small map. Call this first in a new session.",
+      "One-call situation report for resuming work after a restart or context loss: world id, your position/vitals/inventory, the active goal path, the running job, saved script skills, remembered places nearby and a small map. Call this first in a new session.",
     inputSchema: {},
     annotations: READ,
     run: async (rt, session) => {
@@ -149,6 +152,8 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       }
       const job = rt.jobs.running();
       if (job) lines.push(job.owner === undefined || job.owner === session.id ? formatJob(job) : "job: another MCP session is running one");
+      const skills = rt.scripts ? briefSkills(rt.skills.list(world)) : undefined;
+      if (skills) lines.push(skills);
       const nearby = rt.memory.recall(world, { near: at, radius: 160, limit: 8, kinds: ["place", "container", "note", "skill"] });
       if (nearby.length > 0) {
         lines.push("nearby memory:");
@@ -209,6 +214,58 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       const span = args.radius * 16 + 16;
       const marks = markersFor(rt.memory.inBox(world, at.dim, at.x - span, at.x + span, at.z - span, at.z + span));
       return renderMap(chunks, at, args.radius, marks);
+    },
+  },
+
+  {
+    name: "surroundings",
+    title: "What is around me, relative to my view",
+    description:
+      "Nearby mobs, players, dropped items and points of interest (containers, workstations, beds, portals), and optionally blocks you name, described relative to where you look: \"zombie: 5 ahead, 2 right · 5.4 m (1 o'clock)\". Easier to act on than world coordinates; each line still ends with the coordinates for tools that need them. Client side, works in multiplayer; needs enableVision.",
+    inputSchema: {
+      radius: z.number().int().min(4).max(48).optional().default(16).describe("Search radius in blocks."),
+      find: z.array(z.string()).max(8).optional().describe('Block ids to locate as well, e.g. ["oak_log","iron_ore"].'),
+      limit: z.number().int().min(1).max(40).optional().default(12).describe("Lines per section."),
+    },
+    annotations: READ,
+    run: async (rt, _s, args: { radius: number; find?: string[]; limit: number }) => {
+      const self = await rt.body.self();
+      const eye = { x: self.x, y: self.y, z: self.z, yaw: self.yaw };
+      const line = (label: string, p: Pos) => `  ${label}: ${describe(relative(eye, p))} · ${fmtPos(p)}`;
+      const near = (p: Pos) => distance(p, self) <= args.radius;
+      const lines = [`facing ${facing(self.yaw)} at ${fmtPos(self)} · ${self.inWater ? "in water" : self.onGround ? "on ground" : "in the air"}`];
+
+      const entities = (await rt.body.entities(args.radius)).sort((a, b) => a.distance - b.distance);
+      const groups: [string, typeof entities][] = [
+        ["hostile", entities.filter((e) => e.kind === "hostile")],
+        ["players", entities.filter((e) => e.kind === "player")],
+        ["passive", entities.filter((e) => e.kind === "passive")],
+        ["items", entities.filter((e) => e.kind === "item")],
+      ];
+      for (const [name, list] of groups) {
+        if (list.length === 0) continue;
+        lines.push(`${name}:`);
+        for (const e of list.slice(0, args.limit)) {
+          const label = e.item ? `${e.item.count} ${shortId(e.item.id)}` : `${shortId(e.type)}${e.health !== undefined ? ` ${e.health.toFixed(0)}hp` : ""}`;
+          lines.push(line(label, e));
+        }
+        if (list.length > args.limit) lines.push(`  +${list.length - args.limit} more`);
+      }
+
+      const find = args.find?.map(fullId);
+      const scan = await rt.body.scan({ radius: Math.min(3, Math.ceil(args.radius / 16)), ...(find ? { find, findLimit: 64 } : {}) });
+      const pois = scan.pois.filter(near).sort((a, b) => distance(a, self) - distance(b, self));
+      if (pois.length) {
+        lines.push("places:");
+        for (const p of pois.slice(0, args.limit)) lines.push(line(shortId(p.id), p));
+      }
+      if (find) {
+        const found = (scan.found ?? []).filter(near).sort((a, b) => distance(a, self) - distance(b, self));
+        lines.push(found.length ? "blocks:" : `blocks: no ${find.map(shortId).join("/")} within ${args.radius}`);
+        for (const b of found.slice(0, args.limit)) lines.push(line(`${shortId(b.id)}${b.exposed === false ? " (buried)" : ""}`, b));
+      }
+      if (lines.length === 1) lines.push(`nothing notable within ${args.radius} blocks`);
+      return lines.join("\n");
     },
   },
 
@@ -626,7 +683,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "travel_to",
     title: "Travel to a position (job)",
     description:
-      "Background job: walk to a position (or a remembered place by id) in path-finding segments, routing around obstacles and stopping if health gets low. Longer range than navigate_to. Returns a job id at once.",
+      "Background job: go to a position (or a remembered place by id) in path-finding segments, routing around obstacles and stopping if health gets low. Walks, swims, climbs ladders, opens doors, and where needed digs through blocks and pillars up on cobblestone/dirt from the hotbar. Longer range than navigate_to. Returns a job id at once.",
     inputSchema: {
       x: z.number().optional(),
       y: z.number().optional().describe("Defaults to the mapped surface height there, else your height."),
@@ -634,9 +691,12 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       place: z.number().int().optional().describe("Memory id of a place to go to instead of coordinates."),
       reach: z.number().min(0.5).max(16).optional().default(2),
       sprint: z.boolean().optional(),
+      allowDig: z.boolean().optional().default(true).describe("Dig through blocks when going around is longer."),
+      allowPillar: z.boolean().optional().default(true).describe("Pillar up on throwaway blocks from the hotbar."),
+      allowSwim: z.boolean().optional().default(true).describe("Swim across water."),
       waitSeconds,
     },
-    annotations: ACT,
+    annotations: WRITE,
     run: async (rt, session, args) => {
       const world = await rt.world();
       let target: { x: number; y: number; z: number; dim?: string };
@@ -659,7 +719,13 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         throw new Error("give x and z (and optionally y), or place");
       }
       return startJob(rt, session, "travel", `to ${label}`, args.waitSeconds, (ctx) =>
-        travel(rt, ctx, target, { reach: args.reach, ...(args.sprint ? { sprint: true } : {}) }),
+        travel(rt, ctx, target, {
+          reach: args.reach,
+          ...(args.sprint ? { sprint: true } : {}),
+          allowDig: args.allowDig,
+          allowPillar: args.allowPillar,
+          allowSwim: args.allowSwim,
+        }),
       );
     },
   },
@@ -667,12 +733,12 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "explore",
     title: "Explore (job)",
     description:
-      "Background job: repeatedly walk to the best frontier of the map, observing as it goes, and report new chunks, places and ores. Unreachable frontiers are remembered and skipped.",
+      "Background job: repeatedly walk to the best frontier of the map, observing as it goes (moving like travel_to, digging and pillaring where needed), and report new chunks, places and ores. Unreachable frontiers are remembered and skipped.",
     inputSchema: {
       legs: z.number().int().min(1).max(20).optional().default(4).describe("How many frontier targets to visit."),
       waitSeconds,
     },
-    annotations: ACT,
+    annotations: WRITE,
     run: async (rt, session, args) =>
       startJob(rt, session, "explore", `${args.legs} legs`, args.waitSeconds, (ctx) => explore(rt, ctx, { legs: args.legs })),
   },
@@ -680,18 +746,19 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "collect_blocks",
     title: "Collect blocks (job)",
     description:
-      "Background job: find the nearest exposed blocks of the given types, walk to them, pick the best hotbar tool, mine them and pick up the drops, until `count` are broken. Refuses blocks your tools cannot harvest. Does not tunnel to buried blocks.",
+      "Background job: find the nearest exposed blocks of the given types, walk to them, pick the best hotbar tool, mine them and pick up the drops, until `count` are broken. When none are exposed, tunnels to buried ones up to 16 blocks away (dig: false turns that off). Refuses blocks your tools cannot harvest.",
     inputSchema: {
       blocks: z.array(z.string()).min(1).describe('Block ids, e.g. ["oak_log","birch_log"] or ["iron_ore","deepslate_iron_ore"].'),
       count: z.number().int().min(1).max(256),
       radius: z.number().int().min(8).max(128).optional().default(48).describe("Search radius in blocks."),
       maxSeconds: z.number().int().min(10).max(1800).optional().default(300),
+      dig: z.boolean().optional().default(true).describe("Tunnel to buried blocks and dig on the way."),
       waitSeconds,
     },
     annotations: WRITE,
     run: async (rt, session, args) =>
       startJob(rt, session, "collect", `${args.count}× ${(args.blocks as string[]).map((b) => shortId(fullId(b))).join("/")}`, args.waitSeconds, (ctx) =>
-        collect(rt, ctx, { blocks: args.blocks, count: args.count, radius: args.radius, maxSeconds: args.maxSeconds }),
+        collect(rt, ctx, { blocks: args.blocks, count: args.count, radius: args.radius, maxSeconds: args.maxSeconds, dig: args.dig }),
       ),
   },
   {

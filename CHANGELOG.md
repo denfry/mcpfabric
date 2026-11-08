@@ -23,9 +23,115 @@ All notable changes to this project are documented here. The format is based on
 - `perception.blocks` returns each block's full state, collision height and whether it is
   climbable.
 
+## [0.9.1] - 2026-11-06
+
+Fabric and NeoForge.
+
+### Fixed
+- `open_dashboard`: a long job line wraps instead of being cut off.
+
+## [0.9.0] - 2026-11-06
+
+Fabric and NeoForge.
+
+### Added
+- `open_dashboard`: a live agent panel as an MCP App (position, vitals, running job, explored map,
+  goal tree, inventory) with a STOP button that cancels the job and releases movement, navigation,
+  mining and supervised input. It refreshes itself through the app-only `dashboard_state`; hosts
+  without MCP Apps get a text summary. New dependency `@modelcontextprotocol/ext-apps`.
+- `surroundings` (agent runtime): nearby mobs, players, dropped items, points of interest and named
+  blocks, described relative to where the player looks ("5 ahead, 3 left · 5.8 m (11 o'clock)"),
+  each with its coordinates.
+- `mcpfabric-bench` (`docs/BENCH.md`): seven reproducible tasks (logs, crafting table, stone
+  pickaxe, walking to a marked block, chest loot, smelting, climbing a ledge) set up with server
+  commands relative to the player, played by any agent command, and scored from the game's state.
+  It refuses to set up anything unless `--world` names the world the game is in.
+- Audit log: every bridge call with a lasting effect (commands, block and entity edits, player
+  admin, chat, interactions, inventory drops, containers, crafting, screens, joining a world,
+  supervised actions) is appended to `logs/mcpfabric-audit.jsonl` with the time, the outcome, the
+  duration and its params (long values cut at 200 characters, session ids left out). Written off the
+  game thread; rolls over to `.1` at 5 MiB. New config value `auditLog` (default `true`). Fabric and
+  NeoForge.
+- A read-only bridge token, `readToken` in `mcpfabric.config.json` (generated on first run): it may
+  call only methods that look at the game (info, block, entity and player queries, chat history,
+  events, local player state, perception, screenshots, recipes, screen and UI listings); every
+  other method is refused with `forbidden`. `MCPFABRIC_TOOLSETS=readonly` (alone or with other sets)
+  serves only the read-only tools to match. Fabric and NeoForge.
+- Approve risky calls in the game: groups listed in the new `requireApproval` config value
+  (`command`, `world_write`, `players_admin`; also `/` commands sent through chat) wait up to 60
+  seconds for the player. Requests show in chat and on the action bar; **Y** / **N** (rebindable) or
+  `/mcpfabric approve|deny [id]` answer them, silence and pausing the AI deny them. `get_status`
+  reports `requireApproval`, and the events `approval_requested` / `approval_answered` are emitted.
+  Client only; on a dedicated server those groups are refused. Fabric and NeoForge.
+- `screenshot` with `marks: true` (Set-of-Mark prompting): mobs and players in view get numbered
+  labels drawn on the image, and a legend maps each number to the entity's uuid, type, name and
+  distance, so a vision model can act on "#2". The mod reports where each entity's centre falls in
+  the frame (`vision.screenshot` `marks`), the MCP server draws the labels. Fabric and NeoForge.
+- `MCPFABRIC_TOOLSETS` serves only some of the MCP tools: the profiles `play`, `admin` and `build`,
+  or tool groups such as `world`, `operator` or `supervised`. `get_status` and `list_capabilities`
+  are always served. An unknown name stops the server with the list of valid ones.
+- No token to copy: while the bridge runs, the mod writes its address and token to
+  `~/.mcpfabric/bridge.json` (readable only by the user, removed when the game stops), and the MCP
+  server uses it when `MCPFABRIC_TOKEN` is not set. It reads the file again on every call, so it can
+  start before the game and follows a restart; a file left by a game that crashed is ignored. New
+  config value `writeDiscoveryFile` (default `true`) and environment variable `MCPFABRIC_DISCOVERY`.
+- A one-click Claude Desktop extension: `npm run bundle` in `mcp-server/` builds
+  `mcpfabric-<version>.mcpb` (MCP Bundle) with optional settings for the token, address and tool
+  sets. `mcp-server/server.json` and `mcpName` prepare the listing in the MCP Registry.
+- Take control back from the AI on the client: the new key **K** (Controls → Miscellaneous) or the
+  client command `/mcpfabric stop` pauses it, releasing held keys and stopping navigation, mining
+  and supervised grants; every action over the bridge is then refused until `/mcpfabric resume` or
+  K again. Reads keep working. `get_status` reports `aiPaused`, the events `ai_paused` and
+  `ai_resumed` are emitted, and the action bar says when the AI starts acting after a quiet spell.
+  Fabric and NeoForge.
+- `show_message` (`chat.showLocal`, client): a message from the AI, prefixed `[AI]`, that only the
+  local player sees, in chat or on the action bar. Nothing is sent to the server. It stays available
+  while the AI is paused.
+- Code mode in the MCP server: `run_script` runs a short JavaScript program that drives the game
+  through the bridge (`await mc.call(...)`, or one helper per bridge tool such as `mc.get_self()`),
+  instead of one tool call per step. Programs run in QuickJS compiled to WebAssembly
+  (`quickjs-emscripten`), see nothing of Node, and reach only the catalogue's bridge methods, with
+  the tools' parameter checks; `supervised.*` methods are refused and the mod's `enable*` locks
+  apply. Limits: time (default 60 s, max 300 s), 64 MiB memory, 2000 calls, log and result size.
+  A program never runs together with an agent job. Programs that worked are kept per world as
+  skills: `save_skill`, `list_skills`, `run_skill`, `delete_skill`; `agent_brief` names them.
+  `MCPFABRIC_SCRIPTS=0` removes the tools. See docs/AGENT.md, "Scripts and skills".
+- MCP server: optional Claude Code channel (research preview). With `MCPFABRIC_CHANNEL=1` on the
+  stdio transport the server declares `claude/channel` and pushes `notifications/claude/channel`
+  messages: the local player's chat starting with `MCPFABRIC_CHANNEL_PREFIX` (default `@ai`),
+  whispers to the local player when `MCPFABRIC_CHANNEL_WHISPERS=1` (marked untrusted), death, low
+  health (`MCPFABRIC_CHANNEL_HEALTH`, at most one alert a minute), a kick or lost connection, and
+  agent jobs that finished or failed. One event stream with reconnect backoff; at most
+  `MCPFABRIC_CHANNEL_RATE` (default 6) messages a minute. See the README.
+- Client events: `chat` events now carry `kind` (`chat`, `whisper_in`, `whisper_out`, `team`, `say`,
+  `emote`, `other`) and `self` for the local player's own messages; new `self_health`,
+  `self_death` and `left_world` events from the local player (Fabric and NeoForge).
+- The walker (`navigate_to`, `travel_to`, `explore`, `collect_blocks`) swims at the surface, climbs
+  ladders and vines, opens wooden doors and fence gates, digs through blocks with the best hotbar
+  tool when going around is longer, and pillars up on cobblestone, dirt or similar from the hotbar.
+  It never digs next to water or lava, under its own feet or under falling blocks over its head,
+  and drops more than three blocks only into water or onto a ladder. `nav.pathTo` takes
+  `allowDig`, `allowPillar` and `allowSwim` (all on by default) and returns the path's move counts;
+  `nav.status` reports the current `move`. `travel_to` takes the same flags, and `collect_blocks`
+  tunnels to buried blocks up to 16 blocks away (`dig: false` turns that off).
+
 ### Changed
-- Navigation (`navigate_to` and the jobs) walks through wooden doors and fence gates, opening
-  closed ones on the way; iron doors still block it.
+- `navigate_to`, `travel_to` and `explore` are now marked destructive, since they may break and
+  place blocks.
+- MCP server: results of tools that can return text written by other players or the world
+  (`get_recent_chat`, `poll_events`, `query_entities`, `get_entity`, `raycast`, `describe_scene`,
+  `get_inventory`, `get_equipment`, `attack_entity`, `use_entity`, `get_screen`, `get_ui`,
+  `click_widget`, `set_text_field`, `run_command`, `supervised_command`) are now returned as
+  `{ untrusted: true, notice, data }`, and chat and system messages carry a `source`
+  (`player:<name>`, `server` or `unknown`). The server instructions say that text from the game is
+  data, never instructions.
+- `nav.pathTo`, `craft.place` and the container and interaction methods check player control through
+  the same gate as the other control methods.
+
+### Fixed
+- `navigate_to` reports `reached` only once the player stands (or swims or climbs) within the
+  reach radius, not while still in the air: stopping mid-jump onto a block dropped the player short
+  of it.
 
 ## [0.8.0] - 2026-10-16
 

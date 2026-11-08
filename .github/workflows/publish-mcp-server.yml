@@ -1,0 +1,120 @@
+name: Publish MCP server
+
+# Publishes mcp-server/ when the Fabric release tag (vX.Y.Z) is pushed; its version follows mod_version.
+# No stored secrets: npm and the MCP Registry trust this workflow through GitHub's OIDC token
+# (npm "trusted publishing", configured on npmjs.com for this repo and this file name). Each step
+# skips what is already published, so a re-run only does what is missing.
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish without the leading v (e.g. 0.9.0); the tag v<version> must exist'
+        required: true
+
+permissions:
+  contents: write   # attach the .mcpb bundle to the GitHub Release
+  id-token: write   # OIDC token for npm trusted publishing and the MCP Registry
+
+concurrency:
+  group: publish-mcp-server-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PACKAGE: mcpfabric-mcp-server
+  SERVER_NAME: io.github.denfry/mcpfabric
+  MCP_PUBLISHER_VERSION: v1.8.7
+
+jobs:
+  publish:
+    name: npm, MCP Registry and .mcpb
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp-server
+    steps:
+      - name: Resolve version
+        id: v
+        working-directory: .
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then VERSION="$INPUT_VERSION"; else VERSION="${GITHUB_REF_NAME#v}"; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.v.outputs.tag }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: mcp-server/package-lock.json
+
+      # Trusted publishing needs npm 11.5.1 or newer.
+      - run: npm install -g npm@11
+
+      - name: Check that the versions match the tag
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          node -e '
+            const v = process.env.VERSION;
+            const pkg = require("./package.json");
+            const srv = require("./server.json");
+            const found = [pkg.version, srv.version, ...(srv.packages ?? []).map((p) => p.version)];
+            if (found.some((x) => x !== v)) { console.error(`::error::expected ${v} everywhere, found ${found.join(", ")} (package.json, server.json)`); process.exit(1); }
+            if (pkg.mcpName !== srv.name) { console.error(`::error::mcpName ${pkg.mcpName} does not match server.json name ${srv.name}`); process.exit(1); }
+          '
+
+      - run: npm ci
+
+      - name: Publish to npm
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          if [ "$(npm view "$PACKAGE@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
+            echo "$PACKAGE@$VERSION is already on npm"
+          else
+            npm publish --access public   # prepublishOnly runs the tests; provenance comes with trusted publishing
+          fi
+
+      - name: Wait until npm serves the version
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          for i in $(seq 1 40); do
+            [ "$(npm view "$PACKAGE@$VERSION" version 2>/dev/null)" = "$VERSION" ] && exit 0
+            sleep 15
+          done
+          echo "::error::$PACKAGE@$VERSION did not show up on npm"; exit 1
+
+      - name: Publish to the MCP Registry
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          if curl -fsS "https://registry.modelcontextprotocol.io/v0/servers?search=$SERVER_NAME&version=$VERSION" | grep -q "\"version\":\"$VERSION\""; then
+            echo "$SERVER_NAME $VERSION is already in the registry"
+            exit 0
+          fi
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/$MCP_PUBLISHER_VERSION/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+
+      - name: Attach the .mcpb bundle to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          npm run bundle
+          # The release workflow creates the GitHub Release after building every Minecraft version.
+          for i in $(seq 1 90); do
+            gh release view "$TAG" >/dev/null 2>&1 && break
+            sleep 20
+          done
+          gh release upload "$TAG" "dist-mcpb/mcpfabric-$VERSION.mcpb" --clobber

@@ -1,17 +1,25 @@
 package dev.mcpfabric.client.neoforge;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.mcpfabric.McpFabric;
+import dev.mcpfabric.client.AiControl;
 import dev.mcpfabric.client.ClientEvents;
 import dev.mcpfabric.client.McpFabricClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.ChatType;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientChatReceivedEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.GameShuttingDownEvent;
 
@@ -26,12 +34,38 @@ public final class NeoForgeClientEntrypoint {
 	/** Sender UUID NeoForge reports for messages without a player sender (Util.NIL_UUID). */
 	private static final UUID NO_SENDER = new UUID(0L, 0L);
 
-	public NeoForgeClientEntrypoint() {
+	public NeoForgeClientEntrypoint(IEventBus modBus) {
 		McpFabricClient.init();
 
+		modBus.addListener(NeoForgeClientEntrypoint::onRegisterKeys);
+		NeoForge.EVENT_BUS.addListener(NeoForgeClientEntrypoint::onRegisterCommands);
 		NeoForge.EVENT_BUS.addListener(NeoForgeClientEntrypoint::onClientTick);
 		NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, NeoForgeClientEntrypoint::onChat);
 		NeoForge.EVENT_BUS.addListener(NeoForgeClientEntrypoint::onGameShuttingDown);
+	}
+
+	private static void onRegisterKeys(RegisterKeyMappingsEvent event) {
+		event.register(AiControl.TOGGLE_KEY);
+		event.register(AiControl.APPROVE_KEY);
+		event.register(AiControl.DENY_KEY);
+	}
+
+	private static void onRegisterCommands(RegisterClientCommandsEvent event) {
+		event.getDispatcher().register(Commands.literal("mcpfabric")
+				.executes(ctx -> { AiControl.status(); return 1; })
+				.then(Commands.literal("stop").executes(ctx -> { AiControl.pause(); return 1; }))
+				.then(Commands.literal("resume").executes(ctx -> { AiControl.resume(); return 1; }))
+				.then(Commands.literal("status").executes(ctx -> { AiControl.status(); return 1; }))
+				.then(answer("approve", true))
+				.then(answer("deny", false)));
+	}
+
+	/** {@code approve [id]} / {@code deny [id]}: without an id, the oldest request. */
+	private static LiteralArgumentBuilder<CommandSourceStack> answer(String name, boolean approve) {
+		return Commands.literal(name)
+				.executes(ctx -> { AiControl.answer(0, approve); return 1; })
+				.then(Commands.argument("id", IntegerArgumentType.integer(1))
+						.executes(ctx -> { AiControl.answer(IntegerArgumentType.getInteger(ctx, "id"), approve); return 1; }));
 	}
 
 	private static void onClientTick(ClientTickEvent.Post event) {
@@ -48,7 +82,7 @@ public final class NeoForgeClientEntrypoint {
 		if (event instanceof ClientChatReceivedEvent.System system) {
 			ClientEvents.onSystemMessage(system.getMessage(), system.isOverlay());
 		} else {
-			ClientEvents.onChatMessage(event.getMessage(), senderName(event));
+			ClientEvents.onChatMessage(event.getMessage(), senderName(event), event.getBoundChatType());
 		}
 	}
 

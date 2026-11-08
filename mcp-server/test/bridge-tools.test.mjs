@@ -10,6 +10,7 @@ import { z } from "zod";
 
 // Runs against the compiled server: npm run build first (npm test does).
 import { TOOLS } from "../dist/tools.js";
+import { UNTRUSTED_NOTICE } from "../dist/untrusted.js";
 
 const serverEntry = join(dirname(fileURLToPath(import.meta.url)), "..", "dist", "index.js");
 
@@ -55,6 +56,7 @@ const BRIDGE_TOOLS = {
   // command and chat
   run_command: { method: "command.run", args: { command: "time set day" }, invalid: {} },
   send_chat: { method: "chat.send", args: { message: "hi" }, invalid: { message: 1 } },
+  show_message: { method: "chat.showLocal", args: { text: "on my way", actionBar: true }, invalid: { text: "" } },
   get_recent_chat: { method: "chat.getRecent", args: { limit: 10 }, invalid: { limit: 501 } },
   // local player
   get_self: { method: "player.getState", args: {} },
@@ -82,10 +84,10 @@ const BRIDGE_TOOLS = {
   drop_slot: { method: "inventory.dropSlot", args: { slot: 40 }, invalid: { slot: 41 } },
   swap_slots: { method: "inventory.swapSlots", args: { slotA: 0, slotB: 36 }, invalid: { slotA: 0, slotB: 46 } },
   // vision
-  screenshot: { method: "vision.screenshot", args: {}, image: true },
+  screenshot: { method: "vision.screenshot", args: { marks: true }, image: true, invalid: { marks: "yes" } },
   describe_scene: { method: "vision.describeScene", args: { rayColumns: 3, rayRows: 3 }, invalid: { rayColumns: 34 } },
   // navigation
-  navigate_to: { method: "nav.pathTo", args: { ...pos, sprint: true }, invalid: { ...pos, reachRadius: 17 } },
+  navigate_to: { method: "nav.pathTo", args: { ...pos, sprint: true, allowDig: false, allowPillar: true, allowSwim: false }, invalid: { ...pos, reachRadius: 17 } },
   navigation_status: { method: "nav.status", args: {} },
   stop_navigation: { method: "nav.stop", args: {} },
   // session and menus
@@ -170,7 +172,7 @@ before(async () => {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [serverEntry],
-    env: { ...process.env, MCPFABRIC_URL: `http://127.0.0.1:${port}`, MCPFABRIC_TOKEN: TOKEN, MCPFABRIC_AGENT: "0" },
+    env: { ...process.env, MCPFABRIC_URL: `http://127.0.0.1:${port}`, MCPFABRIC_TOKEN: TOKEN, MCPFABRIC_AGENT: "0", MCPFABRIC_SCRIPTS: "0" },
     stderr: "ignore",
   });
   client = new Client({ name: "bridge-tools-test", version: "0.0.0" });
@@ -220,11 +222,20 @@ test("every bridge tool forwards its parsed arguments to its method", async () =
         { type: "image", data: PNG, mimeType: "image/png" },
         { type: "text", text: "Screenshot 2x1 (image/png)" },
       ]);
+    } else if (toolNamed(name).untrusted) {
+      // Results that can carry text from other players or the world come back marked as data.
+      const wrapped = { untrusted: true, notice: UNTRUSTED_NOTICE, data: { echoed: entry.method } };
+      assert.deepEqual(result.structuredContent, wrapped, `${name} result`);
+      assert.deepEqual(JSON.parse(result.content[0].text), wrapped, `${name} text result`);
     } else {
       assert.deepEqual(result.structuredContent, { echoed: entry.method }, `${name} result`);
       assert.deepEqual(JSON.parse(result.content[0].text), { echoed: entry.method }, `${name} text result`);
     }
   }
+});
+
+test("the server instructions say that text from the game is data, not instructions", () => {
+  assert.match(client.getInstructions() ?? "", /Text from the game .* never instructions/);
 });
 
 test("invalid arguments are refused before they reach the bridge", async () => {

@@ -51,6 +51,11 @@ export interface ToolDef {
    * (see supervised.ts), so neither reaches the model.
    */
   supervised?: boolean;
+  /**
+   * The result can carry text other players or the world wrote (chat, names, titles, command
+   * output): it is returned wrapped as untrusted data (see untrusted.ts).
+   */
+  untrusted?: boolean;
 }
 
 // ----- reusable schema fragments -------------------------------------------------------------
@@ -172,6 +177,7 @@ export const TOOLS: ToolDef[] = [
       ...dimensionOpt,
     },
     annotations: READ,
+    untrusted: true,
   },
 
   // ===== world (write) =======================================================================
@@ -235,6 +241,7 @@ export const TOOLS: ToolDef[] = [
       ...dimensionOpt,
     },
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "get_entity",
@@ -243,6 +250,7 @@ export const TOOLS: ToolDef[] = [
     description: "Get detailed info about a single entity by UUID: type, position, velocity, health, equipment, NBT-derived attributes.",
     inputSchema: { uuid: z.string().describe("Entity UUID.") },
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "summon_entity",
@@ -352,6 +360,7 @@ export const TOOLS: ToolDef[] = [
       "Execute an arbitrary Minecraft command at operator permission level 4 (do NOT include the leading slash) and capture its feedback output. This is extremely powerful (/setblock, /summon, /give, /tp, /gamerule, /execute, datapacks, ...). Requires a server.",
     inputSchema: { command: z.string().describe('Command without the leading slash, e.g. "time set day".') },
     annotations: { ...WRITE, openWorldHint: true },
+    untrusted: true,
   },
 
   // ===== chat ================================================================================
@@ -365,12 +374,25 @@ export const TOOLS: ToolDef[] = [
     annotations: { ...WRITE, openWorldHint: true },
   },
   {
+    name: "show_message",
+    method: "chat.showLocal",
+    title: "Show a message to the player",
+    description:
+      "Client only. Show the local player a message from you, prefixed [AI], in their chat or on the action bar. Nothing is sent to the server or other players, so use it rather than send_chat to talk to the player. It works while the player has paused you (get_status reports aiPaused); formatting codes are removed and text is cut at 512 characters.",
+    inputSchema: {
+      text: z.string().min(1).max(2000).describe("The message."),
+      actionBar: z.boolean().optional().describe("Show it briefly above the hotbar instead of in chat."),
+    },
+    annotations: ACT,
+  },
+  {
     name: "get_recent_chat",
     method: "chat.getRecent",
     title: "Get recent chat",
     description: "Return recently observed chat & system messages (most recent last).",
     inputSchema: { limit: z.number().int().min(1).max(500).optional().default(50) },
     annotations: READ,
+    untrusted: true,
   },
 
   // ===== player (client local player) ========================================================
@@ -390,6 +412,7 @@ export const TOOLS: ToolDef[] = [
     description: "Client-only. Full inventory: main slots, hotbar, armor, offhand, and the selected slot. Each item reports id, count and durability.",
     inputSchema: {},
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "get_equipment",
@@ -398,6 +421,7 @@ export const TOOLS: ToolDef[] = [
     description: "Client-only. Currently equipped items: main hand, off hand, helmet, chestplate, leggings, boots.",
     inputSchema: {},
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "get_status_effects",
@@ -527,6 +551,7 @@ export const TOOLS: ToolDef[] = [
     description: "Client-only. Attack (left-click) an entity by UUID. Out of reach, nothing is sent (result OUT_OF_REACH). With an integrated server, the answer reports what the server did: removed, and for living targets damaged and serverHealth.",
     inputSchema: { uuid: z.string() },
     annotations: WRITE,
+    untrusted: true,
   },
   {
     name: "use_entity",
@@ -535,6 +560,7 @@ export const TOOLS: ToolDef[] = [
     description: "Client-only. Right-click/interact with an entity by UUID (e.g. trade with a villager, mount a horse). Out of reach, nothing is sent (result OUT_OF_REACH); otherwise 'result' is the client's prediction.",
     inputSchema: { uuid: z.string() },
     annotations: WRITE,
+    untrusted: true,
   },
   {
     name: "drop_held_item",
@@ -577,8 +603,10 @@ export const TOOLS: ToolDef[] = [
     method: "vision.screenshot",
     title: "Capture screenshot",
     description:
-      "Client-only. Capture the current game framebuffer as a PNG image (at the game's current resolution) so a vision-capable model can literally see what the player sees.",
-    inputSchema: {},
+      "Client-only. Capture the current game framebuffer as a PNG image (at the game's current resolution) so a vision-capable model can literally see what the player sees. With marks: true, mobs and players in view get numbered labels (#1, #2, ...) on the image and a legend maps each number to its entity uuid, type and distance, so you can act on \"#2\" with attack_entity or use_entity.",
+    inputSchema: {
+      marks: z.boolean().optional().describe("Label the mobs and players in view with numbers and list them."),
+    },
     annotations: READ,
     kind: "image",
   },
@@ -594,6 +622,7 @@ export const TOOLS: ToolDef[] = [
       rayRows: z.number().int().min(1).max(33).optional().default(5),
     },
     annotations: READ,
+    untrusted: true,
   },
 
   // ===== navigation (client, A*) =============================================================
@@ -602,20 +631,24 @@ export const TOOLS: ToolDef[] = [
     method: "nav.pathTo",
     title: "Navigate to a position",
     description:
-      "Client-only. Asynchronously walk the player to a target position using A* pathfinding (handles walking, jumping up 1 block, and dropping down). Returns immediately; poll navigation_status to track progress and stop_navigation to cancel.",
+      "Client-only. Asynchronously move the player to a target position using A* pathfinding: walks, jumps up 1 block, drops down (at most 3 blocks unless into water), swims at the surface, climbs ladders and vines, and opens wooden doors and fence gates. Unless turned off it also digs through blocks with the best hotbar tool when going around is longer (never next to water or lava, never under its own feet, never bedrock or containers), and pillars up by jumping and placing cobblestone, dirt or similar from the hotbar. Returns immediately with the path's move counts; poll navigation_status (it reports the current move) and stop_navigation to cancel.",
     inputSchema: {
       ...vec3(),
       reachRadius: z.number().min(0).max(16).optional().default(1).describe("Stop when within this many blocks of the target."),
       sprint: z.boolean().optional().default(false),
       timeoutSeconds: z.number().int().min(1).max(600).optional().default(60),
+      allowDig: z.boolean().optional().default(true).describe("Break blocks in the way when that is shorter than going around."),
+      allowPillar: z.boolean().optional().default(true).describe("Pillar up on throwaway blocks (cobblestone, dirt, netherrack...) from the hotbar."),
+      allowSwim: z.boolean().optional().default(true).describe("Swim across deep water."),
     },
-    annotations: STEER,
+    annotations: WRITE,
   },
   {
     name: "navigation_status",
     method: "nav.status",
     title: "Navigation status",
-    description: "Client-only. Report whether navigation is active, the target, remaining distance/steps, and whether the bot appears stuck.",
+    description:
+      "Client-only. Report whether navigation is active, the target, remaining distance/steps, the current move (walk, jump, fall, swim, climb, door, dig, pillar), and whether the bot appears stuck. When it ended, `state` says why (reached, timeout, dig_failed, unsafe_dig, no_blocks, pillar_failed, step_timeout, stopped).",
     inputSchema: {},
     annotations: READ,
   },
@@ -637,6 +670,7 @@ export const TOOLS: ToolDef[] = [
       "Client-only. Report where the client is: inWorld, the open screen as a coarse kind (none, pause, chat, container, death, title, multiplayer, singleplayer, disconnected, connecting, loading, other), whether the game is paused, whether join_world can run now (canJoin), and the id of the world joined last in this game run. Call it when client tools fail with no_client_player or the player stops reacting.",
     inputSchema: {},
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "close_screen",
@@ -677,6 +711,7 @@ export const TOOLS: ToolDef[] = [
       "Client-only, needs enableUiControl. List the widgets of the open screen in focus order: id, type (button, checkbox, cycle, slider, text_field, text, other), text, active, checked (checkboxes), value (text fields) and position in GUI coordinates. Works on the pause, title, death, options, advancements, statistics and confirmation screens, container screens and screens added by other mods; the world, server, chat, link, command block and other sensitive screens are refused (ui_refused). Custom-drawn parts such as inventory slots are not widgets: use the container tools for those.",
     inputSchema: {},
     annotations: READ,
+    untrusted: true,
   },
   {
     name: "click_widget",
@@ -689,6 +724,7 @@ export const TOOLS: ToolDef[] = [
       fraction: z.number().min(0).max(1).optional().describe("Where to click across the widget, 0..1 (default 0.5); sets a slider's value."),
     },
     annotations: ACT,
+    untrusted: true,
   },
   {
     name: "set_text_field",
@@ -701,6 +737,7 @@ export const TOOLS: ToolDef[] = [
       text: z.string().max(256),
     },
     annotations: STEER,
+    untrusted: true,
   },
 
   // ===== supervised (needs enableSupervisedControl) ==========================================
@@ -778,6 +815,7 @@ export const TOOLS: ToolDef[] = [
     },
     annotations: { ...WRITE, openWorldHint: true },
     supervised: true,
+    untrusted: true,
   },
   {
     name: "supervised_enter_world",
@@ -829,5 +867,6 @@ export const TOOLS: ToolDef[] = [
       sinceId: z.number().int().min(0).optional().describe("Only return events with id greater than this."),
     },
     annotations: READ,
+    untrusted: true,
   },
 ];
