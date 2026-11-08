@@ -29,10 +29,12 @@ All notable changes to this project are documented here. The format is based on
   that needs the player's approval is refused at once instead of asking them while the AI is paused.
   While paused, `container.close`, `control.stopUsing` and `interact.stopBreaking` leave the
   player's own screen, item use and mining alone. Fabric and NeoForge.
-- A `mcpfabric.config.json` that cannot be read is left as it is and every capability group stays
-  locked until it is fixed, instead of being replaced by the defaults (which turn most groups on).
-  The config and discovery files are written in one step and, on Linux and macOS, readable only by
-  the user. Fabric and NeoForge.
+- A `mcpfabric.config.json` that cannot be read or is empty is left as it is and every capability
+  group stays locked (and the discovery file off) until it is fixed, instead of being replaced by
+  the defaults (which turn most groups on). The config and discovery files are written in one step
+  and, on Linux and macOS, readable only by the user; a config that is a symbolic link stays one, a
+  read-only one is not replaced, and an unchanged one is no longer rewritten at every start.
+  Fabric and NeoForge.
 - MCP server: calls that may wait for the player's approval (`requireApproval`, up to 60 s in the
   game) wait at least 75 s instead of failing after `MCPFABRIC_TIMEOUT_MS` (15 s) while the player
   still decides. A call that times out no longer says the game is unreachable: it says the call may

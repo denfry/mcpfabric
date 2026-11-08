@@ -193,8 +193,9 @@ removes the sole authentication on an operator-level bridge. Keep `host` on `127
 fully understand the consequences — the bridge grants operator-level power. `worldIdKey` turns a
 server address into the opaque world id that `session.info` reports; like the token, it is never
 sent over the bridge. The file holds the token, so the mod keeps it readable only by your user on
-Linux and macOS. If the file cannot be read (broken JSON), the mod leaves it as it is, logs the
-error and runs with every capability group locked until you fix it and restart the game.
+Linux and macOS. If the file cannot be read (broken JSON, or empty), the mod leaves it as it is,
+logs the error and runs with every capability group and the discovery file off until you fix it (or
+delete it to start from the defaults) and restart the game.
 
 `enableSupervisedControl` (off by default) turns on the supervised mode: one narrow action per
 call under short-lived authority, with every outcome read back or reconciled. It is its own lock, so

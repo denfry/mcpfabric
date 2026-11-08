@@ -5,9 +5,12 @@ import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Instant;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -73,8 +76,50 @@ class McpConfigTest {
 		assertFalse(cfg.enableUiControl);
 		assertFalse(cfg.enableSupervisedControl);
 		assertTrue(cfg.requireAuth);
+		assertFalse(cfg.writeDiscoveryFile);
 		assertFalse(cfg.token.isBlank());
 		assertEquals(broken, Files.readString(file));
+	}
+
+	@Test
+	void anEmptyFileIsUnreadableNotAFirstRun() throws Exception {
+		assumeTrue(present("org.slf4j.Logger"), "slf4j is not on this node's test classpath");
+		Path file = dir.resolve("mcpfabric.config.json");
+		Files.writeString(file, "  \n");
+		McpConfig cfg = McpConfig.load(file);
+		assertFalse(cfg.enableCommands);
+		assertFalse(cfg.enableWorldWrite);
+		assertFalse(cfg.writeDiscoveryFile);
+		assertEquals("  \n", Files.readString(file));
+	}
+
+	@Test
+	void aCompleteFileIsNotRewritten() throws Exception {
+		Path file = dir.resolve("mcpfabric.config.json");
+		McpConfig.load(file);
+		String first = Files.readString(file);
+		FileTime old = FileTime.from(Instant.parse("2020-01-01T00:00:00Z"));
+		Files.setLastModifiedTime(file, old);
+		McpConfig.load(file);
+		assertEquals(first, Files.readString(file));
+		assertEquals(old, Files.getLastModifiedTime(file));
+	}
+
+	@Test
+	void aSymbolicLinkIsFollowedNotReplaced() throws Exception {
+		Path real = dir.resolve("shared.json");
+		Files.writeString(real, "{\"enableCommands\": false}");
+		Path link = dir.resolve("mcpfabric.config.json");
+		try {
+			Files.createSymbolicLink(link, real);
+		} catch (UnsupportedOperationException | IOException e) {
+			assumeTrue(false, "symbolic links are not available here: " + e);
+		}
+		McpConfig cfg = McpConfig.load(link);
+		assertTrue(Files.isSymbolicLink(link));
+		assertFalse(cfg.enableCommands);
+		JsonObject saved = JsonParser.parseString(Files.readString(real)).getAsJsonObject();
+		assertEquals(cfg.token, saved.get("token").getAsString());
 	}
 
 	@Test

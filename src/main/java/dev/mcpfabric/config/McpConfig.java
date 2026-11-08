@@ -87,24 +87,33 @@ public final class McpConfig {
 	}
 
 	/**
-	 * Reads {@code file}, filling in and saving what is missing (tokens, keys). A file that exists but
-	 * cannot be read is left untouched for the user to fix, and every capability lock stays off for
-	 * this run: falling back to the defaults would turn on groups the user may have switched off.
+	 * Reads {@code file}, filling in what is missing (tokens, keys, new settings) and saving it when
+	 * that changed anything. A file that exists but cannot be read, or is empty (a write cut short), is
+	 * left untouched for the user to fix, and every capability group stays off for this run: falling
+	 * back to the defaults would turn on groups the user may have switched off.
 	 */
 	static McpConfig load(Path file) {
 		McpConfig cfg = null;
-		boolean unreadable = false;
+		String text = null;
+		String problem = null;
 		if (Files.exists(file)) {
 			try {
-				cfg = GSON.fromJson(Files.readString(file), McpConfig.class);
+				text = Files.readString(file);
+				cfg = GSON.fromJson(text, McpConfig.class);
+				if (cfg == null) problem = "the file is empty";
 			} catch (Exception e) {
-				unreadable = true;
-				McpFabric.LOGGER.error("[mcpfabric] could not read {}; every capability is locked until the file is fixed "
-						+ "and the game restarted (the file is left as it is)", file, e);
+				problem = e.toString();
 			}
 		}
-		if (cfg == null) cfg = new McpConfig();
-		if (unreadable) cfg.lockAll();
+		boolean unreadable = problem != null;
+		if (unreadable) {
+			McpFabric.LOGGER.error("[mcpfabric] could not read {} ({}); every capability is locked until the file is fixed "
+					+ "(or deleted, to start from the defaults) and the game restarted. The file is left as it is.", file, problem);
+			cfg = new McpConfig();
+			cfg.lockAll();
+		} else if (cfg == null) {
+			cfg = new McpConfig();
+		}
 		if (cfg.token == null || cfg.token.isBlank()) {
 			cfg.token = UUID.randomUUID().toString().replace("-", "");
 		}
@@ -118,11 +127,15 @@ public final class McpConfig {
 		if (cfg.supervisedCommands == null) cfg.supervisedCommands = new ArrayList<>();
 		if (cfg.requireApproval == null) cfg.requireApproval = new ArrayList<>();
 		cfg.source = file;
-		if (!unreadable) cfg.save();
+		// First run, filled-in secrets or settings added by an update; an unchanged file is not rewritten.
+		if (!unreadable && !GSON.toJson(cfg).equals(text)) cfg.save();
 		return cfg;
 	}
 
-	/** Turns every capability group off (the config could not be read). */
+	/**
+	 * The config could not be read: every capability group is off, and the discovery file too, as the
+	 * user may have turned it off (the token of this run is then known to nobody).
+	 */
 	private void lockAll() {
 		enableWorldWrite = false;
 		enableCommands = false;
@@ -130,6 +143,7 @@ public final class McpConfig {
 		enableVision = false;
 		enableUiControl = false;
 		enableSupervisedControl = false;
+		writeDiscoveryFile = false;
 	}
 
 	public void save() {
