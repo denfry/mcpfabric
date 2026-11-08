@@ -26,6 +26,8 @@ export class FakeWorld implements Bridge {
   recipes: Recipe[] = [];
   unreachable = new Set<string>();
   calls: string[] = [];
+  /** Params of every nav.pathTo call. */
+  paths: Record<string, unknown>[] = [];
   worldId = "sp:test";
   navState = "idle";
   /** Dropped items lying in the world. */
@@ -161,6 +163,7 @@ export class FakeWorld implements Bridge {
         return { blocks };
       }
       case "nav.pathTo": {
+        this.paths.push({ ...a });
         const target = { x: a.x, y: a.y, z: a.z };
         if (this.unreachable.has(key(target))) throw new BridgeError({ code: "not_found", message: "No path found" });
         // Arrive on the target when asked to get closer than a block, else next to it.

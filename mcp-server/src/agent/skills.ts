@@ -786,7 +786,8 @@ async function reachFor(rt: AgentRuntime, ctx: JobContext, target: Pos, plan: Co
   spots.sort((a, b) => distance(a, self) - distance(b, self));
   for (const spot of spots.slice(0, 6)) {
     try {
-      await rt.body.pathTo(spot, { reachRadius: 0.6, timeoutSeconds: 25 });
+      // No digging or pillaring: either would break or fill cells of the plan on the way.
+      await rt.body.pathTo(spot, { reachRadius: 0.6, timeoutSeconds: 25, allowDig: false, allowPillar: false });
     } catch (err) {
       if (isNotFound(err)) continue;
       throw err;

@@ -228,6 +228,11 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.match(out, /\[done\][\s\S]*placed 24\/24 · cleared 1\/1[\s\S]*the build matches the plan/);
     assert.equal(world.count("minecraft:oak_planks"), 0);
     assert.equal(world.calls.filter((c) => c.startsWith("placeAt:")).at(-1), "placeAt:6,64,7", "the door goes in last");
+    assert.ok(world.paths.length > 0, "it walked to its building spots");
+    assert.ok(
+      world.paths.every((a) => a.allowDig === false && a.allowPillar === false),
+      "it never digs or pillars on the way, which would break or fill cells of the plan",
+    );
   },
   // containers
   open_container: async ({ world, rt, tool }) => {
