@@ -83,20 +83,28 @@ public final class McpConfig {
 	public transient Path source;
 
 	public static McpConfig load() {
-		Path dir = McpFabric.platform().configDir();
-		Path file = dir.resolve("mcpfabric.config.json");
-		McpConfig cfg;
+		return load(McpFabric.platform().configDir().resolve("mcpfabric.config.json"));
+	}
+
+	/**
+	 * Reads {@code file}, filling in and saving what is missing (tokens, keys). A file that exists but
+	 * cannot be read is left untouched for the user to fix, and every capability lock stays off for
+	 * this run: falling back to the defaults would turn on groups the user may have switched off.
+	 */
+	static McpConfig load(Path file) {
+		McpConfig cfg = null;
+		boolean unreadable = false;
 		if (Files.exists(file)) {
 			try {
 				cfg = GSON.fromJson(Files.readString(file), McpConfig.class);
-				if (cfg == null) cfg = new McpConfig();
 			} catch (Exception e) {
-				McpFabric.LOGGER.error("[mcpfabric] failed to read config, using defaults", e);
-				cfg = new McpConfig();
+				unreadable = true;
+				McpFabric.LOGGER.error("[mcpfabric] could not read {}; every capability is locked until the file is fixed "
+						+ "and the game restarted (the file is left as it is)", file, e);
 			}
-		} else {
-			cfg = new McpConfig();
 		}
+		if (cfg == null) cfg = new McpConfig();
+		if (unreadable) cfg.lockAll();
 		if (cfg.token == null || cfg.token.isBlank()) {
 			cfg.token = UUID.randomUUID().toString().replace("-", "");
 		}
@@ -110,8 +118,18 @@ public final class McpConfig {
 		if (cfg.supervisedCommands == null) cfg.supervisedCommands = new ArrayList<>();
 		if (cfg.requireApproval == null) cfg.requireApproval = new ArrayList<>();
 		cfg.source = file;
-		cfg.save();
+		if (!unreadable) cfg.save();
 		return cfg;
+	}
+
+	/** Turns every capability group off (the config could not be read). */
+	private void lockAll() {
+		enableWorldWrite = false;
+		enableCommands = false;
+		enablePlayerControl = false;
+		enableVision = false;
+		enableUiControl = false;
+		enableSupervisedControl = false;
 	}
 
 	public void save() {
@@ -119,8 +137,8 @@ public final class McpConfig {
 			if (source == null) {
 				source = McpFabric.platform().configDir().resolve("mcpfabric.config.json");
 			}
-			Files.createDirectories(source.getParent());
-			Files.writeString(source, GSON.toJson(this));
+			// It holds the token: readable only by this user, never left half written.
+			PrivateFiles.write(source, GSON.toJson(this));
 		} catch (IOException e) {
 			McpFabric.LOGGER.error("[mcpfabric] failed to write config", e);
 		}

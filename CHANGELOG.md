@@ -28,6 +28,10 @@ All notable changes to this project are documented here. The format is based on
   also commands, world and entity writes, player admin calls and chat sent as the player. A call
   that needs the player's approval is refused at once instead of asking them while the AI is paused.
   Fabric and NeoForge.
+- A `mcpfabric.config.json` that cannot be read is left as it is and every capability group stays
+  locked until it is fixed, instead of being replaced by the defaults (which turn most groups on).
+  The config and discovery files are written in one step and, on Linux and macOS, readable only by
+  the user. Fabric and NeoForge.
 
 ## [0.9.1] - 2026-11-06
 
