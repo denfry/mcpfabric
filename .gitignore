@@ -7,6 +7,8 @@ run/
 
 # Stonecutter (generated per-version build output and caches; versions/<v>/gradle.properties is tracked)
 versions/*/build/
+# Minecraft's logger config writes logs/ next to a node when a unit test logs through it
+versions/*/logs/
 .stonecutter/
 
 # IDE
