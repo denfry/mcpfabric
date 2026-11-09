@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format is based on
 - `perception.blocks` returns each block's full state, collision height and whether it is
   climbable.
 
+### Fixed
+- `npx -y mcpfabric-mcp-server` from the README failed with "could not determine executable to
+  run": the package now has a `mcpfabric-mcp-server` command next to `mcpfabric`.
+
 ## [0.9.1] - 2026-11-06
 
 Fabric and NeoForge.
