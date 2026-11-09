@@ -9,12 +9,12 @@
     "subfolder": "mcp-server"
   },
   "websiteUrl": "https://modrinth.com/mod/mcpfabric",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "mcpfabric-mcp-server",
-      "version": "0.9.1",
+      "version": "0.10.0",
       "transport": {
         "type": "stdio"
       },

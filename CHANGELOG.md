@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-09
+
+Fabric and NeoForge. 0.9.1 was never published; its fix ships here.
+
 ### Added
 - Block states in build results: `get_blocks_region` takes `includeState` and then returns each
   block with its properties (`minecraft:oak_stairs[facing=east,half=bottom,...]`), `set_block`
@@ -26,12 +30,6 @@ All notable changes to this project are documented here. The format is based on
 ### Fixed
 - `npx -y mcpfabric-mcp-server` from the README failed with "could not determine executable to
   run": the package now has a `mcpfabric-mcp-server` command next to `mcpfabric`.
-
-## [0.9.1] - 2026-11-06
-
-Fabric and NeoForge.
-
-### Fixed
 - `open_dashboard`: a long job line wraps instead of being cut off.
 
 ## [0.9.0] - 2026-11-06
