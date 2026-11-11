@@ -44,7 +44,7 @@
     "url": "https://github.com/denfry/mcpfabric/issues"
   },
   "dependencies": {
-    "@modelcontextprotocol/ext-apps": "^1.7.5",
+    "@modelcontextprotocol/ext-apps": "^2.0.4",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "quickjs-emscripten": "^0.32.0",
     "zod": "^4.6.7"
