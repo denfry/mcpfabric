@@ -15,7 +15,9 @@ import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 
 import { loadConfig, type ServerConfig } from "./config.js";
-import { BridgeClient, BridgeError, BridgeUnreachableError } from "./bridge.js";
+import { BridgeClient, BridgeError, BridgeUnreachableError, type GameBridge } from "./bridge.js";
+import { HorizonBridge } from "./horizon/bridge.js";
+import { horizonWorldKey } from "./horizon/key.js";
 import { defaultDiscoveryPath, Discovery } from "./discovery.js";
 import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
@@ -104,9 +106,9 @@ function imageResult(result: unknown): CallToolResult {
   };
 }
 
-function registerTools(server: McpServer, bridge: BridgeClient, supervised: SupervisedSession, groups: Set<string>): void {
+function registerTools(server: McpServer, bridge: GameBridge, supervised: SupervisedSession, groups: Set<string>): void {
   for (const def of TOOLS as ToolDef[]) {
-    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations)) continue;
+    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations) || !bridge.supports(def.method)) continue;
     const config = {
       title: def.title,
       description: def.description,
@@ -128,11 +130,19 @@ function registerTools(server: McpServer, bridge: BridgeClient, supervised: Supe
   }
 }
 
+/** Agent tools that cannot work without these bridge methods (Horizon has no recipe access yet). */
+const AGENT_TOOL_NEEDS: Record<string, string[]> = {
+  plan_craft: ["recipes.query"],
+  get_recipes: ["recipes.query"],
+  craft_item: ["recipes.query", "craft.place"],
+};
+
 /** Registers the agent tools; returns what to do when the MCP session closes. */
-function registerAgentTools(server: McpServer, runtime: AgentRuntime, groups: Set<string>): () => void {
+function registerAgentTools(server: McpServer, runtime: AgentRuntime, groups: Set<string>, bridge: GameBridge): () => void {
   const session = new AgentSession();
   for (const def of AGENT_TOOLS) {
     if (!servesHints(groups, def.annotations)) continue;
+    if ((AGENT_TOOL_NEEDS[def.name] ?? []).some((m) => !bridge.supports(m))) continue;
     const config = {
       title: def.title,
       description: def.description,
@@ -195,22 +205,27 @@ const AGENT_INSTRUCTIONS =
   "(travel_to, explore, collect_blocks, craft_item) run as background jobs — follow them with job_status " +
   "and do not drive movement manually while one runs.";
 
+const HORIZON_INSTRUCTIONS =
+  " Backend: Horizon, a Rust rewrite of Minecraft: Java Edition 26.3, driven through its own agent control socket instead of the mod. " +
+  "Only the tools listed work there; Horizon's walker does not dig or pillar, entity uuids are Horizon's numeric entity ids, and chat lines carry no sender. " +
+  "When the player turns on No AI in Horizon, every call fails: stop and wait for them.";
+
 const SCRIPT_INSTRUCTIONS =
   " Code mode: for a sequence of many bridge calls (scan then act, loops, retries), write one run_script " +
   "program instead of calling tools one by one; keep programs that worked with save_skill and reuse them with run_skill.";
 
-function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, groups: Set<string>, channel = false): McpServer {
+function buildServer(bridge: GameBridge, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, groups: Set<string>, channel = false): McpServer {
   const server = new McpServer(
     { name: "mcpfabric", version: PKG_VERSION },
     {
       instructions:
-        BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") + (scripts ? SCRIPT_INSTRUCTIONS : "") + (channel ? CHANNEL_INSTRUCTIONS : ""),
+        BASE_INSTRUCTIONS + (bridge instanceof HorizonBridge ? HORIZON_INSTRUCTIONS : "") + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") + (scripts ? SCRIPT_INSTRUCTIONS : "") + (channel ? CHANNEL_INSTRUCTIONS : ""),
       ...(channel ? { capabilities: { experimental: { [CHANNEL_CAPABILITY]: {} } } } : {}),
     },
   );
   const supervised = new SupervisedSession(bridge);
   registerTools(server, bridge, supervised, groups);
-  const closeAgent = runtime ? registerAgentTools(server, runtime, groups) : undefined;
+  const closeAgent = runtime ? registerAgentTools(server, runtime, groups, bridge) : undefined;
   // Scripts and the dashboard act (run tools, stop jobs), so a read-only server leaves them out.
   const writable = !groups.has(READONLY);
   const closeScripts = scripts && writable ? registerScriptTools(server, scripts) : undefined;
@@ -224,7 +239,7 @@ function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, sc
   return server;
 }
 
-async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
+async function runStdio(bridge: GameBridge, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
   const server = buildServer(bridge, runtime, scripts, cfg.toolsets, cfg.channel.enabled);
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -233,7 +248,7 @@ async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined,
 }
 
 /** Claude Code channel: one event stream, pushed into this (only) stdio session. */
-function startChannel(server: McpServer, bridge: BridgeClient, runtime: AgentRuntime | undefined, cfg: ServerConfig): void {
+function startChannel(server: McpServer, bridge: GameBridge, runtime: AgentRuntime | undefined, cfg: ServerConfig): void {
   const channel = new Channel({
     cfg: cfg.channel,
     bridge,
@@ -253,7 +268,7 @@ function startChannel(server: McpServer, bridge: BridgeClient, runtime: AgentRun
   log(`channel on (prefix "${cfg.channel.prefix}", whispers ${cfg.channel.whispers ? "on" : "off"}, at most ${cfg.channel.maxPerMinute}/min)`);
 }
 
-async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
+async function runHttp(bridge: GameBridge, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
   // Stateful streamable-HTTP: one transport+server per session id.
   const sessions = new Map<string, { server: McpServer; transport: StreamableHTTPServerTransport; lastSeen: number }>();
 
@@ -323,10 +338,21 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
-  // Without MCPFABRIC_TOKEN, find the running game through the file the mod writes.
-  const discovery = cfg.token ? undefined : new Discovery(defaultDiscoveryPath());
-  const bridge = new BridgeClient(cfg.bridgeUrl, cfg.token, cfg.timeoutMs, discovery ? () => discovery.read() : undefined);
-  if (discovery) log(`MCPFABRIC_TOKEN not set: connecting to the game found in ${discovery.path}`);
+  let bridge: GameBridge;
+  if (cfg.backend === "horizon") {
+    bridge = new HorizonBridge({
+      ...(cfg.horizon.control ? { path: cfg.horizon.control } : {}),
+      timeoutMs: cfg.timeoutMs,
+      uiControl: cfg.horizon.uiControl,
+      worldKey: () => horizonWorldKey(cfg.dataDir),
+    });
+    log(`backend: Horizon (control endpoint ${bridge.target().url.slice("horizon:".length)})`);
+  } else {
+    // Without MCPFABRIC_TOKEN, find the running game through the file the mod writes.
+    const discovery = cfg.token ? undefined : new Discovery(defaultDiscoveryPath());
+    bridge = new BridgeClient(cfg.bridgeUrl, cfg.token, cfg.timeoutMs, discovery ? () => discovery.read() : undefined);
+    if (discovery) log(`MCPFABRIC_TOKEN not set: connecting to the game found in ${discovery.path}`);
+  }
 
   // Best-effort connectivity hint (does not block startup; the mod may launch later).
   bridge

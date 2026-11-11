@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- MCP server: a Horizon backend (`MCPFABRIC_BACKEND=horizon`). Horizon is a Rust rewrite of
+  Minecraft: Java Edition 26.3 that runs no Java mods, so the MCP server drives its agent control
+  socket instead of the mod's bridge. Most tools work there, as do the agent runtime (memory, goals,
+  map, travel, collect and container jobs), scripts and skills; tools Horizon has no equivalent
+  for (recipes and crafting, `describe_scene`, `raycast`, supervised mode, server admin lists) are
+  not offered. See [docs/HORIZON.md](docs/HORIZON.md).
+
 ## [0.10.0] - 2026-11-09
 
 Fabric and NeoForge. 0.9.1 was never published; its fix ships here.

@@ -50,7 +50,25 @@ interface RpcEnvelope<T> {
   error?: BridgeErrorBody;
 }
 
-export class BridgeClient {
+/**
+ * What the MCP server needs from the game: the mod's HTTP bridge (BridgeClient) or another backend
+ * that answers the same RPC methods (horizon/bridge.ts).
+ */
+export interface GameBridge {
+  call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
+  streamEvents(types: string[], signal: AbortSignal, onEvent: (event: BridgeEvent) => void, idleMs?: number): Promise<void>;
+  info<T = unknown>(): Promise<T>;
+  target(): BridgeTarget;
+  /** Whether the backend serves this RPC method at all; its tool is not registered otherwise. */
+  supports(method: string): boolean;
+}
+
+export class BridgeClient implements GameBridge {
+  /** The mod's router is the authority: every catalogued method is offered, and gated in the game. */
+  supports(_method: string): boolean {
+    return true;
+  }
+
   /**
    * @param discover where to look for the running game when no token is configured
    *   (`~/.mcpfabric/bridge.json`, see discovery.ts); its address and token are used instead.

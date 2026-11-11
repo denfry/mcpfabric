@@ -29,6 +29,14 @@ export interface ServerConfig {
   scripts: boolean;
   /** Tool groups to serve (MCPFABRIC_TOOLSETS); all of them by default. */
   toolsets: Set<string>;
+  /** Which game to drive: the mod's HTTP bridge, or Horizon's agent control socket. */
+  backend: "mod" | "horizon";
+  horizon: {
+    /** Control endpoint path (HORIZON_CONTROL); the platform default when unset. */
+    control: string | undefined;
+    /** Serve Horizon's widget clicks (ui.*), like the mod's enableUiControl: off by default. */
+    uiControl: boolean;
+  };
 }
 
 export interface ChannelConfig {
@@ -61,7 +69,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     throw new Error(`MCPFABRIC_TRANSPORT must be "stdio" or "http", got "${transport}"`);
   }
 
+  const backend = (env.MCPFABRIC_BACKEND ?? "mod").trim().toLowerCase() || "mod";
+  if (backend !== "mod" && backend !== "horizon") {
+    throw new Error(`MCPFABRIC_BACKEND must be "mod" or "horizon", got "${backend}"`);
+  }
+
   return {
+    backend,
+    horizon: { control: env.HORIZON_CONTROL?.trim() || undefined, uiControl: on(env.MCPFABRIC_HORIZON_UI) },
     bridgeUrl,
     token: env.MCPFABRIC_TOKEN || undefined,
     timeoutMs: int(env.MCPFABRIC_TIMEOUT_MS, 15000),

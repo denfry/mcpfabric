@@ -80,6 +80,11 @@ effects / weather / time) go through the command dispatcher with output capture.
 
 ## Supported Minecraft versions
 
+The mod runs on Fabric and NeoForge (table below). The MCP server can also drive
+[Horizon](docs/HORIZON.md), a Rust rewrite of Minecraft: Java Edition 26.3 that runs no Java mods:
+there it talks to Horizon's own agent control socket (`MCPFABRIC_BACKEND=horizon`), so no mod is
+installed.
+
 A single source tree targets many Minecraft versions using
 [Stonecutter](https://stonecutter.kikugie.dev/). Each version below ships its own jar:
 
@@ -242,6 +247,9 @@ node dist/index.js        # finds the running game through ~/.mcpfabric/bridge.j
 | `MCPFABRIC_CHANNEL_RATE` | `6`                    | At most this many channel messages per minute.    |
 | `MCPFABRIC_SCRIPTS`    | on                       | `0` / `false` / `off` removes the script tools (`run_script`, skills). |
 | `MCPFABRIC_TOOLSETS`   | all tools                | Serve only some tools; see [Tool sets](#tool-sets). |
+| `MCPFABRIC_BACKEND`    | `mod`                    | `horizon`: drive [Horizon](docs/HORIZON.md) (Minecraft 26.3 rewritten in Rust) through its own agent control socket instead of the mod. |
+| `HORIZON_CONTROL`      | Horizon's default        | With `MCPFABRIC_BACKEND=horizon`: the control endpoint (`%TEMP%\horizon-control.json` on Windows). |
+| `MCPFABRIC_HORIZON_UI` | off                      | With `MCPFABRIC_BACKEND=horizon`: `1` serves `get_ui` and `click_widget` (like the mod's `enableUiControl`). |
 
 ### Tool sets
 

@@ -6,14 +6,14 @@
  * session is opened on the first supervised call and its id stays here: the model never sees it.
  * Calls run one at a time, in order, because each one is a single approved action.
  */
-import { BridgeError, type BridgeClient } from "./bridge.js";
+import { BridgeError, type GameBridge } from "./bridge.js";
 
 export class SupervisedSession {
   private id: string | undefined;
   private seq = 0;
   private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(private readonly bridge: BridgeClient) {}
+  constructor(private readonly bridge: GameBridge) {}
 
   /** Forwards one supervised request with the session id and the next sequence number. */
   call(method: string, args: Record<string, unknown>): Promise<unknown> {
