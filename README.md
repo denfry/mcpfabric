@@ -3,19 +3,24 @@
 
 # MCP Fabric — AI control for Minecraft
 
-**Let Claude and other MCP clients see, understand, and play Minecraft through 50+ tools.**
+**Let Claude and other MCP clients see, understand, and play Minecraft through 70+ tools.**
 
 [![Build](https://github.com/denfry/mcpfabric/actions/workflows/build.yml/badge.svg)](https://github.com/denfry/mcpfabric/actions/workflows/build.yml)
 [![Modrinth downloads](https://img.shields.io/modrinth/dt/eA63YgUh?logo=modrinth&label=Modrinth)](https://modrinth.com/mod/mcpfabric)
-[![GitHub stars](https://img.shields.io/github/stars/denfry/mcpfabric?logo=github&style=flat)](https://github.com/denfry/mcpfabric/stargazers)
+[![npm](https://img.shields.io/npm/v/mcpfabric-mcp-server?logo=npm&label=npm)](https://www.npmjs.com/package/mcpfabric-mcp-server)
 [![License: MIT](https://img.shields.io/github/license/denfry/mcpfabric)](LICENSE)
+
+[![Minecraft](https://img.shields.io/static/v1?label=Minecraft&message=1.21.1%E2%80%931.21.11%20%7C%2026.1%E2%80%9326.3&color=62B47A)](#quick-start)
+[![Loaders](https://img.shields.io/static/v1?label=loaders&message=Fabric%20%7C%20NeoForge&color=DBD0B4)](#quick-start)
+[![GitHub stars](https://img.shields.io/github/stars/denfry/mcpfabric?logo=github&style=flat)](https://github.com/denfry/mcpfabric/stargazers)
 [![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/mVZcNUAGZt)
+
 [![M8ven Score](https://m8ven.ai/badge/mcp/denfry-mcpfabric-1vn4r1?v=6c5af3df95ffb27c03fbe8d4881feb91)](https://m8ven.ai/mcp/denfry-mcpfabric-1vn4r1?s=readme)
 [![MCP Fabric (Minecraft) MCP server](https://mcprush.com/badge/mcp-fabric-minecraft/compact.svg)](https://mcprush.com/to/mcp-fabric-minecraft?ref=badge)
 
 [Download on Modrinth](https://modrinth.com/mod/mcpfabric) ·
 [Installation](#quick-start) ·
-[Tools](#tools-50) ·
+[Tools](#tools-70) ·
 [Security](SECURITY.md) ·
 [Telemetry](docs/TELEMETRY.md) ·
 [Contributing](CONTRIBUTING.md)
@@ -321,7 +326,7 @@ claude --dangerously-load-development-channels server:mcpfabric
 
 ---
 
-## Tools (50+)
+## Tools (70+)
 
 **info** — `get_status`, `list_capabilities`
 **world (read)** — `get_block`, `get_blocks_region`, `find_blocks`, `get_time_and_weather`, `list_dimensions`, `raycast`
