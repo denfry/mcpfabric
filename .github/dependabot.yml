@@ -21,6 +21,11 @@ updates:
       npm-dependencies:
         patterns:
           - "*"
+    ignore:
+      # ext-apps 2.x needs the split MCP SDK v2 (@modelcontextprotocol/server, ...);
+      # we are on @modelcontextprotocol/sdk 1.x. Drop this when we migrate to SDK v2.
+      - dependency-name: "@modelcontextprotocol/ext-apps"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions used by the build and release workflows.
   - package-ecosystem: "github-actions"
