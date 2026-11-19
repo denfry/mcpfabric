@@ -17,6 +17,7 @@
 
 [![M8ven Score](https://m8ven.ai/badge/mcp/denfry-mcpfabric-1vn4r1?v=6c5af3df95ffb27c03fbe8d4881feb91)](https://m8ven.ai/mcp/denfry-mcpfabric-1vn4r1?s=readme)
 [![MCP Fabric (Minecraft) MCP server](https://mcprush.com/badge/mcp-fabric-minecraft/compact.svg)](https://mcprush.com/to/mcp-fabric-minecraft?ref=badge)
+[![MCP Marketplace](https://img.shields.io/badge/MCP%20Marketplace-mcpfabric-7C3AED)](https://mcp-marketplace.io/server/io-github-denfry-mcpfabric)
 
 [Download on Modrinth](https://modrinth.com/mod/mcpfabric) ·
 [Installation](#quick-start) ·
