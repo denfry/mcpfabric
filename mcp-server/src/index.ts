@@ -21,7 +21,7 @@ import { defaultDiscoveryPath, Discovery } from "./discovery.js";
 import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
 import { drawMarks, pngSize } from "./marks.js";
-import { groupOfMethod, READONLY, servesHints } from "./toolsets.js";
+import { COMPACT, describeFor, groupOfMethod, READONLY, servesCompact, servesHints } from "./toolsets.js";
 import { SupervisedSession } from "./supervised.js";
 import { markUntrusted, UNTRUSTED_INSTRUCTIONS } from "./untrusted.js";
 import { Channel, CHANNEL_CAPABILITY, CHANNEL_INSTRUCTIONS, CHANNEL_NOTIFICATION } from "./channel.js";
@@ -107,10 +107,10 @@ function imageResult(result: unknown): CallToolResult {
 
 function registerTools(server: McpServer, bridge: BridgeClient, supervised: SupervisedSession, groups: Set<string>): void {
   for (const def of TOOLS as ToolDef[]) {
-    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations, def.fullToken)) continue;
+    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations, def.fullToken) || !servesCompact(groups, def.name)) continue;
     const config = {
       title: def.title,
-      description: def.description,
+      description: describeFor(groups, def.description),
       inputSchema: z.object(def.inputSchema),
       ...(def.annotations ? { annotations: def.annotations } : {}),
     };
@@ -134,10 +134,10 @@ function registerTools(server: McpServer, bridge: BridgeClient, supervised: Supe
 function registerAgentTools(server: McpServer, runtime: AgentRuntime, groups: Set<string>): () => void {
   const session = new AgentSession();
   for (const def of AGENT_TOOLS) {
-    if (!servesHints(groups, def.annotations)) continue;
+    if (!servesHints(groups, def.annotations) || !servesCompact(groups, def.name)) continue;
     const config = {
       title: def.title,
-      description: def.description,
+      description: describeFor(groups, def.description),
       inputSchema: z.object(def.inputSchema),
       ...(def.annotations ? { annotations: def.annotations } : {}),
     };
@@ -197,6 +197,13 @@ const AGENT_INSTRUCTIONS =
   "(travel_to, explore, collect_blocks, craft_item) run as background jobs — follow them with job_status " +
   "and do not drive movement manually while one runs.";
 
+/** Compact mode replaces the base, agent and script paragraphs with this one (the untrusted-data rule stays). */
+const COMPACT_INSTRUCTIONS =
+  "Control a Minecraft player through the mcpfabric mod. Start with agent_brief. For anything that takes many steps " +
+  "use the background jobs travel_to, collect_blocks and craft_item and check them with job_status; do not move by hand " +
+  "while a job runs. Call observe after moving, remember what matters and recall before searching again. If the player " +
+  "paused you (actions are refused), stop and tell them with show_message.";
+
 const SCRIPT_INSTRUCTIONS =
   " Code mode: for a sequence of many bridge calls (scan then act, loops, retries), write one run_script " +
   "program instead of calling tools one by one; keep programs that worked with save_skill and reuse them with run_skill.";
@@ -206,7 +213,10 @@ function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, sc
     { name: "mcpfabric", version: PKG_VERSION },
     {
       instructions:
-        BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") + (scripts ? SCRIPT_INSTRUCTIONS : "") + (channel ? CHANNEL_INSTRUCTIONS : ""),
+        (groups.has(COMPACT)
+          ? COMPACT_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS
+          : BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") + (scripts ? SCRIPT_INSTRUCTIONS : "")) +
+        (channel ? CHANNEL_INSTRUCTIONS : ""),
       ...(channel ? { capabilities: { experimental: { [CHANNEL_CAPABILITY]: {} } } } : {}),
     },
   );
@@ -214,7 +224,8 @@ function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, sc
   registerTools(server, bridge, supervised, groups);
   const closeAgent = runtime ? registerAgentTools(server, runtime, groups) : undefined;
   // Scripts and the dashboard act (run tools, stop jobs), so a read-only server leaves them out.
-  const writable = !groups.has(READONLY);
+  // Compact mode serves neither: run_script needs a model that writes programs reliably.
+  const writable = !groups.has(READONLY) && !groups.has(COMPACT);
   const closeScripts = scripts && writable ? registerScriptTools(server, scripts) : undefined;
   if (runtime && writable) registerDashboard(server, runtime, bridge);
   // Grants of this MCP session must not outlive it.

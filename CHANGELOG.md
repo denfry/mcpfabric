@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `MCPFABRIC_TOOLSETS=compact` for small models: 31 core tools (jobs, memory, goals, containers
+  and a few direct actions) with first-sentence descriptions and a one-paragraph instruction, no
+  `run_script` and no dashboard. Tools and instructions take about 4,000 tokens instead of about
+  16,000. It combines with profiles and `readonly`, like `play,compact`.
 - `import_schematic` and `export_schematic`: Sponge schematics (`.schem` from WorldEdit and
   FastAsyncWorldEdit; versions 1 to 3 read, version 2 written) to build plans and back, up to
   64×64×64, blocks only. Files are read and written in one folder (`MCPFABRIC_SCHEMATICS_DIR`,
