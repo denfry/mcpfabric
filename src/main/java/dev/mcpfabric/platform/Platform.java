@@ -1,6 +1,7 @@
 package dev.mcpfabric.platform;
 
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * The few mod-loader services the shared code needs. Each loader entrypoint (Fabric, NeoForge)
@@ -20,4 +21,9 @@ public interface Platform {
 	String minecraftVersion();
 
 	String modVersion();
+
+	/** The loaded mods (the game and the loader included), as the loader lists them. */
+	List<ModInfo> mods();
+
+	record ModInfo(String id, String name, String version) {}
 }

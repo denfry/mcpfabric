@@ -60,10 +60,19 @@ export interface Compiled {
 
 export const keyOf = (p: Pos) => `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 
+/**
+ * What a block state may look like. States go to the game as part of a command (setblock), so
+ * anything else (spaces, braces, quotes) is refused, whichever plan or file it came from.
+ */
+const BLOCK_ID = /^[a-z0-9_.-]+(:[a-z0-9_./-]+)?$/;
+const PROP_NAME = /^[a-z0-9_]+$/;
+
 /** `oak_stairs[facing=north]` → id and properties. */
 export function parseState(text: string): Wanted {
   const s = text.trim().toLowerCase();
   const open = s.indexOf("[");
+  const id = open < 0 ? s : s.slice(0, open);
+  if (!BLOCK_ID.test(id)) throw new Error(`malformed block id in ${JSON.stringify(text.slice(0, 120))}`);
   if (open < 0) return { id: fullId(s), props: {} };
   if (!s.endsWith("]")) throw new Error(`malformed block state: ${text}`);
   const props: Record<string, string> = {};
@@ -71,7 +80,10 @@ export function parseState(text: string): Wanted {
     if (!pair.trim()) continue;
     const eq = pair.indexOf("=");
     if (eq <= 0) throw new Error(`malformed property '${pair}' in ${text}`);
-    props[pair.slice(0, eq).trim()] = pair.slice(eq + 1).trim();
+    const key = pair.slice(0, eq).trim();
+    const value = pair.slice(eq + 1).trim();
+    if (!PROP_NAME.test(key) || !PROP_NAME.test(value)) throw new Error(`malformed property '${pair}' in ${text}`);
+    props[key] = value;
   }
   return { id: fullId(s.slice(0, open)), props };
 }

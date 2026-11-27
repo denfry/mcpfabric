@@ -4,8 +4,8 @@ import http from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { Client } from "@modelcontextprotocol/client";
 import { z } from "zod";
 
 // Runs against the compiled server: npm run build first (npm test does).
@@ -89,6 +89,9 @@ const BRIDGE_TOOLS = {
   // navigation
   navigate_to: { method: "nav.pathTo", args: { ...pos, sprint: true, allowDig: false, allowPillar: true, allowSwim: false }, invalid: { ...pos, reachRadius: 17 } },
   navigation_status: { method: "nav.status", args: {} },
+  start_recording: { method: "recorder.start", args: {} },
+  stop_recording: { method: "recorder.stop", args: { name: "smelt iron" }, invalid: { name: 5 } },
+  recording_status: { method: "recorder.status", args: {} },
   stop_navigation: { method: "nav.stop", args: {} },
   // session and menus
   get_screen: { method: "screen.get", args: {} },
@@ -101,6 +104,14 @@ const BRIDGE_TOOLS = {
   set_text_field: { method: "ui.setText", args: { widget: 3, text: "diamond" }, invalid: { widget: 3, text: "x".repeat(257) } },
   // events
   poll_events: { method: "events.getRecent", args: { types: ["chat"], sinceId: 10 }, invalid: { sinceId: -1 } },
+  // devtools
+  list_mods: { method: "dev.mods", args: {} },
+  list_registry: { method: "dev.registry", args: { registry: "item", namespace: "create", contains: "gear", limit: 50 }, invalid: { limit: 0 } },
+  read_log: { method: "dev.log", args: { level: "WARN", contains: "Exception", lines: 20 }, invalid: { level: "LOUD" } },
+  read_crash_report: { method: "dev.crash", args: { index: 1, maxChars: 5000 }, invalid: { index: -1 } },
+  watch_blocks: { method: "dev.watch", args: { from: { x: 0, y: 60, z: 0 }, to: { x: 8, y: 64, z: 8 }, ticks: 20, maxChanges: 50 }, invalid: { from: { x: 0, y: 60, z: 0 }, to: { x: 1, y: 1, z: 1 }, ticks: 500 } },
+  inspect_mob_brain: { method: "dev.brain", args: { uuid: "00000000-0000-0000-0000-000000000001" } },
+  tick_control: { method: "dev.tick", args: { action: "sprint", ticks: 1200 }, invalid: { action: "rewind" } },
   // supervised
   supervised_status: { method: "supervised.status", args: {} },
   supervised_stop: { method: "supervised.stop", args: {} },

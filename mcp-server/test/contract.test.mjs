@@ -73,8 +73,11 @@ test("the read-only token allows exactly the methods of the read-only bridge too
   const registered = registeredMethods();
   assert.deepEqual([...allowed].filter((m) => !registered.has(m)).sort(), [], "ReadAccess lists methods the mod does not register");
   // Supervised reads run under a grant of a supervisor session, which only the full token can open.
-  const readTools = TOOLS.filter((t) => t.annotations.readOnlyHint && !t.supervised);
+  // Logs and crash reports only read, but can hold private text; they need the full token.
+  const readTools = TOOLS.filter((t) => t.annotations.readOnlyHint && !t.supervised && !t.fullToken);
   assert.deepEqual(readTools.filter((t) => !allowed.has(t.method)).map((t) => `${t.name} (${t.method})`).sort(), [], "read-only tools the read token cannot call");
   const writing = TOOLS.filter((t) => !t.annotations.readOnlyHint && allowed.has(t.method));
   assert.deepEqual(writing.map((t) => t.name).sort(), [], "ReadAccess allows a method of a tool that is not read-only");
+  const fullOnly = TOOLS.filter((t) => t.fullToken && allowed.has(t.method));
+  assert.deepEqual(fullOnly.map((t) => t.name).sort(), [], "ReadAccess allows a method of a tool marked fullToken");
 });

@@ -6,10 +6,11 @@
  * bridge, then serves them over stdio (default) or streamable HTTP. All diagnostic logging goes to
  * stderr so it never corrupts the stdio JSON-RPC stream.
  */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { CallToolResult, ServerNotification } from "@modelcontextprotocol/sdk/types.js";
+import { NodeStreamableHTTPServerTransport } from "@modelcontextprotocol/node";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { McpServer } from "@modelcontextprotocol/server";
+import type { CallToolResult, ServerNotification } from "@modelcontextprotocol/server";
+import { z } from "zod";
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
@@ -20,7 +21,7 @@ import { defaultDiscoveryPath, Discovery } from "./discovery.js";
 import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
 import { drawMarks, pngSize } from "./marks.js";
-import { groupOfMethod, READONLY, servesHints } from "./toolsets.js";
+import { COMPACT, describeFor, groupOfMethod, READONLY, servesCompact, servesHints } from "./toolsets.js";
 import { SupervisedSession } from "./supervised.js";
 import { markUntrusted, UNTRUSTED_INSTRUCTIONS } from "./untrusted.js";
 import { Channel, CHANNEL_CAPABILITY, CHANNEL_INSTRUCTIONS, CHANNEL_NOTIFICATION } from "./channel.js";
@@ -153,19 +154,20 @@ class Games {
 
 function registerTools(server: McpServer, games: Games, groups: Set<string>): void {
   for (const def of TOOLS as ToolDef[]) {
-    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations)) continue;
+    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations, def.fullToken) || !servesCompact(groups, def.name)) continue;
     const config = {
       title: def.title,
-      description: def.description,
-      inputSchema: games.schema(def.inputSchema),
+      description: describeFor(groups, def.description),
+      inputSchema: z.object(games.schema(def.inputSchema)),
       ...(def.annotations ? { annotations: def.annotations } : {}),
     };
 
     const handler = async (input: Record<string, unknown>): Promise<CallToolResult> => {
       try {
         const { member, args } = await games.pick(input);
-        const result = def.supervised ? await games.supervisor(member).call(def.method, args) : await member.bridge.call(def.method, args);
-        if (def.kind === "image") return imageResult(result);
+        const raw = def.supervised ? await games.supervisor(member).call(def.method, args) : await member.bridge.call(def.method, args);
+        if (def.kind === "image") return imageResult(raw);
+        const result = def.post ? def.post(raw, args) : raw;
         return jsonResult(def.untrusted ? markUntrusted(result) : result);
       } catch (err) {
         return errorResult(err);
@@ -180,11 +182,11 @@ function registerTools(server: McpServer, games: Games, groups: Set<string>): vo
 function registerAgentTools(server: McpServer, games: Games, groups: Set<string>): () => void {
   const session = new AgentSession();
   for (const def of AGENT_TOOLS) {
-    if (!servesHints(groups, def.annotations)) continue;
+    if (!servesHints(groups, def.annotations) || !servesCompact(groups, def.name)) continue;
     const config = {
       title: def.title,
-      description: def.description,
-      inputSchema: games.schema(def.inputSchema),
+      description: describeFor(groups, def.description),
+      inputSchema: z.object(games.schema(def.inputSchema)),
       ...(def.annotations ? { annotations: def.annotations } : {}),
     };
     const handler = async (input: Record<string, unknown>): Promise<CallToolResult> => {
@@ -213,7 +215,7 @@ function registerScriptTools(server: McpServer, games: Games, host: ScriptHost):
     const config = {
       title: def.title,
       description: def.description,
-      inputSchema: games.schema(def.inputSchema),
+      inputSchema: z.object(games.schema(def.inputSchema)),
       annotations: def.annotations,
     };
     const handler = async (input: Record<string, unknown>): Promise<CallToolResult> => {
@@ -242,7 +244,7 @@ function registerListClients(server: McpServer, fleet: Fleet): void {
       title: "List running games",
       description:
         "List the running games this server can act in, newest first: the value to pass as client to any tool, the player's account name, and which game tools act in when client is left out (default). Each game has its own jobs and scripts; games in the same world share memory, goals and the map.",
-      inputSchema: {},
+      inputSchema: z.object({}),
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     async (): Promise<CallToolResult> => {
@@ -274,6 +276,13 @@ const AGENT_INSTRUCTIONS =
   "(travel_to, explore, collect_blocks, craft_item) run as background jobs — follow them with job_status " +
   "and do not drive movement manually while one runs.";
 
+/** Compact mode replaces the base, agent and script paragraphs with this one (the untrusted-data rule stays). */
+const COMPACT_INSTRUCTIONS =
+  "Control a Minecraft player through the mcpfabric mod. Start with agent_brief. For anything that takes many steps " +
+  "use the background jobs travel_to, collect_blocks and craft_item and check them with job_status; do not move by hand " +
+  "while a job runs. Call observe after moving, remember what matters and recall before searching again. If the player " +
+  "paused you (actions are refused), stop and tell them with show_message.";
+
 const SCRIPT_INSTRUCTIONS =
   " Code mode: for a sequence of many bridge calls (scan then act, loops, retries), write one run_script " +
   "program instead of calling tools one by one; keep programs that worked with save_skill and reuse them with run_skill.";
@@ -284,11 +293,13 @@ function buildServer(main: Member, fleet: Fleet | undefined, groups: Set<string>
     { name: "mcpfabric", version: PKG_VERSION },
     {
       instructions:
-        BASE_INSTRUCTIONS +
-        UNTRUSTED_INSTRUCTIONS +
-        (fleet ? MULTI_INSTRUCTIONS : "") +
-        (runtime ? AGENT_INSTRUCTIONS : "") +
-        (scripts ? SCRIPT_INSTRUCTIONS : "") +
+        (groups.has(COMPACT)
+          ? COMPACT_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (fleet ? MULTI_INSTRUCTIONS : "")
+          : BASE_INSTRUCTIONS +
+            UNTRUSTED_INSTRUCTIONS +
+            (fleet ? MULTI_INSTRUCTIONS : "") +
+            (runtime ? AGENT_INSTRUCTIONS : "") +
+            (scripts ? SCRIPT_INSTRUCTIONS : "")) +
         (channel ? CHANNEL_INSTRUCTIONS : ""),
       ...(channel ? { capabilities: { experimental: { [CHANNEL_CAPABILITY]: {} } } } : {}),
     },
@@ -298,7 +309,8 @@ function buildServer(main: Member, fleet: Fleet | undefined, groups: Set<string>
   registerTools(server, games, groups);
   const closeAgent = runtime ? registerAgentTools(server, games, groups) : undefined;
   // Scripts and the dashboard act (run tools, stop jobs), so a read-only server leaves them out.
-  const writable = !groups.has(READONLY);
+  // Compact mode serves neither: run_script needs a model that writes programs reliably.
+  const writable = !groups.has(READONLY) && !groups.has(COMPACT);
   const closeScripts = scripts && writable ? registerScriptTools(server, games, scripts) : undefined;
   // The dashboard and the channel follow the default game.
   if (runtime && writable) registerDashboard(server, runtime, bridge);
@@ -342,7 +354,7 @@ function startChannel(server: McpServer, bridge: BridgeClient, runtime: AgentRun
 
 async function runHttp(main: Member, fleet: Fleet | undefined, cfg: ServerConfig): Promise<void> {
   // Stateful streamable-HTTP: one transport+server per session id.
-  const sessions = new Map<string, { server: McpServer; transport: StreamableHTTPServerTransport; lastSeen: number }>();
+  const sessions = new Map<string, { server: McpServer; transport: NodeStreamableHTTPServerTransport; lastSeen: number }>();
 
   // Close sessions whose client went away without DELETE; otherwise they would stay open forever.
   const sweep = setInterval(() => {
@@ -387,7 +399,7 @@ async function runHttp(main: Member, fleet: Fleet | undefined, cfg: ServerConfig
         res.writeHead(503, { "Content-Type": "text/plain" }).end("Too many open MCP sessions; close one (DELETE) or wait for idle ones to expire.");
         return;
       }
-      const transport = new StreamableHTTPServerTransport({
+      const transport = new NodeStreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (id: string) => {
           sessions.set(id, entry!);

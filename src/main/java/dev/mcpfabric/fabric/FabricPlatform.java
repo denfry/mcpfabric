@@ -6,6 +6,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
+import java.util.List;
 
 final class FabricPlatform implements Platform {
 	@Override
@@ -31,6 +32,13 @@ final class FabricPlatform implements Platform {
 	@Override
 	public String modVersion() {
 		return version(McpFabric.MOD_ID, "dev");
+	}
+
+	@Override
+	public List<ModInfo> mods() {
+		return FabricLoader.getInstance().getAllMods().stream()
+				.map(c -> new ModInfo(c.getMetadata().getId(), c.getMetadata().getName(), c.getMetadata().getVersion().getFriendlyString()))
+				.toList();
 	}
 
 	private static String version(String modId, String fallback) {

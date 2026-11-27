@@ -581,7 +581,7 @@ public final class BotController {
 		return -1;
 	}
 
-	private static int selectedSlot(LocalPlayer p) {
+	public static int selectedSlot(LocalPlayer p) {
 		//? if >=1.21.5 {
 		return p.getInventory().getSelectedSlot();
 		//?} else
