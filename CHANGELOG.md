@@ -13,8 +13,9 @@ All notable changes to this project are documented here. The format is based on
   `logs/latest.log` or `debug.log` by minimum level or text, stack traces kept with their line),
   `read_crash_report` (`dev.crash`) and `tick_control` (`dev.tick`: freeze, step, sprint, tick rate;
   changing it also needs `enableCommands`, and it is in the audit log). Text from log and crash
-  files has IP and server addresses and the home folder replaced. The reads are allowed for the
-  read-only token. Fabric and NeoForge.
+  files has IP and server addresses and the home folder replaced. The read-only token may list
+  mods and registries but not read logs or crash reports, and changing the tick rate goes through
+  `requireApproval` like a command. Fabric and NeoForge.
 
 ## [0.10.0] - 2026-11-09
 

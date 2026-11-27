@@ -199,7 +199,8 @@ only when you need it, for example to test a mod's UI. It also needs `enablePlay
 `enableDevTools` (off) serves the developer tools: the game's log and crash reports, loaded mods,
 registries and the tick rate. Logs can hold chat, player names and whatever other mods print; IP
 and server addresses and the home folder are replaced, but not every way a mod might print a host
-name, so turn it on for development worlds. `requireAuth` (default `true`)
+name, so turn it on for development worlds; the read-only token cannot read logs or crash
+reports, and changing the tick rate asks for approval when `requireApproval` has `command`. `requireAuth` (default `true`)
 gates every request behind the bearer token — only set it to `false` if you understand that it
 removes the sole authentication on an operator-level bridge. Keep `host` on `127.0.0.1` unless you
 fully understand the consequences — the bridge grants operator-level power. `worldIdKey` turns a

@@ -17,7 +17,7 @@ public final class ReadAccess {
 			"vision.screenshot", "vision.describeScene",
 			"perception.scan", "perception.blocks", "perception.entities",
 			"recipes.query", "nav.status", "screen.get", "ui.widgets", "session.worlds", "supervised.status",
-			"dev.mods", "dev.registry", "dev.log", "dev.crash");
+			"dev.mods", "dev.registry");
 
 	private ReadAccess() {}
 
