@@ -16,6 +16,13 @@ All notable changes to this project are documented here. The format is based on
   files has IP and server addresses and the home folder replaced. The read-only token may list
   mods and registries but not read logs or crash reports, and changing the tick rate goes through
   `requireApproval` like a command. Fabric and NeoForge.
+- Two more developer tools behind `enableDevTools`: `watch_blocks` (`dev.watch`) samples a region of
+  up to 32x32x32 once per tick for up to 200 ticks (10 s of real time at most) and lists every block
+  that changed with its state before and after; `inspect_mob_brain` (`dev.brain`) shows a mob's
+  target, navigation, goals and target goals by priority, and for brain-driven mobs the active
+  activities, running behaviors and memories. On Fabric before 26.1, vanilla goal names are
+  intermediary class names. The `readonly` tool set leaves out `read_log` and `read_crash_report`,
+  which the read-only token cannot call.
 
 ## [0.10.0] - 2026-11-09
 

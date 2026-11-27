@@ -56,6 +56,11 @@ export interface ToolDef {
    * output): it is returned wrapped as untrusted data (see untrusted.ts).
    */
   untrusted?: boolean;
+  /**
+   * Only reads, but the mod refuses it for the read-only token (game logs and crash reports can hold
+   * chat and other private text), so the `readonly` tool set leaves it out.
+   */
+  fullToken?: boolean;
 }
 
 // ----- reusable schema fragments -------------------------------------------------------------
@@ -908,6 +913,7 @@ export const TOOLS: ToolDef[] = [
     },
     annotations: READ,
     untrusted: true,
+    fullToken: true,
   },
   {
     name: "read_crash_report",
@@ -921,6 +927,7 @@ export const TOOLS: ToolDef[] = [
     },
     annotations: READ,
     untrusted: true,
+    fullToken: true,
   },
   {
     name: "tick_control",
@@ -934,5 +941,30 @@ export const TOOLS: ToolDef[] = [
       rate: z.number().min(1).max(10000).optional().describe("For rate: ticks per second."),
     },
     annotations: { ...WRITE, idempotentHint: true },
+  },
+  {
+    name: "watch_blocks",
+    method: "dev.watch",
+    title: "Watch blocks change",
+    description:
+      "Needs enableDevTools and an integrated or dedicated server. Samples a region (up to 32x32x32) once per tick for the given number of ticks (at most 10 seconds of real time) and lists every block that changed: position, state before and after, and the tick it was seen. Use it to see what a redstone circuit, a farm or a machine from a mod actually does. A change undone within the same tick is not seen.",
+    inputSchema: {
+      from: z.object(vec3()).describe("One corner of the region."),
+      to: z.object(vec3()).describe("The opposite corner."),
+      ...dimensionOpt,
+      ticks: z.number().int().min(1).max(200).optional().default(40),
+      maxChanges: z.number().int().min(1).max(1000).optional().default(200),
+    },
+    annotations: READ,
+  },
+  {
+    name: "inspect_mob_brain",
+    method: "dev.brain",
+    title: "Inspect a mob's AI",
+    description:
+      "Needs enableDevTools and an integrated or dedicated server. What a living entity is thinking: its target, where it is walking, its goals by priority (running or not) and target goals, and for brain-driven mobs (villagers, piglins, axolotls...) the active activities, running behaviors and current memories. Get the uuid from query_entities. On Fabric before Minecraft 26.1, vanilla goal names appear as obfuscated class names (class_1234).",
+    inputSchema: { uuid: z.string().describe("Entity UUID.") },
+    annotations: READ,
+    untrusted: true,
   },
 ];
