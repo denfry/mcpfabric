@@ -160,6 +160,9 @@ whose count changed. Read it before you trust it:
 - Entities differ between runs, so hits and uses on entities are left as comments.
 - Commands you type in chat are not recorded, and a recorded chat line that starts with `/` is
   left as a comment instead of being sent again.
+- Breaking, placing, using and opening are read from the player's own mouse buttons, so what a bot
+  does through the bridge is not recorded, apart from hotbar choices, chat and walking. Record a
+  person playing.
 
 An agent can record too: `start_recording` and `stop_recording` (see the README) return the same
 steps and the draft, so the player can show the agent a task instead of describing it.
