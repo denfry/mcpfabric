@@ -54,6 +54,7 @@ class DevInspectTest {
 	void valuesAreShort() {
 		assertEquals("3 items", DevInspect.shortText(List.of(1, 2, 3)));
 		assertEquals("1 item", DevInspect.shortText(List.of(1)));
+		assertEquals("Object", DevInspect.shortText(new Object()));
 		assertEquals(DevInspect.MAX_VALUE_CHARS + 3, DevInspect.shortText("x".repeat(500)).length());
 	}
 

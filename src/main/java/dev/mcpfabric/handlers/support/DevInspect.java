@@ -47,6 +47,8 @@ public final class DevInspect {
 	/** A value as short text: collections by size, anything else by its text, cut to a limit. */
 	public static String shortText(Object v) {
 		String s = v instanceof Collection<?> c ? c.size() + " item" + (c.size() == 1 ? "" : "s") : String.valueOf(v);
+		// Object's own toString (pkg.Class@1a2b3c) says nothing: the class name is enough.
+		if (v != null && s.equals(v.getClass().getName() + "@" + Integer.toHexString(v.hashCode()))) s = v.getClass().getSimpleName();
 		return s.length() > MAX_VALUE_CHARS ? s.substring(0, MAX_VALUE_CHARS) + "..." : s;
 	}
 
