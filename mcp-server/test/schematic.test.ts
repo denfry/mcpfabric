@@ -13,6 +13,7 @@ import {
   schematicPath,
   schematicsDir,
   schematicToPlan,
+  shownPath,
   writeSchematic,
   writeSchematicFile,
 } from "../src/agent/schematic.js";
@@ -168,4 +169,10 @@ test("a file with millions of tiny tags is refused before it fills the memory", 
   head.writeInt32BE(count, 1);
   const file = nbt([compound("", [name(9, "Junk"), head, Buffer.alloc(count, 0)])]);
   assert.throws(() => parseSchematic(file), /more than 2000000 tags/);
+});
+
+test("paths shown to the model keep the home folder out", () => {
+  assert.equal(shownPath("C:\\Users\\alice\\.mcpfabric\\schematics\\a.schem", "C:\\Users\\Alice"), "~\\.mcpfabric\\schematics\\a.schem");
+  assert.equal(shownPath("/home/alice/s/a.schem", "/home/alice"), "~/s/a.schem");
+  assert.equal(shownPath("/srv/schematics/a.schem", "/home/alice"), "/srv/schematics/a.schem");
 });

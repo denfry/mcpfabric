@@ -29,7 +29,7 @@ import { formatGoalTree, GOAL_STATUSES, isOpen } from "./goals.js";
 import { formatJob, JobFailure, type JobContext } from "./jobs.js";
 import { formatMemory, MEMORY_KINDS, MEMORY_STATUSES, SentLedger, type Memory, type MemoryKind } from "./memory.js";
 import { formatObserveReport } from "./observe.js";
-import { parseSchematic, planToSchematic, readSchematicFile, schematicsDir, schematicToPlan, writeSchematic, writeSchematicFile } from "./schematic.js";
+import { parseSchematic, planToSchematic, readSchematicFile, schematicsDir, schematicToPlan, shownPath, writeSchematic, writeSchematicFile } from "./schematic.js";
 import { collectRecipes, formatPlan, plan } from "./planner.js";
 import type { AgentRuntime } from "./runtime.js";
 import { buildStructure, collect, containerItems, craft, explore, openContainerAt, recordContainer, travel, verifyPlan } from "./skills.js";
@@ -673,7 +673,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         } catch {
           // No folder yet: nothing to list.
         }
-        return files.length ? `schematics in ${dir}:\n${files.join("\n")}` : `no .schem files in ${dir}`;
+        return files.length ? `schematics in ${shownPath(dir)}:\n${files.join("\n")}` : `no .schem files in ${shownPath(dir)}`;
       }
       if (!args.name || !args.origin) throw new Error("importing needs name and origin");
       const input = schematicToPlan(parseSchematic(readSchematicFile(args.file, dir)), {
@@ -705,7 +705,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       const plan = await loadPlan(rt, args.name);
       const s = planToSchematic(plan);
       const path = writeSchematicFile(args.file, writeSchematic(s), args.overwrite);
-      return `wrote ${s.width}x${s.height}x${s.length} (width x height x length) to ${path}`;
+      return `wrote ${s.width}x${s.height}x${s.length} (width x height x length) to ${shownPath(path)}`;
     },
   },
   {

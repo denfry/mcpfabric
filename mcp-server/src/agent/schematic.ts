@@ -34,6 +34,12 @@ export function schematicsDir(env: NodeJS.ProcessEnv = process.env): string {
   return env.MCPFABRIC_SCHEMATICS_DIR || join(env.MCPFABRIC_DATA_DIR || join(homedir(), ".mcpfabric"), "schematics");
 }
 
+/** A path as the model is shown it: the home folder as "~", so the account name stays out. */
+export function shownPath(path: string, home: string = homedir()): string {
+  if (home.length > 3 && path.toLowerCase().startsWith(home.toLowerCase())) return "~" + path.slice(home.length);
+  return path;
+}
+
 /** A file name in the schematics folder: no folders, ends with .schem. */
 export function schematicPath(file: string, dir = schematicsDir()): string {
   const name = file.endsWith(".schem") ? file : `${file}.schem`;
@@ -45,14 +51,14 @@ export function schematicPath(file: string, dir = schematicsDir()): string {
 
 export function readSchematicFile(file: string, dir = schematicsDir()): Buffer {
   const path = schematicPath(file, dir);
-  if (!existsSync(path)) throw new Error(`no schematic "${file}" in ${dir}`);
+  if (!existsSync(path)) throw new Error(`no schematic "${file}" in ${shownPath(dir)}`);
   if (statSync(path).size > MAX_FILE_BYTES) throw new Error(`"${file}" is larger than ${MAX_FILE_BYTES / 1024 / 1024} MiB`);
   return readFileSync(path);
 }
 
 export function writeSchematicFile(file: string, data: Buffer, overwrite: boolean, dir = schematicsDir()): string {
   const path = schematicPath(file, dir);
-  if (existsSync(path) && !overwrite) throw new Error(`"${file}" exists in ${dir}; pass overwrite to replace it`);
+  if (existsSync(path) && !overwrite) throw new Error(`"${file}" exists in ${shownPath(dir)}; pass overwrite to replace it`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(path, data);
   return path;
