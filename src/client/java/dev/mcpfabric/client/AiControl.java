@@ -138,7 +138,8 @@ public final class AiControl {
 		return TOGGLE_KEY.getTranslatedKeyMessage().copy().withStyle(ChatFormatting.YELLOW);
 	}
 
-	private static void chat(Component text) {
+	/** A line for the player in chat, marked as from mcpfabric; never sent to the server. */
+	public static void chat(Component text) {
 		addChat(Component.literal("[mcpfabric] ").withStyle(ChatFormatting.GOLD).append(text));
 	}
 

@@ -43,6 +43,9 @@ mcpfabric.config.json
 # mcp-server compiled tests
 .test-build/
 
+# mcpfabric-test failure artifacts
+mctest-results/
+
 # MCP bundle build output
 .mcpb-stage/
 dist-mcpb/

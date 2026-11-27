@@ -7,6 +7,7 @@
  * Java handler registry in the mod (`dev.mcpfabric.handlers.*`).
  */
 import { z } from "zod";
+import { draftTest, type RecordedStep } from "./testing/draft.js";
 
 /**
  * MCP tool hints. Every tool states all four, so clients never fall back to the spec defaults
@@ -56,6 +57,8 @@ export interface ToolDef {
    * output): it is returned wrapped as untrusted data (see untrusted.ts).
    */
   untrusted?: boolean;
+  /** Reshapes the bridge's answer before the model sees it (and before it is marked untrusted). */
+  post?: (result: unknown, args: Record<string, unknown>) => unknown;
   /**
    * Only reads, but the mod refuses it for the read-only token (game logs and crash reports can hold
    * chat and other private text), so the `readonly` tool set leaves it out.
@@ -658,6 +661,36 @@ export const TOOLS: ToolDef[] = [
     annotations: READ,
   },
   {
+    name: "start_recording",
+    method: "recorder.start",
+    title: "Record the player",
+    description:
+      "Client-only; needs enablePlayerControl. Start recording what the player does by hand: where they walk, hotbar choices, blocks broken and placed, blocks, items and entities used, containers opened (and what the inventory gained or lost) and their own chat. The player is told in chat. Ask the player to show you a task, then call stop_recording to get the steps (learn by demonstration) and a draft test. Stops by itself after 500 steps, 30 minutes or on leaving the world.",
+    inputSchema: {},
+    annotations: ACT,
+  },
+  {
+    name: "stop_recording",
+    method: "recorder.stop",
+    title: "Stop recording",
+    description:
+      "Client-only. Stop the recording and return its steps (kind: start, move, select, break, place, use_block, use_item, use_entity, attack, open_container, close_container, chat, end; with positions, block states, items and t in ms) and `draft`, a mcpfabric-test file that replays them. Commands the player typed and clicks inside menus are not recorded.",
+    inputSchema: {
+      name: z.string().max(200).optional().describe("Name of the test in the draft."),
+    },
+    annotations: ACT,
+    untrusted: true,
+    post: (result, args) => withDraft(result, typeof args.name === "string" ? args.name : undefined),
+  },
+  {
+    name: "recording_status",
+    method: "recorder.status",
+    title: "Recording status",
+    description: "Client-only. Whether a recording runs, how many steps it has, for how long, and why it stopped.",
+    inputSchema: {},
+    annotations: READ,
+  },
+  {
     name: "stop_navigation",
     method: "nav.stop",
     title: "Stop navigation",
@@ -968,3 +1001,10 @@ export const TOOLS: ToolDef[] = [
     untrusted: true,
   },
 ];
+
+/** Adds the draft test to a recorder.stop answer. */
+export function withDraft(result: unknown, name?: string): unknown {
+  if (!result || typeof result !== "object" || !Array.isArray((result as { steps?: unknown }).steps)) return result;
+  const steps = (result as { steps: RecordedStep[] }).steps;
+  return { ...(result as object), draft: draftTest(steps, { name }) };
+}

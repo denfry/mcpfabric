@@ -20,6 +20,16 @@ public final class Gates {
 	}
 
 	/**
+	 * Recording the player's own actions ({@code recorder.*}). Needs player control, but not an
+	 * unpaused AI: the player is the one playing while it records.
+	 */
+	public static void recording() throws RpcException {
+		if (!McpFabric.config().enablePlayerControl) {
+			throw RpcException.unavailable("Player control is disabled in mcpfabric.config.json (enablePlayerControl=false).");
+		}
+	}
+
+	/**
 	 * The player paused the AI and has control. Every action is refused until they resume it; do not
 	 * retry in a loop.
 	 */
