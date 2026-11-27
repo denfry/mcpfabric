@@ -94,7 +94,7 @@ public final class AiControl {
 	public static void status() {
 		boolean server = Minecraft.getInstance().getSingleplayerServer() != null;
 		String state = Takeover.paused() ? "paused (you have control)" : "active";
-		chat(Component.literal("AI " + state + ". Bridge on " + McpFabric.config().host + ":" + McpFabric.config().port
+		chat(Component.literal("AI " + state + ". Bridge on " + McpFabric.config().host + ":" + McpFabric.bridgePort()
 				+ (server ? ", integrated server" : "") + ". Toggle with ").append(keyName()).append("."));
 	}
 

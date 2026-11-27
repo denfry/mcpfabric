@@ -2,6 +2,7 @@ package dev.mcpfabric.client;
 
 import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.RpcRouter;
+import dev.mcpfabric.bridge.DiscoveryFile;
 import dev.mcpfabric.handlers.support.Approvals;
 import dev.mcpfabric.client.handlers.ClientChatHandlers;
 import dev.mcpfabric.client.handlers.ContainerHandlers;
@@ -55,6 +56,8 @@ public final class McpFabricClient {
 
 	/** End of every client tick: drives the {@link BotController}, watches the local player, remembers the world joined last, runs supervised input. */
 	public static void onClientTick(Minecraft client) {
+		// Names this game in its discovery file; a no-op once the name is known.
+		DiscoveryFile.setPlayer(client.getUser().getName());
 		BotController.get().onClientTick(client);
 		ClientEvents.onClientTick(client);
 		AiControl.onClientTick(client);

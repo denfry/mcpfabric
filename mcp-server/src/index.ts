@@ -324,9 +324,17 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
 async function main(): Promise<void> {
   const cfg = loadConfig();
   // Without MCPFABRIC_TOKEN, find the running game through the file the mod writes.
-  const discovery = cfg.token ? undefined : new Discovery(defaultDiscoveryPath());
+  const discovery = cfg.token ? undefined : new Discovery(defaultDiscoveryPath(), cfg.instance);
   const bridge = new BridgeClient(cfg.bridgeUrl, cfg.token, cfg.timeoutMs, discovery ? () => discovery.read() : undefined);
-  if (discovery) log(`MCPFABRIC_TOKEN not set: connecting to the game found in ${discovery.path}`);
+  if (discovery && cfg.instance) {
+    const running = discovery.instances().map((i) => i.name);
+    log(
+      `MCPFABRIC_TOKEN not set: connecting to the game named "${cfg.instance}"` +
+        (running.length ? ` (running now: ${running.join(", ")})` : " (no game running yet)"),
+    );
+  } else if (discovery) {
+    log(`MCPFABRIC_TOKEN not set: connecting to the game found in ${discovery.path}`);
+  }
 
   // Best-effort connectivity hint (does not block startup; the mod may launch later).
   bridge

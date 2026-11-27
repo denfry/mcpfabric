@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- Several games on one machine: a client whose bridge port is taken binds the next free one (up to
+  nine after it; a dedicated server keeps its port), and every game also writes
+  `~/.mcpfabric/bridges/<pid>.json` with a name (new config `instanceName`, else the account name,
+  else the game folder). `MCPFABRIC_INSTANCE` makes the MCP server connect to that game; without it
+  nothing changes. Fabric and NeoForge.
+
 ## [0.10.0] - 2026-11-09
 
 Fabric and NeoForge. 0.9.1 was never published; its fix ships here.

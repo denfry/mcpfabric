@@ -164,6 +164,13 @@ address and token to `~/.mcpfabric/bridge.json` (readable only by your user, rem
 stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writeDiscoveryFile` to
 `false` to turn that off and copy `token` into `MCPFABRIC_TOKEN` instead.
 
+**Several games on one machine** (two bots, a client next to a test client): a client whose port is
+taken uses the next free one (up to nine after it), and every game writes its own
+`~/.mcpfabric/bridges/<pid>.json` with a name: `instanceName` from its config, else the player's
+account name, else the game folder's name. Start one MCP server per game with
+`MCPFABRIC_INSTANCE=<name>` (the player name, folder name or pid also work); without it the server
+connects to the game that started last. A dedicated server keeps exactly its configured port.
+
 ### Mod config (`config/mcpfabric.config.json`)
 
 ```json
@@ -176,6 +183,7 @@ stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writ
   "callTimeoutMs": 8000,
   "worldIdKey": "generated automatically",
   "writeDiscoveryFile": true,
+  "instanceName": "",
   "auditLog": true,
   "enableWorldWrite": true,
   "enableCommands": true,
@@ -233,6 +241,7 @@ node dist/index.js        # finds the running game through ~/.mcpfabric/bridge.j
 | `MCPFABRIC_URL`        | `http://127.0.0.1:25599` | Address of the mod's HTTP bridge.                 |
 | `MCPFABRIC_TOKEN`      | from `bridge.json`       | Bearer token from the mod config. Unset: address and token come from `~/.mcpfabric/bridge.json`, read again on every call. |
 | `MCPFABRIC_DISCOVERY`  | `~/.mcpfabric/bridge.json` | Where to find the running game when `MCPFABRIC_TOKEN` is not set. |
+| `MCPFABRIC_INSTANCE`   | the newest game          | With several games running: connect to the one with this name, player, game folder or pid (from `~/.mcpfabric/bridges/`). |
 | `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge.                   |
 | `MCPFABRIC_TRANSPORT`  | `stdio`                  | `stdio` or `http`.                                |
 | `MCPFABRIC_HTTP_PORT`  | `25600`                  | Port for the `http` transport (`/mcp`).           |

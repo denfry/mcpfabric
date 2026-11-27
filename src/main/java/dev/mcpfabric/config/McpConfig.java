@@ -52,6 +52,13 @@ public final class McpConfig {
 	public boolean writeDiscoveryFile = true;
 
 	/**
+	 * A name for this game in its discovery file, so an MCP server started with
+	 * MCPFABRIC_INSTANCE=&lt;name&gt; connects to it when several games run. Empty: the player's account
+	 * name, or the game folder's name.
+	 */
+	public String instanceName = "";
+
+	/**
 	 * Record every call with a lasting effect (commands, world and entity edits, player admin, chat,
 	 * interactions) in logs/mcpfabric-audit.jsonl next to the game's own logs.
 	 */
