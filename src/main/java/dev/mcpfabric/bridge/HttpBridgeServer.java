@@ -10,6 +10,7 @@ import dev.mcpfabric.events.EventBus;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
@@ -46,8 +47,29 @@ public final class HttpBridgeServer {
 		this.sse = sse;
 	}
 
+	/** Ports tried after the configured one when it is taken (clients only). */
+	static final int SPARE_PORTS = 9;
+	private int port;
+
+	/**
+	 * Binds the configured port. On a client whose port another game already holds (two clients on
+	 * one machine), it tries the next {@link #SPARE_PORTS} ports; each game's discovery file then
+	 * says which one it got. A dedicated server keeps exactly its configured port.
+	 */
 	public void start() throws IOException {
-		http = HttpServer.create(new InetSocketAddress(cfg.host, cfg.port), 0);
+		int tries = McpFabric.platform().isClient() ? SPARE_PORTS + 1 : 1;
+		for (int i = 0; ; i++) {
+			try {
+				http = HttpServer.create(new InetSocketAddress(cfg.host, cfg.port + i), 0);
+				port = cfg.port + i;
+				break;
+			} catch (BindException e) {
+				if (i + 1 >= tries || cfg.port + i + 1 > 65535) throw e;
+			}
+		}
+		if (port != cfg.port) {
+			McpFabric.LOGGER.warn("[mcpfabric] port {} is in use (another game?); the bridge uses {} instead", cfg.port, port);
+		}
 
 		AtomicInteger n = new AtomicInteger();
 		ThreadFactory tf = r -> {
@@ -63,7 +85,12 @@ public final class HttpBridgeServer {
 		http.createContext("/events", this::handleEvents);
 		http.start();
 
-		McpFabric.LOGGER.info("[mcpfabric] HTTP bridge listening on http://{}:{}", cfg.host, cfg.port);
+		McpFabric.LOGGER.info("[mcpfabric] HTTP bridge listening on http://{}:{}", cfg.host, port);
+	}
+
+	/** The port the bridge listens on: the configured one, or a spare one after it. */
+	public int port() {
+		return port;
 	}
 
 	public void stop() {

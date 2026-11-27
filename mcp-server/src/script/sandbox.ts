@@ -3,8 +3,9 @@
  *
  * Every run gets a fresh WebAssembly module, so nothing survives from one run to the next and a run
  * that is stopped mid-way is simply dropped. The program sees only what this file puts in its
- * global scope (`mc`, `console`): no Node, no file system, no network, no timers. Host calls are
- * promises inside the VM; the host settles them and then runs the VM's pending jobs.
+ * global scope (`mc`, `console`, and what a host's trusted `library` adds): no Node, no file system,
+ * no network, no timers. Host calls are promises inside the VM; the host settles them and then runs
+ * the VM's pending jobs.
  *
  * The program is wrapped in an async function, so it can `await` and `return` at the top level.
  */
@@ -170,7 +171,16 @@ function toScriptError(dumped: unknown): ScriptError {
 export async function runScript(
   code: string,
   api: ScriptHostApi,
-  opts: { args?: unknown; limits?: Partial<ScriptLimits>; signal?: AbortSignal } = {},
+  opts: {
+    args?: unknown;
+    limits?: Partial<ScriptLimits>;
+    signal?: AbortSignal;
+    /**
+     * Trusted guest code run after the prelude and before the program, as its own script
+     * (`library.js`), so the program keeps its line numbers. It sees `mc` and may define globals.
+     */
+    library?: string;
+  } = {},
 ): Promise<ScriptRun> {
   const limits: ScriptLimits = { ...DEFAULT_LIMITS, ...opts.limits };
   const started = Date.now();
@@ -369,6 +379,18 @@ export async function runScript(
     const setup = ctx.callFunction(fn, ctx.undefined, rawCall, rawLog, rawSleep, argsH, helpersH);
     for (const h of [fn, argsH, helpersH, rawCall, rawLog, rawSleep]) h.dispose();
     ctx.unwrapResult(setup).dispose();
+
+    if (opts.library !== undefined && !finished) {
+      sliceStart = Date.now();
+      const lib = ctx.evalCode(opts.library, "library.js");
+      if (lib.error) {
+        const err = vmError(lib.error);
+        lib.error.dispose();
+        outcome({ ok: false, error: err });
+      } else {
+        lib.value.dispose();
+      }
+    }
 
     if (!finished) {
       sliceStart = Date.now();

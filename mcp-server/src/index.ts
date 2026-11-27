@@ -6,10 +6,11 @@
  * bridge, then serves them over stdio (default) or streamable HTTP. All diagnostic logging goes to
  * stderr so it never corrupts the stdio JSON-RPC stream.
  */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { CallToolResult, ServerNotification } from "@modelcontextprotocol/sdk/types.js";
+import { NodeStreamableHTTPServerTransport } from "@modelcontextprotocol/node";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { McpServer } from "@modelcontextprotocol/server";
+import type { CallToolResult, ServerNotification } from "@modelcontextprotocol/server";
+import { z } from "zod";
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
@@ -20,14 +21,16 @@ import { defaultDiscoveryPath, Discovery } from "./discovery.js";
 import { TOOLS, type ToolDef } from "./tools.js";
 import { isLocalRequest } from "./local-request.js";
 import { drawMarks, pngSize } from "./marks.js";
-import { groupOfMethod, READONLY, servesHints } from "./toolsets.js";
+import { COMPACT, describeFor, groupOfMethod, READONLY, servesCompact, servesHints } from "./toolsets.js";
 import { SupervisedSession } from "./supervised.js";
 import { markUntrusted, UNTRUSTED_INSTRUCTIONS } from "./untrusted.js";
 import { Channel, CHANNEL_CAPABILITY, CHANNEL_INSTRUCTIONS, CHANNEL_NOTIFICATION } from "./channel.js";
-import { AgentRuntime, defaultDbPath } from "./agent/runtime.js";
+import { AgentRuntime, AgentStores, defaultDbPath } from "./agent/runtime.js";
 import { AGENT_TOOLS, AgentSession } from "./agent/tools.js";
 import { SCRIPT_TOOLS, ScriptHost } from "./script/tools.js";
 import { registerDashboard } from "./dashboard/register.js";
+import { Fleet, splitClient, withClient, type Member } from "./fleet.js";
+import type { ZodRawShape } from "zod";
 
 // dist/index.js -> ../package.json, so the reported version always matches the published package.
 const PKG_VERSION = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
@@ -104,20 +107,67 @@ function imageResult(result: unknown): CallToolResult {
   };
 }
 
-function registerTools(server: McpServer, bridge: BridgeClient, supervised: SupervisedSession, groups: Set<string>): void {
+/**
+ * The games an MCP session acts in. With one game it is always `main`; with MCPFABRIC_MULTI_CLIENT
+ * every tool takes a `client` and is routed to that game.
+ */
+class Games {
+  /** Supervisor sessions of this MCP session, one per game. */
+  private readonly supervised = new Map<Member, SupervisedSession>();
+
+  constructor(
+    readonly main: Member,
+    readonly fleet: Fleet | undefined,
+  ) {}
+
+  /** The tool schema, with `client` in multi-client mode. */
+  schema(shape: ZodRawShape): ZodRawShape {
+    return this.fleet ? withClient(shape) : shape;
+  }
+
+  /** The game a call is for, and the call's arguments without `client`. */
+  async pick(input: Record<string, unknown> | undefined): Promise<{ member: Member; args: Record<string, unknown> }> {
+    if (!this.fleet) return { member: this.main, args: input ?? {} };
+    const { client, rest } = splitClient(input);
+    return { member: await this.fleet.resolve(client), args: rest };
+  }
+
+  supervisor(member: Member): SupervisedSession {
+    let s = this.supervised.get(member);
+    if (!s) {
+      s = new SupervisedSession(member.bridge);
+      this.supervised.set(member, s);
+    }
+    return s;
+  }
+
+  /** Every game the server has driven so far. */
+  members(): Member[] {
+    return this.fleet ? this.fleet.members() : [this.main];
+  }
+
+  /** Ends the supervisor sessions of this MCP session. */
+  async end(): Promise<void> {
+    await Promise.all([...this.supervised.values()].map((s) => s.end()));
+  }
+}
+
+function registerTools(server: McpServer, games: Games, groups: Set<string>): void {
   for (const def of TOOLS as ToolDef[]) {
-    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations)) continue;
+    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations, def.fullToken) || !servesCompact(groups, def.name)) continue;
     const config = {
       title: def.title,
-      description: def.description,
-      inputSchema: def.inputSchema,
+      description: describeFor(groups, def.description),
+      inputSchema: z.object(games.schema(def.inputSchema)),
       ...(def.annotations ? { annotations: def.annotations } : {}),
     };
 
-    const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
+    const handler = async (input: Record<string, unknown>): Promise<CallToolResult> => {
       try {
-        const result = def.supervised ? await supervised.call(def.method, args ?? {}) : await bridge.call(def.method, args ?? {});
-        if (def.kind === "image") return imageResult(result);
+        const { member, args } = await games.pick(input);
+        const raw = def.supervised ? await games.supervisor(member).call(def.method, args) : await member.bridge.call(def.method, args);
+        if (def.kind === "image") return imageResult(raw);
+        const result = def.post ? def.post(raw, args) : raw;
         return jsonResult(def.untrusted ? markUntrusted(result) : result);
       } catch (err) {
         return errorResult(err);
@@ -129,19 +179,21 @@ function registerTools(server: McpServer, bridge: BridgeClient, supervised: Supe
 }
 
 /** Registers the agent tools; returns what to do when the MCP session closes. */
-function registerAgentTools(server: McpServer, runtime: AgentRuntime, groups: Set<string>): () => void {
+function registerAgentTools(server: McpServer, games: Games, groups: Set<string>): () => void {
   const session = new AgentSession();
   for (const def of AGENT_TOOLS) {
-    if (!servesHints(groups, def.annotations)) continue;
+    if (!servesHints(groups, def.annotations) || !servesCompact(groups, def.name)) continue;
     const config = {
       title: def.title,
-      description: def.description,
-      inputSchema: def.inputSchema,
+      description: describeFor(groups, def.description),
+      inputSchema: z.object(games.schema(def.inputSchema)),
       ...(def.annotations ? { annotations: def.annotations } : {}),
     };
-    const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
+    const handler = async (input: Record<string, unknown>): Promise<CallToolResult> => {
       try {
-        const text = await def.run(runtime, session, args ?? {});
+        const { member, args } = await games.pick(input);
+        if (!member.runtime) throw new Error("the agent runtime is off");
+        const text = await def.run(member.runtime, session, args);
         return { content: [{ type: "text", text }] };
       } catch (err) {
         return errorResult(err);
@@ -151,24 +203,26 @@ function registerAgentTools(server: McpServer, runtime: AgentRuntime, groups: Se
   }
   // A job must not keep moving the player after the session that started it is gone.
   return () => {
-    void runtime.jobs.cancelOwnedBy(session.id).catch(() => undefined);
+    for (const m of games.members()) void m.runtime?.jobs.cancelOwnedBy(session.id).catch(() => undefined);
   };
 }
 
 /** Registers the script tools; returns what to do when the MCP session closes. */
-function registerScriptTools(server: McpServer, host: ScriptHost): () => void {
+function registerScriptTools(server: McpServer, games: Games, host: ScriptHost): () => void {
   const owner = randomUUID();
   for (const def of SCRIPT_TOOLS) {
     if (def.needsRuntime && !host.runtime) continue;
     const config = {
       title: def.title,
       description: def.description,
-      inputSchema: def.inputSchema,
+      inputSchema: z.object(games.schema(def.inputSchema)),
       annotations: def.annotations,
     };
-    const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
+    const handler = async (input: Record<string, unknown>): Promise<CallToolResult> => {
       try {
-        const { text, isError } = await def.run(host, owner, args ?? {});
+        const { member, args } = await games.pick(input);
+        if (!member.scripts) throw new Error("scripts are off");
+        const { text, isError } = await def.run(member.scripts, owner, args);
         return { content: [{ type: "text", text }], ...(isError ? { isError: true } : {}) };
       } catch (err) {
         return errorResult(err);
@@ -177,8 +231,35 @@ function registerScriptTools(server: McpServer, host: ScriptHost): () => void {
     server.registerTool(def.name, config, handler);
   }
   // A script must not keep driving the player after the session that started it is gone.
-  return () => host.cancelOwnedBy(owner);
+  return () => {
+    for (const m of games.members()) m.scripts?.cancelOwnedBy(owner);
+  };
 }
+
+/** The tool that lists the running games (multi-client mode). */
+function registerListClients(server: McpServer, fleet: Fleet): void {
+  server.registerTool(
+    "list_clients",
+    {
+      title: "List running games",
+      description:
+        "List the running games this server can act in, newest first: the value to pass as client to any tool, the player's account name, and which game tools act in when client is left out (default). Each game has its own jobs and scripts; games in the same world share memory, goals and the map.",
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async (): Promise<CallToolResult> => {
+      try {
+        return jsonResult({ clients: fleet.list() });
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+}
+
+const MULTI_INSTRUCTIONS =
+  " Several games: list_clients lists the running games. Pass client (a value from list_clients) to any tool to act in that game; " +
+  "without it a tool acts in the default game. Each game has its own player, jobs and scripts.";
 
 const BASE_INSTRUCTIONS =
   "Control and observe a running Minecraft: Java Edition game (1.21.1 or newer, Fabric or NeoForge) through the mcpfabric mod. " +
@@ -195,41 +276,59 @@ const AGENT_INSTRUCTIONS =
   "(travel_to, explore, collect_blocks, craft_item) run as background jobs — follow them with job_status " +
   "and do not drive movement manually while one runs.";
 
+/** Compact mode replaces the base, agent and script paragraphs with this one (the untrusted-data rule stays). */
+const COMPACT_INSTRUCTIONS =
+  "Control a Minecraft player through the mcpfabric mod. Start with agent_brief. For anything that takes many steps " +
+  "use the background jobs travel_to, collect_blocks and craft_item and check them with job_status; do not move by hand " +
+  "while a job runs. Call observe after moving, remember what matters and recall before searching again. If the player " +
+  "paused you (actions are refused), stop and tell them with show_message.";
+
 const SCRIPT_INSTRUCTIONS =
   " Code mode: for a sequence of many bridge calls (scan then act, loops, retries), write one run_script " +
   "program instead of calling tools one by one; keep programs that worked with save_skill and reuse them with run_skill.";
 
-function buildServer(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, groups: Set<string>, channel = false): McpServer {
+function buildServer(main: Member, fleet: Fleet | undefined, groups: Set<string>, channel = false): McpServer {
+  const { bridge, runtime, scripts } = main;
   const server = new McpServer(
     { name: "mcpfabric", version: PKG_VERSION },
     {
       instructions:
-        BASE_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (runtime ? AGENT_INSTRUCTIONS : "") + (scripts ? SCRIPT_INSTRUCTIONS : "") + (channel ? CHANNEL_INSTRUCTIONS : ""),
+        (groups.has(COMPACT)
+          ? COMPACT_INSTRUCTIONS + UNTRUSTED_INSTRUCTIONS + (fleet ? MULTI_INSTRUCTIONS : "")
+          : BASE_INSTRUCTIONS +
+            UNTRUSTED_INSTRUCTIONS +
+            (fleet ? MULTI_INSTRUCTIONS : "") +
+            (runtime ? AGENT_INSTRUCTIONS : "") +
+            (scripts ? SCRIPT_INSTRUCTIONS : "")) +
+        (channel ? CHANNEL_INSTRUCTIONS : ""),
       ...(channel ? { capabilities: { experimental: { [CHANNEL_CAPABILITY]: {} } } } : {}),
     },
   );
-  const supervised = new SupervisedSession(bridge);
-  registerTools(server, bridge, supervised, groups);
-  const closeAgent = runtime ? registerAgentTools(server, runtime, groups) : undefined;
+  const games = new Games(main, fleet);
+  if (fleet) registerListClients(server, fleet);
+  registerTools(server, games, groups);
+  const closeAgent = runtime ? registerAgentTools(server, games, groups) : undefined;
   // Scripts and the dashboard act (run tools, stop jobs), so a read-only server leaves them out.
-  const writable = !groups.has(READONLY);
-  const closeScripts = scripts && writable ? registerScriptTools(server, scripts) : undefined;
+  // Compact mode serves neither: run_script needs a model that writes programs reliably.
+  const writable = !groups.has(READONLY) && !groups.has(COMPACT);
+  const closeScripts = scripts && writable ? registerScriptTools(server, games, scripts) : undefined;
+  // The dashboard and the channel follow the default game.
   if (runtime && writable) registerDashboard(server, runtime, bridge);
   // Grants of this MCP session must not outlive it.
   server.server.onclose = () => {
     closeAgent?.();
     closeScripts?.();
-    void supervised.end();
+    void games.end();
   };
   return server;
 }
 
-async function runStdio(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
-  const server = buildServer(bridge, runtime, scripts, cfg.toolsets, cfg.channel.enabled);
+async function runStdio(main: Member, fleet: Fleet | undefined, cfg: ServerConfig): Promise<void> {
+  const server = buildServer(main, fleet, cfg.toolsets, cfg.channel.enabled);
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  log(`stdio transport ready (bridge: ${bridge.target().url})`);
-  if (cfg.channel.enabled) startChannel(server, bridge, runtime, cfg);
+  log(`stdio transport ready (bridge: ${main.bridge.target().url})`);
+  if (cfg.channel.enabled) startChannel(server, main.bridge, main.runtime, cfg);
 }
 
 /** Claude Code channel: one event stream, pushed into this (only) stdio session. */
@@ -253,9 +352,9 @@ function startChannel(server: McpServer, bridge: BridgeClient, runtime: AgentRun
   log(`channel on (prefix "${cfg.channel.prefix}", whispers ${cfg.channel.whispers ? "on" : "off"}, at most ${cfg.channel.maxPerMinute}/min)`);
 }
 
-async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
+async function runHttp(main: Member, fleet: Fleet | undefined, cfg: ServerConfig): Promise<void> {
   // Stateful streamable-HTTP: one transport+server per session id.
-  const sessions = new Map<string, { server: McpServer; transport: StreamableHTTPServerTransport; lastSeen: number }>();
+  const sessions = new Map<string, { server: McpServer; transport: NodeStreamableHTTPServerTransport; lastSeen: number }>();
 
   // Close sessions whose client went away without DELETE; otherwise they would stay open forever.
   const sweep = setInterval(() => {
@@ -300,7 +399,7 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
         res.writeHead(503, { "Content-Type": "text/plain" }).end("Too many open MCP sessions; close one (DELETE) or wait for idle ones to expire.");
         return;
       }
-      const transport = new StreamableHTTPServerTransport({
+      const transport = new NodeStreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (id: string) => {
           sessions.set(id, entry!);
@@ -309,7 +408,7 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
       transport.onclose = () => {
         if (transport.sessionId) sessions.delete(transport.sessionId);
       };
-      const server = buildServer(bridge, runtime, scripts, cfg.toolsets);
+      const server = buildServer(main, fleet, cfg.toolsets);
       await server.connect(transport);
       entry = { server, transport, lastSeen: Date.now() };
     }
@@ -324,9 +423,17 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
 async function main(): Promise<void> {
   const cfg = loadConfig();
   // Without MCPFABRIC_TOKEN, find the running game through the file the mod writes.
-  const discovery = cfg.token ? undefined : new Discovery(defaultDiscoveryPath());
+  const discovery = cfg.token ? undefined : new Discovery(defaultDiscoveryPath(), cfg.instance);
   const bridge = new BridgeClient(cfg.bridgeUrl, cfg.token, cfg.timeoutMs, discovery ? () => discovery.read() : undefined);
-  if (discovery) log(`MCPFABRIC_TOKEN not set: connecting to the game found in ${discovery.path}`);
+  if (discovery && cfg.instance) {
+    const running = discovery.instances().map((i) => i.name);
+    log(
+      `MCPFABRIC_TOKEN not set: connecting to the game named "${cfg.instance}"` +
+        (running.length ? ` (running now: ${running.join(", ")})` : " (no game running yet)"),
+    );
+  } else if (discovery) {
+    log(`MCPFABRIC_TOKEN not set: connecting to the game found in ${discovery.path}`);
+  }
 
   // Best-effort connectivity hint (does not block startup; the mod may launch later).
   bridge
@@ -334,12 +441,16 @@ async function main(): Promise<void> {
     .then((info) => log("connected to bridge:", JSON.stringify(info)))
     .catch((err) => log("bridge not reachable yet:", (err as Error).message));
 
-  let runtime: AgentRuntime | undefined;
   // The agent tools are a tool group too: leaving it out of MCPFABRIC_TOOLSETS turns the runtime off.
+  const dbPath = cfg.dataDir ? defaultDbPath({ MCPFABRIC_DATA_DIR: cfg.dataDir }) : defaultDbPath();
+  // One database for every game this server drives (opened on first use).
+  const stores = new AgentStores(dbPath);
+  const newRuntime = (b: BridgeClient, label?: string): AgentRuntime =>
+    new AgentRuntime(b, { dbPath, stores, scripts: cfg.scripts, ...(label ? { label } : {}), ...(cfg.world ? { worldOverride: cfg.world } : {}) });
+  let runtime: AgentRuntime | undefined;
   if (cfg.agent && cfg.toolsets.has("agent")) {
-    const dbPath = cfg.dataDir ? defaultDbPath({ MCPFABRIC_DATA_DIR: cfg.dataDir }) : defaultDbPath();
     try {
-      runtime = new AgentRuntime(bridge, { dbPath, scripts: cfg.scripts, ...(cfg.world ? { worldOverride: cfg.world } : {}) });
+      runtime = newRuntime(bridge);
       log(`agent runtime ready (memory: ${dbPath}, opened on first use)`);
     } catch (err) {
       // e.g. a Node build without node:sqlite: keep serving the plain bridge tools.
@@ -349,13 +460,32 @@ async function main(): Promise<void> {
 
   // Scripts need only the bridge; their skills are kept in the agent database, so they need the runtime.
   // Scripts are a tool group too (`script`).
-  const scripts = cfg.scripts && cfg.toolsets.has("script") ? new ScriptHost(bridge, runtime) : undefined;
+  const withScripts = cfg.scripts && cfg.toolsets.has("script");
+  const main: Member = {
+    name: undefined,
+    bridge,
+    ...(runtime ? { runtime } : {}),
+    ...(withScripts ? { scripts: new ScriptHost(bridge, runtime) } : {}),
+  };
+
+  let fleet: Fleet | undefined;
+  if (cfg.multiClient && !discovery) {
+    log("MCPFABRIC_MULTI_CLIENT needs the files the games write, so it stays off while MCPFABRIC_TOKEN is set.");
+  } else if (cfg.multiClient && discovery) {
+    // Every other game gets a runtime and a script host of its own, like the default one.
+    fleet = new Fleet(discovery, main, (name, target) => {
+      const b = new BridgeClient(target.url, target.token, cfg.timeoutMs);
+      const rt = runtime ? newRuntime(b, name) : undefined;
+      return { name, bridge: b, ...(rt ? { runtime: rt } : {}), ...(withScripts ? { scripts: new ScriptHost(b, rt) } : {}) };
+    });
+    log("multi-client mode: every tool takes a client (see list_clients)");
+  }
 
   if (cfg.transport === "http") {
     if (cfg.channel.enabled) log("MCPFABRIC_CHANNEL needs the stdio transport; the channel stays off.");
-    await runHttp(bridge, runtime, scripts, cfg);
+    await runHttp(main, fleet, cfg);
   } else {
-    await runStdio(bridge, runtime, scripts, cfg);
+    await runStdio(main, fleet, cfg);
   }
 }
 

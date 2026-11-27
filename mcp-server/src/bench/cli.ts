@@ -34,7 +34,7 @@ function arg(args: string[], name: string): string | undefined {
 
 function bridgeFromEnv(): Bridge {
   const cfg = loadConfig();
-  const discovery = cfg.token ? undefined : new Discovery(defaultDiscoveryPath());
+  const discovery = cfg.token ? undefined : new Discovery(defaultDiscoveryPath(), cfg.instance);
   return new BridgeClient(cfg.bridgeUrl, cfg.token, cfg.timeoutMs, discovery ? () => discovery.read() : undefined);
 }
 

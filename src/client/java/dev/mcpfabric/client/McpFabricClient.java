@@ -2,9 +2,11 @@ package dev.mcpfabric.client;
 
 import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.RpcRouter;
+import dev.mcpfabric.bridge.DiscoveryFile;
 import dev.mcpfabric.handlers.support.Approvals;
 import dev.mcpfabric.client.handlers.ClientChatHandlers;
 import dev.mcpfabric.client.handlers.ContainerHandlers;
+import dev.mcpfabric.client.handlers.RecorderHandlers;
 import dev.mcpfabric.client.handlers.ControlHandlers;
 import dev.mcpfabric.client.handlers.InteractHandlers;
 import dev.mcpfabric.client.handlers.InventoryHandlers;
@@ -43,6 +45,7 @@ public final class McpFabricClient {
 		// Agent runtime support: world id, client-side perception, containers, recipes.
 		PerceptionHandlers.register(router);
 		ContainerHandlers.register(router);
+		RecorderHandlers.register(router); // records the player's own actions as replayable steps
 		RecipeHandlers.register(router);
 		ClientChatHandlers.register(router); // client variant of chat.send (speaks as local player)
 		SessionScreenHandlers.register(router); // menus: rejoin a world after a disconnect or a restart
@@ -55,8 +58,11 @@ public final class McpFabricClient {
 
 	/** End of every client tick: drives the {@link BotController}, watches the local player, remembers the world joined last, runs supervised input. */
 	public static void onClientTick(Minecraft client) {
+		// Names this game in its discovery file; a no-op once the name is known.
+		DiscoveryFile.setPlayer(client.getUser().getName());
 		BotController.get().onClientTick(client);
 		ClientEvents.onClientTick(client);
+		RecorderHandlers.onClientTick(client);
 		AiControl.onClientTick(client);
 		SessionScreenHandlers.onClientTick(client);
 		SupervisedClientHandlers.onClientTick(client);

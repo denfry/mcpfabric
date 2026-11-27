@@ -16,7 +16,8 @@ public final class ReadAccess {
 			"player.getState", "player.getInventory", "player.getEquipment", "player.getStatusEffects",
 			"vision.screenshot", "vision.describeScene",
 			"perception.scan", "perception.blocks", "perception.entities",
-			"recipes.query", "nav.status", "screen.get", "ui.widgets", "session.worlds", "supervised.status");
+			"recipes.query", "nav.status", "recorder.status", "screen.get", "ui.widgets", "session.worlds", "supervised.status",
+			"dev.mods", "dev.registry", "dev.watch", "dev.brain");
 
 	private ReadAccess() {}
 

@@ -23,6 +23,10 @@ export interface RuntimeOptions {
   worldOverride?: string;
   /** Script tools are served (MCPFABRIC_SCRIPTS), so agent_brief lists the saved skills. Default true. */
   scripts?: boolean;
+  /** The database of another runtime, so several bots of one server share memory, goals and the map. */
+  stores?: AgentStores;
+  /** Name of the game this runtime drives, when one server drives several (MCPFABRIC_MULTI_CLIENT). */
+  label?: string;
 }
 
 export function defaultDbPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -41,6 +45,26 @@ interface Stores {
   skills: SkillStore;
 }
 
+/** The agent database, opened on first use, so a server whose agent tools are never called writes no file. */
+export class AgentStores {
+  private stores?: Stores;
+
+  constructor(private readonly dbPath: string) {}
+
+  open(): Stores {
+    if (!this.stores) {
+      const db = openDatabase(this.dbPath);
+      this.stores = { db, memory: new MemoryStore(db), goals: new GoalStore(db), map: new WorldMap(db), kv: new KeyValue(db), skills: new SkillStore(db) };
+    }
+    return this.stores;
+  }
+
+  close(): void {
+    this.stores?.db.close();
+    this.stores = undefined;
+  }
+}
+
 export class AgentRuntime {
   readonly body: Body;
   readonly jobs: JobManager;
@@ -48,8 +72,9 @@ export class AgentRuntime {
   /** The container the runtime opened last, so transfers can refresh its memory. */
   openContainer?: { pos: Located; blockId: string };
 
-  /** Opened on first use, so a server whose agent tools are never called writes no file. */
-  private stores?: Stores;
+  readonly stores: AgentStores;
+  /** Whether this runtime opened its database (and so closes it). */
+  private readonly ownsStores: boolean;
 
   /** Whether the script tools are served alongside the runtime. */
   readonly scripts: boolean;
@@ -57,6 +82,8 @@ export class AgentRuntime {
   constructor(bridge: Bridge, private readonly opts: RuntimeOptions) {
     requireSqlite();
     this.scripts = opts.scripts ?? true;
+    this.ownsStores = !opts.stores;
+    this.stores = opts.stores ?? new AgentStores(opts.dbPath);
     this.body = new Body(bridge);
     this.jobs = new JobManager(
       (job) => this.recordJob(job),
@@ -69,11 +96,7 @@ export class AgentRuntime {
   }
 
   private open(): Stores {
-    if (!this.stores) {
-      const db = openDatabase(this.opts.dbPath);
-      this.stores = { db, memory: new MemoryStore(db), goals: new GoalStore(db), map: new WorldMap(db), kv: new KeyValue(db), skills: new SkillStore(db) };
-    }
-    return this.stores;
+    return this.stores.open();
   }
 
   get db(): Database {
@@ -143,17 +166,17 @@ export class AgentRuntime {
   private recordJob(job: Job): void {
     const world = this.worldCache?.id ?? this.opts.worldOverride;
     if (!world) return;
+    const label = this.opts.label;
     this.memory.add(world, {
       kind: "event",
-      title: `${job.kind} ${job.state}: ${job.summary}`,
+      title: `${label ? `[${label}] ` : ""}${job.kind} ${job.state}: ${job.summary}`,
       body: job.result ?? "",
-      tags: ["job", job.kind, job.state],
+      tags: ["job", job.kind, job.state, ...(label ? [`client:${label}`] : [])],
       importance: job.state === "failed" ? 0.5 : 0.3,
     });
   }
 
   close(): void {
-    this.stores?.db.close();
-    this.stores = undefined;
+    if (this.ownsStores) this.stores.close();
   }
 }

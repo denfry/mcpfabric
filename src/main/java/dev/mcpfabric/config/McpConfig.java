@@ -52,6 +52,13 @@ public final class McpConfig {
 	public boolean writeDiscoveryFile = true;
 
 	/**
+	 * A name for this game in its discovery file, so an MCP server started with
+	 * MCPFABRIC_INSTANCE=&lt;name&gt; connects to it when several games run. Empty: the player's account
+	 * name, or the game folder's name.
+	 */
+	public String instanceName = "";
+
+	/**
 	 * Record every call with a lasting effect (commands, world and entity edits, player admin, chat,
 	 * interactions) in logs/mcpfabric-audit.jsonl next to the game's own logs.
 	 */
@@ -75,6 +82,12 @@ public final class McpConfig {
 	 * default. It is its own lock and does not need the flags above, so they can stay off.
 	 */
 	public boolean enableSupervisedControl = false;
+	/**
+	 * Tools for mod and server developers (dev.*): the game's logs and crash reports, loaded mods,
+	 * registries and the tick rate. Off by default: logs can hold chat, player names and whatever
+	 * other mods print.
+	 */
+	public boolean enableDevTools = false;
 	/** Save folders supervised_enter_world may open (disposable worlds). Empty: none. */
 	public List<String> supervisedWorlds = new ArrayList<>();
 	/** Command roots supervised_command may run; data ({...}) is refused in every command. */

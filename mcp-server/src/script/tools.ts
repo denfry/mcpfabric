@@ -13,16 +13,16 @@ import { BridgeError, BridgeUnreachableError } from "../bridge.js";
 import type { Bridge } from "../agent/body.js";
 import type { AgentRuntime } from "../agent/runtime.js";
 import { OVERWRITE, READ, TOOLS, type ToolAnnotations, type ToolDef } from "../tools.js";
-import { compileScript, DEFAULT_LIMITS, HostError, MAX_CODE_CHARS, MAX_TIMEOUT_MS, runScript, type ScriptLimits, type ScriptRun } from "./sandbox.js";
+import { compileScript, DEFAULT_LIMITS, HostError, MAX_CODE_CHARS, MAX_TIMEOUT_MS, runScript, type ScriptHostApi, type ScriptLimits, type ScriptRun } from "./sandbox.js";
 import { SKILL_NAME, type ScriptSkill } from "./skills.js";
 
 /** Runs and saves programs that can reach other people (chat, commands, kicks): open world. */
 const SCRIPT: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true };
 
 /** Bridge tools a script may call, by tool name and by RPC method. */
-function scriptable(): Map<string, ToolDef> {
+function scriptable(extra: readonly ToolDef[]): Map<string, ToolDef> {
   const byName = new Map<string, ToolDef>();
-  for (const def of TOOLS) {
+  for (const def of [...TOOLS, ...extra]) {
     if (def.supervised || def.method.startsWith("supervised.")) continue;
     byName.set(def.name, def);
     byName.set(def.method, def);
@@ -37,7 +37,7 @@ const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v ===
  * there is one body; with the agent runtime, a script also holds the body against jobs.
  */
 export class ScriptHost {
-  private readonly tools = scriptable();
+  private readonly tools: Map<string, ToolDef>;
   private readonly schemas = new Map<string, z.ZodType>();
   private active?: { owner: string; abort: AbortController };
 
@@ -46,11 +46,15 @@ export class ScriptHost {
     /** Agent runtime, if served: skills and the job lock. */
     readonly runtime?: AgentRuntime,
     private readonly limits: Partial<ScriptLimits> = {},
-  ) {}
+    /** Methods beyond the tool catalogue, for hosts other than the MCP server (the test runner). */
+    private readonly extra: readonly ToolDef[] = [],
+  ) {
+    this.tools = scriptable(extra);
+  }
 
   /** Helper names exposed as `mc.<name>()`: the tool names. */
   helpers(): string[] {
-    return TOOLS.filter((t) => this.tools.get(t.name) === t).map((t) => t.name);
+    return [...TOOLS, ...this.extra].filter((t) => this.tools.get(t.name) === t).map((t) => t.name);
   }
 
   /** One call from a script: checked against the catalogue and the tool's schema, then forwarded. */
@@ -80,6 +84,11 @@ export class ScriptHost {
     }
   }
 
+  /** The calls a script may make, for running programs outside {@link run} (the test runner). */
+  api(): ScriptHostApi {
+    return { call: (name, params) => this.invoke(name, params), helpers: this.helpers() };
+  }
+
   /** Runs one program; refuses while another script or a job is running. */
   async run(code: string, opts: { args?: unknown; timeoutMs?: number; owner: string }): Promise<ScriptRun> {
     if (this.active) {
@@ -94,7 +103,7 @@ export class ScriptHost {
       const timeoutMs = Math.min(opts.timeoutMs ?? this.limits.timeoutMs ?? DEFAULT_LIMITS.timeoutMs, MAX_TIMEOUT_MS);
       const run = await runScript(
         code,
-        { call: (name, params) => this.invoke(name, params), helpers: this.helpers() },
+        this.api(),
         { args: opts.args, limits: { ...this.limits, timeoutMs }, signal: abort.signal },
       );
       if (!run.ok && run.calls > 0) await this.releaseBody();
@@ -106,7 +115,7 @@ export class ScriptHost {
   }
 
   /** After a failed or stopped script: stop movement, navigation and mining it may have left on. */
-  private async releaseBody(): Promise<void> {
+  async releaseBody(): Promise<void> {
     await this.bridge.call("control.stop").catch(() => undefined);
     await this.bridge.call("nav.stop").catch(() => undefined);
     await this.bridge.call("interact.stopBreaking").catch(() => undefined);
@@ -115,6 +124,11 @@ export class ScriptHost {
   /** Stops the script `owner` started (its MCP session closed). */
   cancelOwnedBy(owner: string): void {
     if (this.active?.owner === owner) this.active.abort.abort();
+  }
+
+  /** Stops whatever script runs (the game it drives is no longer driven by this host). */
+  cancelAll(): void {
+    this.active?.abort.abort();
   }
 }
 

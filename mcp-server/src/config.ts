@@ -23,6 +23,10 @@ export interface ServerConfig {
   dataDir: string | undefined;
   /** Fixed world id for agent memory instead of the one reported by the game. */
   world: string | undefined;
+  /** Which running game to connect to when several run (MCPFABRIC_INSTANCE): its name, player, folder or pid. */
+  instance: string | undefined;
+  /** Drive several running games: every tool takes a `client` (MCPFABRIC_MULTI_CLIENT). */
+  multiClient: boolean;
   /** Act as a Claude Code channel (stdio only): push chat addressed to the AI and important events. */
   channel: ChannelConfig;
   /** Serve the script tools (run_script; the skill tools also need the agent runtime). */
@@ -70,6 +74,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     agent: !/^(0|false|off|no)$/i.test(env.MCPFABRIC_AGENT ?? ""),
     dataDir: env.MCPFABRIC_DATA_DIR || undefined,
     world: env.MCPFABRIC_WORLD || undefined,
+    instance: env.MCPFABRIC_INSTANCE?.trim() || undefined,
+    multiClient: on(env.MCPFABRIC_MULTI_CLIENT),
     channel: {
       enabled: on(env.MCPFABRIC_CHANNEL),
       prefix: (env.MCPFABRIC_CHANNEL_PREFIX ?? "").trim() || "@ai",
