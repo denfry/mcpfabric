@@ -284,6 +284,13 @@ these two tools. Other hosts get a short text summary from `open_dashboard`.
 | `MCPFABRIC_SCHEMATICS_DIR` | `<data dir>/schematics` | the only folder `import_schematic` reads and `export_schematic` writes |
 | `MCPFABRIC_WORLD` | from the game | force a world id (e.g. to share memory between two saves) |
 | `MCPFABRIC_SCRIPTS` | on | `0` / `false` / `off` removes `run_script` and the skill tools |
+| `MCPFABRIC_MULTI_CLIENT` | off | `1`: one server drives several games; every tool takes `client` (see below) |
+
+**Several bots.** With `MCPFABRIC_MULTI_CLIENT=1` each running game has its own body, job and
+script, so `travel_to` in one game and `collect_blocks` in another run at the same time. Memory,
+goals and the map are kept per world, so bots in the same world share them. A job a bot finishes is
+remembered with its name (`[name] collect_blocks done: ...`, tag `client:<name>`), which tells the
+bots' work apart when one of them recalls it.
 
 It requires Node.js ≥ 22.16 for `node:sqlite` with FTS5. From Node 24.15 on there is no
 experimental warning; on earlier versions the runtime suppresses that one warning.

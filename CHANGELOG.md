@@ -12,6 +12,9 @@ All notable changes to this project are documented here. The format is based on
   `~/.mcpfabric/bridges/<pid>.json` with a name (new config `instanceName`, else the account name,
   else the game folder). `MCPFABRIC_INSTANCE` makes the MCP server connect to that game; without it
   nothing changes. Fabric and NeoForge.
+- One MCP server can drive several games: with `MCPFABRIC_MULTI_CLIENT=1` it serves `list_clients`
+  and every tool takes an optional `client`, the game to act in. Each game has its own jobs and
+  scripts; bots in the same world share memory, goals and the map. Off by default.
 - `MCPFABRIC_TOOLSETS=compact` for small models: 31 core tools (jobs, memory, goals, containers
   and a few direct actions) with first-sentence descriptions and a one-paragraph instruction, no
   `run_script` and no dashboard. Tools and instructions take about 4,000 tokens instead of about

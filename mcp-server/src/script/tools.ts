@@ -125,6 +125,11 @@ export class ScriptHost {
   cancelOwnedBy(owner: string): void {
     if (this.active?.owner === owner) this.active.abort.abort();
   }
+
+  /** Stops whatever script runs (the game it drives is no longer driven by this host). */
+  cancelAll(): void {
+    this.active?.abort.abort();
+  }
 }
 
 export interface ScriptToolDef {

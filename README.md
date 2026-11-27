@@ -171,6 +171,13 @@ account name, else the game folder's name. Start one MCP server per game with
 `MCPFABRIC_INSTANCE=<name>` (the player name, folder name or pid also work); without it the server
 connects to the game that started last. A dedicated server keeps exactly its configured port.
 
+To drive all of them from one MCP server, set `MCPFABRIC_MULTI_CLIENT=1` (it needs the files above,
+so leave `MCPFABRIC_TOKEN` unset). The server then serves `list_clients`, which lists the running
+games, and every tool takes an optional `client` with a name from that list; a tool called without
+it acts in the default game. Each game gets its own jobs and scripts, so a job in one game never
+moves the player of another. Bots in the same world share the agent's memory, goals and map. The
+dashboard and the channel follow the default game.
+
 ### Mod config (`config/mcpfabric.config.json`)
 
 ```json
@@ -248,6 +255,7 @@ node dist/index.js        # finds the running game through ~/.mcpfabric/bridge.j
 | `MCPFABRIC_TOKEN`      | from `bridge.json`       | Bearer token from the mod config. Unset: address and token come from `~/.mcpfabric/bridge.json`, read again on every call. |
 | `MCPFABRIC_DISCOVERY`  | `~/.mcpfabric/bridge.json` | Where to find the running game when `MCPFABRIC_TOKEN` is not set. |
 | `MCPFABRIC_INSTANCE`   | the newest game          | With several games running: connect to the one with this name, player, game folder or pid (from `~/.mcpfabric/bridges/`). |
+| `MCPFABRIC_MULTI_CLIENT` | off                    | `1` drives every running game from one server: `list_clients`, and a `client` parameter on every tool. Needs `MCPFABRIC_TOKEN` unset. |
 | `MCPFABRIC_TIMEOUT_MS` | `15000`                  | Per-call timeout to the bridge.                   |
 | `MCPFABRIC_TRANSPORT`  | `stdio`                  | `stdio` or `http`.                                |
 | `MCPFABRIC_HTTP_PORT`  | `25600`                  | Port for the `http` transport (`/mcp`).           |

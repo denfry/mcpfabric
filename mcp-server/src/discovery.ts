@@ -107,14 +107,17 @@ export class Discovery {
     return found;
   }
 
+  /** The running game with this name, player, folder or pid (case does not matter), and its address. */
+  find(wanted: string): (Instance & { target: BridgeTarget }) | undefined {
+    const want = wanted.trim().toLowerCase();
+    if (!want) return undefined;
+    return this.scan().find((i) =>
+      [i.name, i.player, i.gameDir, i.pid !== undefined ? String(i.pid) : undefined].some((v) => v !== undefined && v.toLowerCase() === want),
+    );
+  }
+
   read(): BridgeTarget | undefined {
-    if (this.instance) {
-      const want = this.instance.trim().toLowerCase();
-      const hit = this.scan().find((i) =>
-        [i.name, i.player, i.gameDir, i.pid !== undefined ? String(i.pid) : undefined].some((v) => v !== undefined && v.toLowerCase() === want),
-      );
-      return hit?.target;
-    }
+    if (this.instance) return this.find(this.instance)?.target;
     let mtimeMs: number;
     try {
       mtimeMs = statSync(this.path).mtimeMs;
