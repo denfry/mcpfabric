@@ -183,6 +183,7 @@ stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writ
   "enableVision": true,
   "enableUiControl": false,
   "enableSupervisedControl": false,
+  "enableDevTools": false,
   "supervisedWorlds": [],
   "supervisedCommands": ["time", "weather"],
   "requireApproval": []
@@ -194,7 +195,12 @@ that starts off: it lets the model click buttons and type into text fields of ga
 (`get_ui`, `click_widget`, `set_text_field`), which reaches settings and actions the other tools
 never expose. Vanilla screens are limited to the pause, title, death, options, advancements,
 statistics, confirmation and container screens, but screens added by other mods are not restricted, so turn it on
-only when you need it, for example to test a mod's UI. It also needs `enablePlayerControl`. `requireAuth` (default `true`)
+only when you need it, for example to test a mod's UI. It also needs `enablePlayerControl`.
+`enableDevTools` (off) serves the developer tools: the game's log and crash reports, loaded mods,
+registries and the tick rate. Logs can hold chat, player names and whatever other mods print; IP
+and server addresses and the home folder are replaced, but not every way a mod might print a host
+name, so turn it on for development worlds; the read-only token cannot read logs or crash
+reports, and changing the tick rate asks for approval when `requireApproval` has `command`. `requireAuth` (default `true`)
 gates every request behind the bearer token — only set it to `false` if you understand that it
 removes the sole authentication on an operator-level bridge. Keep `host` on `127.0.0.1` unless you
 fully understand the consequences — the bridge grants operator-level power. `worldIdKey` turns a
@@ -256,7 +262,7 @@ Every tool takes up model context, and a model chooses better from 20 tools than
 | `build` | `world`, `vision`, `chat` | building with world edits |
 | `all`   | every group (the default) | |
 
-The other groups are `ui`, `supervised` and `script` (`run_script` and the skills), e.g. `MCPFABRIC_TOOLSETS=play,ui` or
+The other groups are `ui`, `supervised`, `devtools` and `script` (`run_script` and the skills), e.g. `MCPFABRIC_TOOLSETS=play,ui` or
 `MCPFABRIC_TOOLSETS=supervised`. `get_status` and `list_capabilities` (`info`) are always served.
 Tool sets only hide tools: the mod's `enable*` flags still decide what the game allows. Add
 `readonly` to serve only the tools that just read, e.g. `MCPFABRIC_TOOLSETS=readonly` or
@@ -346,6 +352,7 @@ claude --dangerously-load-development-channels server:mcpfabric
 **recording (client)** — `start_recording`, `stop_recording` (the player's own actions as steps and a draft `mcpfabric-test` file: show the agent a task instead of describing it), `recording_status`
 **session (client)** — `get_screen`, `close_screen` (pause menu, chat, container; respawns on the death screen), `list_worlds`, `join_world` (rejoin after a kick, a server restart or a game restart)
 **ui (client, off by default: `enableUiControl`)** — `get_ui` (widgets of the open screen), `click_widget`, `set_text_field`
+**devtools (off by default: `enableDevTools`)** — `list_mods`, `list_registry` (built-in registry ids by namespace or text), `read_log` (newest entries of latest.log by level or text, stack traces kept), `read_crash_report`, `tick_control` (freeze, step, sprint, tick rate; changing it also needs `enableCommands`)
 **supervised (off by default: `enableSupervisedControl`)** ([docs/SUPERVISED.md](docs/SUPERVISED.md)) — `supervised_status`, `supervised_stop`, `supervised_input` (one key for up to 10 ticks), `supervised_read_block`, `supervised_set_block` (with a precondition), `supervised_command` (allowlisted roots), `supervised_enter_world` / `supervised_leave_world` (approved saves), `supervised_reconcile`
 **events** — `poll_events` (recent damage, deaths, chat, spawns, player join/leave; on the client also `self_health`, `self_death` and `left_world`)
 

@@ -64,6 +64,13 @@ public final class Gates {
 		notPaused();
 	}
 
+	/** Developer tools (dev.*): logs, crash reports, mods, registries, the tick rate. Off by default. */
+	public static void devTools() throws RpcException {
+		if (!McpFabric.config().enableDevTools) {
+			throw RpcException.unavailable("Developer tools are disabled in mcpfabric.config.json (enableDevTools=false).");
+		}
+	}
+
 	/** Screenshots and scene descriptions. */
 	public static void vision() throws RpcException {
 		if (!McpFabric.config().enableVision) {

@@ -107,7 +107,7 @@ function imageResult(result: unknown): CallToolResult {
 
 function registerTools(server: McpServer, bridge: BridgeClient, supervised: SupervisedSession, groups: Set<string>): void {
   for (const def of TOOLS as ToolDef[]) {
-    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations)) continue;
+    if (!groups.has(groupOfMethod(def.method)) || !servesHints(groups, def.annotations, def.fullToken)) continue;
     const config = {
       title: def.title,
       description: def.description,

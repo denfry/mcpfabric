@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Developer tools behind a new flag, `enableDevTools` (off by default; capability group
+  `devtools`, tool set `devtools`): `list_mods` (`dev.mods`), `list_registry` (`dev.registry`,
+  built-in registry ids filtered by namespace or text), `read_log` (`dev.log`, the newest entries of
+  `logs/latest.log` or `debug.log` by minimum level or text, stack traces kept with their line),
+  `read_crash_report` (`dev.crash`) and `tick_control` (`dev.tick`: freeze, step, sprint, tick rate;
+  changing it also needs `enableCommands`, and it is in the audit log). Text from log and crash
+  files has IP and server addresses and the home folder replaced. The read-only token may list
+  mods and registries but not read logs or crash reports, and changing the tick rate goes through
+  `requireApproval` like a command. Fabric and NeoForge.
 - `mcpfabric-test` (`docs/TESTING.md`): end-to-end tests for servers, mods and plugins, played by
   the real client. `*.mctest.js` files register tests with hooks, steps and assertions
   (`expect`, `expect.poll`), wait for chat lines, game events and screens, run server commands and

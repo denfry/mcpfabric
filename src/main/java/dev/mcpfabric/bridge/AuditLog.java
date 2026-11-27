@@ -37,7 +37,8 @@ public final class AuditLog {
 			"interact.breakBlock", "interact.placeBlock", "interact.placeAt", "interact.attackEntity", "interact.useEntity", "interact.useItem", "interact.dropItem",
 			"inventory.dropSlot", "container.click", "container.transfer", "craft.place",
 			"session.join", "ui.click", "ui.setText",
-			"supervised.setBlock", "supervised.command", "supervised.enterWorld", "supervised.leaveWorld");
+			"supervised.setBlock", "supervised.command", "supervised.enterWorld", "supervised.leaveWorld",
+			"dev.tick");
 	/** Params that only identify the caller's session; they say nothing about the action. */
 	private static final Set<String> SKIPPED = Set.of("session", "seq");
 	private static final int MAX_VALUE = 200;
