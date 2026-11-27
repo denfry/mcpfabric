@@ -342,6 +342,8 @@ claude --dangerously-load-development-channels server:mcpfabric
 **inventory (client)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
 **vision (client)** — `screenshot` (PNG for vision models; `marks: true` numbers the mobs and players in view and lists their uuids), `describe_scene`
 **navigation (client)** — `navigate_to` (A\*: walks, swims, climbs ladders, opens doors, digs through blocks and pillars up), `navigation_status`, `stop_navigation`
+
+**recording (client)** — `start_recording`, `stop_recording` (the player's own actions as steps and a draft `mcpfabric-test` file: show the agent a task instead of describing it), `recording_status`
 **session (client)** — `get_screen`, `close_screen` (pause menu, chat, container; respawns on the death screen), `list_worlds`, `join_world` (rejoin after a kick, a server restart or a game restart)
 **ui (client, off by default: `enableUiControl`)** — `get_ui` (widgets of the open screen), `click_widget`, `set_text_field`
 **supervised (off by default: `enableSupervisedControl`)** ([docs/SUPERVISED.md](docs/SUPERVISED.md)) — `supervised_status`, `supervised_stop`, `supervised_input` (one key for up to 10 ticks), `supervised_read_block`, `supervised_set_block` (with a precondition), `supervised_command` (allowlisted roots), `supervised_enter_world` / `supervised_leave_world` (approved saves), `supervised_reconcile`

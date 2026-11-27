@@ -15,6 +15,14 @@ All notable changes to this project are documented here. The format is based on
   the screen and the events since the test began. Retries with flaky reporting, `--grep`,
   `--bail`, `--world`, `--param`, JUnit XML and JSON reports. An example is in
   `mcp-server/examples/`.
+- Recording the player (`recorder.start`, `recorder.stop`, `recorder.status`; tools
+  `start_recording`, `stop_recording`, `recording_status`; needs `enablePlayerControl`): the mod
+  watches the local player each tick and records waypoints, hotbar choices, blocks broken and
+  placed (with their state), blocks, items and entities used, containers opened with what the
+  inventory gained or lost, and the player's own chat. `stop_recording` returns the steps and a
+  draft test; `mcpfabric-test record <file>` writes that draft. The player is told in chat when it
+  starts and stops; it stops after 500 steps, 30 minutes or on leaving the world. Clicks inside
+  menus and typed commands are not recorded. New test helper `goTo(pos)`. Fabric and NeoForge.
 
 ## [0.10.0] - 2026-11-09
 

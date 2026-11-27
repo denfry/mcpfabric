@@ -9,15 +9,34 @@ import type { Bridge } from "../src/agent/body.js";
 import { BridgeError, type BridgeEvent } from "../src/bridge.js";
 import { ScriptHost } from "../src/script/tools.js";
 import { main, parseArgs } from "../src/testing/cli.js";
+import { draftTest, type RecordedStep } from "../src/testing/draft.js";
+import { withDraft } from "../src/tools.js";
 import { formatResult, junit, xml } from "../src/testing/report.js";
 import { findTestFiles, slug, TestRunner, type RunOptions, type TestResult } from "../src/testing/runner.js";
 
 /** Just enough of the bridge for the test runner: events, chat, commands, a screen and a player. */
+/** A recording as the mod returns it: the player walks, mines, places, loots a chest and chats. */
+const RECORDED: RecordedStep[] = [
+  { kind: "start", t: 0, x: 0, y: 64, z: 0, dimension: "minecraft:overworld", slot: 0, held: "minecraft:dirt", inventory: { "minecraft:dirt": 5 } },
+  { kind: "move", t: 900, x: 3, y: 64, z: 0 },
+  { kind: "move", t: 1800, x: 6, y: 64, z: 1 },
+  { kind: "break", t: 2500, x: 7, y: 64, z: 1, block: "minecraft:stone" },
+  { kind: "select", t: 3000, slot: 1, item: "minecraft:torch" },
+  { kind: "place", t: 3200, x: 7, y: 64, z: 2, state: "minecraft:wall_torch[facing=south]", item: "minecraft:torch" },
+  { kind: "use_block", t: 3600, x: 8, y: 64, z: 2, from: "minecraft:lever[powered=false]", to: "minecraft:lever[powered=true]" },
+  { kind: "attack", t: 3900, type: "minecraft:zombie", uuid: "u", x: 9, y: 64, z: 3 },
+  { kind: "open_container", t: 4000, x: 8, y: 64, z: 1, block: "minecraft:chest" },
+  { kind: "close_container", t: 6000, inventoryChange: { "minecraft:diamond": 2, "minecraft:dirt": -5 } },
+  { kind: "chat", t: 7000, message: 'got "two"\n*/ diamonds' },
+  { kind: "end", t: 7100, x: 8, y: 64, z: 2, inventory: { "minecraft:diamond": 2 } },
+];
+
 class FakeGame implements Bridge {
   calls: { method: string; params: Record<string, unknown> }[] = [];
   events: BridgeEvent[] = [];
   health = 20;
   screen: Record<string, unknown> = { inWorld: true, screen: "none", paused: false, canJoin: false };
+  navTarget: Record<string, unknown> | undefined;
   private seq = 0;
   private timers: NodeJS.Timeout[] = [];
 
@@ -80,6 +99,28 @@ class FakeGame implements Bridge {
       case "nav.stop":
       case "interact.stopBreaking":
         return r({ ok: true });
+      case "nav.pathTo":
+        this.navTarget = params;
+        return r({ ok: true });
+      case "nav.status":
+        return r({ active: false, state: this.navTarget && this.navTarget.x === 99 ? "stuck" : "reached" });
+      case "inventory.selectHotbar":
+      case "interact.breakBlock":
+      case "interact.placeAt":
+      case "interact.useItem":
+      case "control.lookAt":
+      case "container.open":
+        this.screen = { ...this.screen, screen: "container" };
+        return r({ ok: true });
+      case "container.close":
+        this.screen = { ...this.screen, screen: "none" };
+        return r({ ok: true });
+      case "chat.send":
+        return r({ ok: true });
+      case "recorder.start":
+        return r({ recording: true, count: 0 });
+      case "recorder.stop":
+        return r({ recording: false, count: RECORDED.length, stoppedBy: "stopped", steps: RECORDED });
       default:
         throw new BridgeError({ code: "unknown_method", message: `unknown method ${method}` });
     }
@@ -463,4 +504,59 @@ test("bad slot", async () => { await mc.container_click({ slot: -1 }); });
   const out = await mcpHost.run("return await mc.call('container.click', { slot: 1 })", { owner: "o" });
   assert.equal(out.ok, false);
   assert.match(out.error!.message, /unknown method "container.click"/);
+});
+
+test("a recording becomes a draft test that replays it and checks the inventory", () => {
+  const draft = draftTest(RECORDED, { name: "loot the chest" });
+  assert.match(draft, /^test\("loot the chest", async \(\) => \{$/m);
+  // Waypoints with nothing in between collapse into the last one.
+  assert.ok(!draft.includes("goTo({ x: 3, y: 64, z: 0 })"));
+  assert.ok(draft.includes("await goTo({ x: 6, y: 64, z: 1 });"));
+  assert.ok(draft.includes("await mc.break_block({ x: 7, y: 64, z: 1 }); // minecraft:stone"));
+  assert.ok(draft.includes('await mc.place_block_at({ ...{ x: 7, y: 64, z: 2 }, state: "minecraft:wall_torch[facing=south]" });'));
+  assert.ok(draft.includes("await mc.look_at({ x: 8.5, y: 64.5, z: 2.5 });"));
+  assert.ok(draft.includes("await mc.container_open({ x: 8, y: 64, z: 1 }); // minecraft:chest"));
+  assert.ok(draft.includes("// Taken out: 2 minecraft:diamond."));
+  assert.ok(draft.includes('expect(await inventoryCount("minecraft:diamond")).toBe(2);'));
+  assert.ok(draft.includes('expect(await inventoryCount("minecraft:dirt")).toBe(0);'));
+  // Chat text stays inside its string literal.
+  assert.ok(draft.includes('await mc.send_chat({ message: "got \\"two\\"\\n*/ diamonds" });'));
+  assert.doesNotThrow(() => new Function("test", "mc", draft));
+});
+
+test("the draft runs against the game", async () => {
+  const { results, game } = await run(draftTest(RECORDED));
+  assert.equal(results.length, 1);
+  // The fake inventory holds dirt, not diamonds, so the final check is what fails.
+  assert.equal(results[0].status, "failed");
+  assert.match(String(lastError(results[0])?.message), /inventoryCount|toBe|2/);
+  const methods = game.calls.map((c) => c.method);
+  for (const m of ["nav.pathTo", "interact.breakBlock", "inventory.selectHotbar", "interact.placeAt", "control.lookAt", "interact.useItem", "container.open", "container.close", "chat.send"]) {
+    assert.ok(methods.includes(m), `the draft did not call ${m}`);
+  }
+});
+
+test("goTo fails when navigation does not reach the target", async () => {
+  const { results } = await run(`test("stuck", async () => { await goTo({ x: 99, y: 64, z: 0 }); });`);
+  assert.equal(results[0].status, "failed");
+  assert.match(String(lastError(results[0])?.message), /goTo\(.*\) ended with "stuck"/);
+});
+
+test("stop_recording adds the draft; other answers pass through", () => {
+  const out = withDraft({ count: 1, steps: [{ kind: "chat", message: "hi" }] }, "greet") as { draft: string };
+  assert.match(out.draft, /test\("greet"/);
+  assert.deepEqual(withDraft({ recording: true }), { recording: true });
+});
+
+test("mcpfabric-test record writes the draft and will not overwrite a file", async () => {
+  const d = dir();
+  const out = join(d, "sub", "loot.mctest.js");
+  const lines: string[] = [];
+  const game = new FakeGame();
+  assert.equal(await main(["record", out, "--name", "loot"], () => game, (l) => lines.push(l), async () => undefined), 0);
+  assert.deepEqual(game.calls.map((c) => c.method), ["recorder.start", "recorder.stop"]);
+  assert.match(readFileSync(out, "utf8"), /test\("loot"/);
+  assert.match(lines[lines.length - 1], /^12 steps written to /);
+  await assert.rejects(main(["record", out], () => game, () => undefined, async () => undefined), /exists/);
+  await assert.rejects(main(["record", join(d, "x.js")], () => game, () => undefined, async () => undefined), /\.mctest\.js/);
 });

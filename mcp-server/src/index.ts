@@ -116,8 +116,9 @@ function registerTools(server: McpServer, bridge: BridgeClient, supervised: Supe
 
     const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
       try {
-        const result = def.supervised ? await supervised.call(def.method, args ?? {}) : await bridge.call(def.method, args ?? {});
-        if (def.kind === "image") return imageResult(result);
+        const raw = def.supervised ? await supervised.call(def.method, args ?? {}) : await bridge.call(def.method, args ?? {});
+        if (def.kind === "image") return imageResult(raw);
+        const result = def.post ? def.post(raw, args ?? {}) : raw;
         return jsonResult(def.untrusted ? markUntrusted(result) : result);
       } catch (err) {
         return errorResult(err);

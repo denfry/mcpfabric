@@ -4,11 +4,12 @@
  * client through mcpfabric. See docs/TESTING.md.
  *
  *   mcpfabric-test [files or directories...] [options]
+ *   mcpfabric-test record <file.mctest.js> [--name <test name>]
  *
  * Finds the game like the MCP server does (MCPFABRIC_TOKEN or ~/.mcpfabric/bridge.json). Exit code:
  * 0 when every test passed, 1 when one failed, 2 when the run could not start.
  */
-import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,6 +17,7 @@ import type { Bridge, SessionInfo } from "../agent/body.js";
 import { BridgeClient } from "../bridge.js";
 import { loadConfig } from "../config.js";
 import { defaultDiscoveryPath, Discovery } from "../discovery.js";
+import { draftTest, type RecordedStep } from "./draft.js";
 import { formatResult, formatSummary, jsonReport, junit, summarize } from "./report.js";
 import { displayPath, findTestFiles, TestRunner, type TestResult } from "./runner.js";
 
@@ -39,6 +41,9 @@ options:
   --no-artifacts       keep nothing for failed tests
   --no-screenshots     keep context.json but no screenshot
   --bail               stop after the first failed test
+
+mcpfabric-test record <file.mctest.js> [--name <test name>]
+  records what you do in the game until you press Enter here, and writes it as a draft test
 `;
 
 interface Cli {
@@ -154,7 +159,58 @@ function write(file: string, text: string): void {
   writeFileSync(file, text);
 }
 
-export async function main(argv: string[], bridge: () => Bridge = bridgeFromEnv, print: (line: string) => void = console.log): Promise<number> {
+/** Resolves when the user presses Enter (or Ctrl+C) in the terminal. */
+function untilEnter(): Promise<void> {
+  return new Promise((resolve) => {
+    const done = (): void => {
+      process.stdin.off("data", done);
+      process.off("SIGINT", done);
+      process.stdin.pause();
+      resolve();
+    };
+    process.stdin.on("data", done);
+    process.once("SIGINT", done);
+    process.stdin.resume();
+  });
+}
+
+/** mcpfabric-test record: start the mod's recorder, wait, stop it and write the draft test. */
+async function record(argv: string[], bridge: () => Bridge, print: (line: string) => void, until: () => Promise<void>): Promise<number> {
+  let file: string | undefined;
+  let name: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--name") {
+      name = argv[++i];
+      if (name === undefined) throw new UsageError("--name needs a value");
+    } else if (a.startsWith("-")) {
+      throw new UsageError(`unknown option ${a}`);
+    } else if (file === undefined) {
+      file = a;
+    } else {
+      throw new UsageError("record takes one file");
+    }
+  }
+  if (!file) throw new UsageError("record needs the file to write, e.g. mcpfabric-test record smelting.mctest.js");
+  if (!file.endsWith(".mctest.js")) throw new UsageError("the file name must end with .mctest.js");
+  if (existsSync(file)) throw new UsageError(`${file} exists; choose another name`);
+  const b = bridge();
+  await b.call("recorder.start");
+  print("Recording. Play the part to test in the game, then press Enter here.");
+  await until();
+  const result = await b.call<{ steps: RecordedStep[]; count: number; stoppedBy?: string }>("recorder.stop");
+  write(file, draftTest(result.steps, { name }));
+  print(`${result.count} steps${result.stoppedBy && result.stoppedBy !== "stopped" ? ` (stopped by ${result.stoppedBy.replace(/_/g, " ")})` : ""} written to ${file}`);
+  return 0;
+}
+
+export async function main(
+  argv: string[],
+  bridge: () => Bridge = bridgeFromEnv,
+  print: (line: string) => void = console.log,
+  until: () => Promise<void> = untilEnter,
+): Promise<number> {
+  if (argv[0] === "record") return record(argv.slice(1), bridge, print, until);
   const cli = parseArgs(argv);
   if (cli.help) {
     print(USAGE);

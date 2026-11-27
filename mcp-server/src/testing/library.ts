@@ -2,7 +2,7 @@
  * The guest side of `mcpfabric-test`: the test API a `.mctest.js` file sees inside the script
  * sandbox. It runs as the sandbox's `library` (after the `mc` prelude, before the test file) and
  * defines globals: test, beforeAll, afterAll, beforeEach, afterEach, step, expect, assert,
- * waitFor, waitForEvent, waitForChat, waitForScreen, mark, command, inventoryCount, sleep, params.
+ * waitFor, waitForEvent, waitForChat, waitForScreen, mark, command, goTo, inventoryCount, sleep, params.
  *
  * The runner evaluates the file once per test, each time in a fresh VM, and appends a call to
  * `__mctest_main()`; `mc.args.__mctest` says what to do: list the tests, run the file's
@@ -343,6 +343,25 @@ export const TEST_LIBRARY = String.raw`(function () {
     }, waitOpts(opts, "waitForScreen(" + show(typeof match === "function" ? "[function]" : match) + ")"));
   };
 
+  /**
+   * Walks the player to a position with the bot's pathfinder and waits until it gets there; throws
+   * when navigation ends any other way (stuck, timeout, no path).
+   */
+  const goTo = async (target, opts) => {
+    if (!target || typeof target.x !== "number" || typeof target.y !== "number" || typeof target.z !== "number") {
+      throw new TypeError("goTo(target): give { x, y, z }");
+    }
+    const o = Object.assign({ timeout: 60000, reach: 1 }, opts || {});
+    await mc.call("nav.pathTo", { x: target.x, y: target.y, z: target.z, reachRadius: o.reach, timeoutSeconds: Math.max(1, Math.ceil(o.timeout / 1000)) });
+    const what = "goTo(" + show(target) + ")";
+    const s = await waitFor(async () => {
+      const st = await mc.call("nav.status", {});
+      return st.active ? undefined : st;
+    }, { timeout: o.timeout + 5000, message: what });
+    if (s.state !== "reached") throw new AssertionError(what + " ended with " + show(s.state));
+    return s;
+  };
+
   /** Runs a server command; throws when the game reports that it failed. */
   const command = async (text) => {
     const r = await mc.call("command.run", { command: String(text) });
@@ -435,6 +454,7 @@ export const TEST_LIBRARY = String.raw`(function () {
   define("waitForScreen", waitForScreen);
   define("mark", mark);
   define("command", command);
+  define("goTo", goTo);
   define("inventoryCount", inventoryCount);
   define("sleep", sleep);
   define("params", Object.freeze(Object.assign({}, ctl.params || {})));
