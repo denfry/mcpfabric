@@ -101,9 +101,18 @@ export function draftTest(steps: RecordedStep[], opts: DraftOptions = {}): strin
         emit(`await mc.container_close({});`);
         break;
       }
-      case "chat":
-        emit(`await mc.send_chat({ message: ${str(s.message)} });`);
+      case "chat": {
+        // The recorder matches the player's messages by sender name, which a server can imitate; a
+        // line that would run as a command is never replayed on its own.
+        const message = String(s.message ?? "");
+        if (message.trimStart().startsWith("/")) {
+          emit(`// A chat line that would run a command, not replayed: ${note(message)}`);
+          emit(`// If you typed it, add: await mc.send_chat({ message: ... }) or command(...).`);
+        } else {
+          emit(`await mc.send_chat({ message: ${str(message)} });`);
+        }
         break;
+      }
       case "end":
         end = counts(s.inventory);
         break;

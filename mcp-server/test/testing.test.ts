@@ -28,6 +28,7 @@ const RECORDED: RecordedStep[] = [
   { kind: "open_container", t: 4000, x: 8, y: 64, z: 1, block: "minecraft:chest" },
   { kind: "close_container", t: 6000, inventoryChange: { "minecraft:diamond": 2, "minecraft:dirt": -5 } },
   { kind: "chat", t: 7000, message: 'got "two"\n*/ diamonds' },
+  { kind: "chat", t: 7050, message: "/op Intruder" },
   { kind: "end", t: 7100, x: 8, y: 64, z: 2, inventory: { "minecraft:diamond": 2 } },
 ];
 
@@ -521,6 +522,9 @@ test("a recording becomes a draft test that replays it and checks the inventory"
   assert.ok(draft.includes('expect(await inventoryCount("minecraft:dirt")).toBe(0);'));
   // Chat text stays inside its string literal.
   assert.ok(draft.includes('await mc.send_chat({ message: "got \\"two\\"\\n*/ diamonds" });'));
+  // A line that would run a command stays a comment.
+  assert.ok(!draft.includes('message: "/op Intruder"'));
+  assert.ok(draft.includes("// A chat line that would run a command, not replayed: /op Intruder"));
   assert.doesNotThrow(() => new Function("test", "mc", draft));
 });
 
@@ -556,7 +560,7 @@ test("mcpfabric-test record writes the draft and will not overwrite a file", asy
   assert.equal(await main(["record", out, "--name", "loot"], () => game, (l) => lines.push(l), async () => undefined), 0);
   assert.deepEqual(game.calls.map((c) => c.method), ["recorder.start", "recorder.stop"]);
   assert.match(readFileSync(out, "utf8"), /test\("loot"/);
-  assert.match(lines[lines.length - 1], /^12 steps written to /);
+  assert.match(lines[lines.length - 1], /^13 steps written to /);
   await assert.rejects(main(["record", out], () => game, () => undefined, async () => undefined), /exists/);
   await assert.rejects(main(["record", join(d, "x.js")], () => game, () => undefined, async () => undefined), /\.mctest\.js/);
 });

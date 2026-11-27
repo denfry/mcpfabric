@@ -157,7 +157,8 @@ whose count changed. Read it before you trust it:
 - Clicks inside menus are not recorded; the draft says what the inventory gained or lost there,
   and you add `container_click` steps.
 - Entities differ between runs, so hits and uses on entities are left as comments.
-- Commands you type in chat are not recorded.
+- Commands you type in chat are not recorded, and a recorded chat line that starts with `/` is
+  left as a comment instead of being sent again.
 
 An agent can record too: `start_recording` and `stop_recording` (see the README) return the same
 steps and the draft, so the player can show the agent a task instead of describing it.
