@@ -10,7 +10,12 @@ import java.util.regex.Pattern;
 public final class Redact {
 	private static final Pattern CONNECTING = Pattern.compile("(Connecting to )\\S+?(?=, ?\\d{1,5}\\b)");
 	private static final Pattern IPV4 = Pattern.compile("(?<![\\w.])(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d{1,5})?(?![\\w.])");
-	private static final Pattern IPV6 = Pattern.compile("\\[[0-9A-Fa-f:]*:[0-9A-Fa-f:.]*(?:%[\\w.]+)?](?::\\d{1,5})?");
+	/**
+	 * In brackets, with "::" or at least three colons, so the time a log line starts with ([11:20:33])
+	 * is kept.
+	 */
+	private static final Pattern IPV6 = Pattern.compile(
+			"\\[(?=[^\\]]*(?:::|:[^\\]:]*:[^\\]:]*:))[0-9A-Fa-f:]*:[0-9A-Fa-f:.]*(?:%[\\w.]+)?](?::\\d{1,5})?");
 
 	private Redact() {}
 

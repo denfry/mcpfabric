@@ -18,4 +18,11 @@ class RedactTest {
 		String s = "Loading Minecraft 1.21.1 with Fabric Loader 0.16.10 at 12.5, 64.0, -3.25";
 		assertEquals(s, Redact.text(s, null));
 	}
+
+	@Test
+	void keepsTheTimeOfALogLine() {
+		String s = "[11:20:33] [Render thread/WARN] (Minecraft) Missing sound [12:01:02.345]";
+		assertEquals(s, Redact.text(s, null));
+		assertEquals("<ip> <ip> <ip>", Redact.text("[::1] [fe80::1%eth0]:25565 [2001:db8:0:0:1:0:0:1]", null));
+	}
 }
