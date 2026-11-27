@@ -7,6 +7,7 @@
  * Java handler registry in the mod (`dev.mcpfabric.handlers.*`).
  */
 import { z } from "zod";
+import { draftTest, type RecordedStep } from "./testing/draft.js";
 
 /**
  * MCP tool hints. Every tool states all four, so clients never fall back to the spec defaults
@@ -56,6 +57,13 @@ export interface ToolDef {
    * output): it is returned wrapped as untrusted data (see untrusted.ts).
    */
   untrusted?: boolean;
+  /** Reshapes the bridge's answer before the model sees it (and before it is marked untrusted). */
+  post?: (result: unknown, args: Record<string, unknown>) => unknown;
+  /**
+   * Only reads, but the mod refuses it for the read-only token (game logs and crash reports can hold
+   * chat and other private text), so the `readonly` tool set leaves it out.
+   */
+  fullToken?: boolean;
 }
 
 // ----- reusable schema fragments -------------------------------------------------------------
@@ -653,6 +661,36 @@ export const TOOLS: ToolDef[] = [
     annotations: READ,
   },
   {
+    name: "start_recording",
+    method: "recorder.start",
+    title: "Record the player",
+    description:
+      "Client-only; needs enablePlayerControl. Start recording what the player does by hand: where they walk, hotbar choices, blocks broken and placed, blocks, items and entities used, containers opened (and what the inventory gained or lost) and their own chat. The player is told in chat. Ask the player to show you a task, then call stop_recording to get the steps (learn by demonstration) and a draft test. Stops by itself after 500 steps, 30 minutes or on leaving the world.",
+    inputSchema: {},
+    annotations: ACT,
+  },
+  {
+    name: "stop_recording",
+    method: "recorder.stop",
+    title: "Stop recording",
+    description:
+      "Client-only. Stop the recording and return its steps (kind: start, move, select, break, place, use_block, use_item, use_entity, attack, open_container, close_container, chat, end; with positions, block states, items and t in ms) and `draft`, a mcpfabric-test file that replays them. Commands the player typed and clicks inside menus are not recorded.",
+    inputSchema: {
+      name: z.string().max(200).optional().describe("Name of the test in the draft."),
+    },
+    annotations: ACT,
+    untrusted: true,
+    post: (result, args) => withDraft(result, typeof args.name === "string" ? args.name : undefined),
+  },
+  {
+    name: "recording_status",
+    method: "recorder.status",
+    title: "Recording status",
+    description: "Client-only. Whether a recording runs, how many steps it has, for how long, and why it stopped.",
+    inputSchema: {},
+    annotations: READ,
+  },
+  {
     name: "stop_navigation",
     method: "nav.stop",
     title: "Stop navigation",
@@ -869,4 +907,104 @@ export const TOOLS: ToolDef[] = [
     annotations: READ,
     untrusted: true,
   },
+
+  // ===== devtools (off by default: enableDevTools) ============================================
+  {
+    name: "list_mods",
+    method: "dev.mods",
+    title: "List loaded mods",
+    description: "Needs enableDevTools. The mods the loader has loaded (the game and the loader included): id, name and version, sorted by id.",
+    inputSchema: {},
+    annotations: READ,
+    untrusted: true,
+  },
+  {
+    name: "list_registry",
+    method: "dev.registry",
+    title: "List registry ids",
+    description:
+      "Needs enableDevTools. Without a registry: every built-in registry with its size. With one (item, block, entity_type, mymod:machine...): its ids, sorted, filtered by namespace (a mod id) and/or a substring. Data-driven registries (biomes, enchantments) are not included.",
+    inputSchema: {
+      registry: z.string().max(128).optional().describe('Registry id, e.g. "item" or "minecraft:block". Leave out to list the registries.'),
+      namespace: z.string().max(64).optional().describe('Only ids of this namespace, e.g. a mod id ("create").'),
+      contains: z.string().max(128).optional().describe("Only ids containing this text."),
+      limit: z.number().int().min(1).max(5000).optional().default(500),
+    },
+    annotations: READ,
+  },
+  {
+    name: "read_log",
+    method: "dev.log",
+    title: "Read the game log",
+    description:
+      "Needs enableDevTools. The newest entries of logs/latest.log (or debug.log) of this game: an entry is a log line with its stack trace. Filter by minimum level (WARN keeps WARN, ERROR and FATAL) and/or a substring. IP addresses, server addresses and the home folder are replaced; the log can still hold chat and player names.",
+    inputSchema: {
+      file: z.enum(["latest", "debug"]).optional().default("latest"),
+      level: z.enum(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"]).optional(),
+      contains: z.string().max(256).optional().describe('Only entries containing this text, e.g. a mod id or "Exception".'),
+      lines: z.number().int().min(1).max(1000).optional().default(100).describe("How many of the newest matching entries."),
+    },
+    annotations: READ,
+    untrusted: true,
+    fullToken: true,
+  },
+  {
+    name: "read_crash_report",
+    method: "dev.crash",
+    title: "Read a crash report",
+    description:
+      "Needs enableDevTools. The newest crash report of this game folder (index 0; 1 is the one before), with the list of the ten newest. Addresses and the home folder are replaced.",
+    inputSchema: {
+      index: z.number().int().min(0).optional().default(0),
+      maxChars: z.number().int().min(1000).max(200000).optional().default(20000),
+    },
+    annotations: READ,
+    untrusted: true,
+    fullToken: true,
+  },
+  {
+    name: "tick_control",
+    method: "dev.tick",
+    title: "Freeze, step or speed up the game",
+    description:
+      "Needs enableDevTools; changing it also needs enableCommands (it is what /tick does), and an integrated or dedicated server. query: rate, frozen, sprinting. freeze / unfreeze the world; step N ticks while frozen; sprint N ticks as fast as possible (crops grow, furnaces finish), stop_sprint; rate sets ticks per second (20 is normal). Affects every player on the server.",
+    inputSchema: {
+      action: z.enum(["query", "freeze", "unfreeze", "step", "sprint", "stop_sprint", "rate"]).optional().default("query"),
+      ticks: z.number().int().min(1).max(72000).optional().describe("For step and sprint."),
+      rate: z.number().min(1).max(10000).optional().describe("For rate: ticks per second."),
+    },
+    annotations: { ...WRITE, idempotentHint: true },
+  },
+  {
+    name: "watch_blocks",
+    method: "dev.watch",
+    title: "Watch blocks change",
+    description:
+      "Needs enableDevTools and an integrated or dedicated server. Samples a region (up to 32x32x32) once per tick for the given number of ticks (at most 10 seconds of real time) and lists every block that changed: position, state before and after, and the tick it was seen. Use it to see what a redstone circuit, a farm or a machine from a mod actually does. A change undone within the same tick is not seen.",
+    inputSchema: {
+      from: z.object(vec3()).describe("One corner of the region."),
+      to: z.object(vec3()).describe("The opposite corner."),
+      ...dimensionOpt,
+      ticks: z.number().int().min(1).max(200).optional().default(40),
+      maxChanges: z.number().int().min(1).max(1000).optional().default(200),
+    },
+    annotations: READ,
+  },
+  {
+    name: "inspect_mob_brain",
+    method: "dev.brain",
+    title: "Inspect a mob's AI",
+    description:
+      "Needs enableDevTools and an integrated or dedicated server. What a living entity is thinking: its target, where it is walking, its goals by priority (running or not) and target goals, and for brain-driven mobs (villagers, piglins, axolotls...) the active activities, running behaviors and current memories. Get the uuid from query_entities. On Fabric before Minecraft 26.1, vanilla goal names appear as obfuscated class names (class_1234).",
+    inputSchema: { uuid: z.string().describe("Entity UUID.") },
+    annotations: READ,
+    untrusted: true,
+  },
 ];
+
+/** Adds the draft test to a recorder.stop answer. */
+export function withDraft(result: unknown, name?: string): unknown {
+  if (!result || typeof result !== "object" || !Array.isArray((result as { steps?: unknown }).steps)) return result;
+  const steps = (result as { steps: RecordedStep[] }).steps;
+  return { ...(result as object), draft: draftTest(steps, { name }) };
+}

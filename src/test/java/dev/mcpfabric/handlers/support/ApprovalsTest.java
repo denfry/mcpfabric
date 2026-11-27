@@ -21,6 +21,10 @@ class ApprovalsTest {
 		assertEquals("world_write", Approvals.groupOf("world.fill", json("{}")));
 		assertEquals("players_admin", Approvals.groupOf("players.kick", json("{}")));
 		assertNull(Approvals.groupOf("control.look", json("{}")));
+		assertEquals("command", Approvals.groupOf("dev.tick", json("{\"action\":\"freeze\"}")));
+		assertNull(Approvals.groupOf("dev.tick", json("{\"action\":\"query\"}")));
+		assertNull(Approvals.groupOf("dev.tick", json("{}")));
+		assertEquals("command", Approvals.groupOf("dev.tick", json("{\"action\":\"SPRINT\"}")));
 		for (String g : new String[] {"command", "world_write", "players_admin"}) assertTrue(Approvals.GROUPS.contains(g));
 	}
 

@@ -2,6 +2,7 @@ package dev.mcpfabric.client;
 
 import com.google.gson.JsonObject;
 import dev.mcpfabric.McpFabric;
+import dev.mcpfabric.client.handlers.RecorderHandlers;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Holder;
@@ -39,7 +40,10 @@ public final class ClientEvents {
 		if (sender != null) {
 			d.addProperty("sender", sender);
 			LocalPlayer self = Minecraft.getInstance().player;
-			if (self != null && sender.equals(self.getName().getString())) d.addProperty("self", true);
+			if (self != null && sender.equals(self.getName().getString())) {
+				d.addProperty("self", true);
+				RecorderHandlers.onOwnChat(message.getString(), sender);
+			}
 		}
 		d.addProperty("kind", chatKind(bound));
 		McpFabric.events().emit("chat", d);
