@@ -56,6 +56,11 @@ export interface ToolDef {
    * output): it is returned wrapped as untrusted data (see untrusted.ts).
    */
   untrusted?: boolean;
+  /**
+   * Only reads, but the mod refuses it for the read-only token (game logs and crash reports can hold
+   * chat and other private text), so the `readonly` tool set leaves it out.
+   */
+  fullToken?: boolean;
 }
 
 // ----- reusable schema fragments -------------------------------------------------------------
@@ -908,6 +913,7 @@ export const TOOLS: ToolDef[] = [
     },
     annotations: READ,
     untrusted: true,
+    fullToken: true,
   },
   {
     name: "read_crash_report",
@@ -921,6 +927,7 @@ export const TOOLS: ToolDef[] = [
     },
     annotations: READ,
     untrusted: true,
+    fullToken: true,
   },
   {
     name: "tick_control",
