@@ -4,18 +4,15 @@ import http from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { Client } from "@modelcontextprotocol/client";
 import { z } from "zod";
 
 // Runs against the compiled server: npm run build first (npm test does).
 const serverEntry = join(dirname(fileURLToPath(import.meta.url)), "..", "dist", "index.js");
 
 const TOKEN = "test-token";
-const ChannelNotification = z.object({
-  method: z.literal("notifications/claude/channel"),
-  params: z.object({ content: z.string(), meta: z.record(z.string(), z.string()).optional() }),
-});
+const ChannelParams = z.object({ content: z.string(), meta: z.record(z.string(), z.string()).optional() });
 
 /** Open SSE responses of the fake bridge, and how each stream was requested. */
 const streams = [];
@@ -31,8 +28,8 @@ function startClient(env) {
     stderr: "ignore",
   });
   const client = new Client({ name: "channel-test", version: "0.0.0" });
-  client.setNotificationHandler(ChannelNotification, (n) => {
-    notifications.push(n.params);
+  client.setNotificationHandler("notifications/claude/channel", { params: ChannelParams }, (params) => {
+    notifications.push(params);
   });
   return client.connect(transport).then(() => client);
 }
