@@ -16,6 +16,12 @@ All notable changes to this project are documented here. The format is based on
   `--bail`, `--world`, `--param`, JUnit XML and JSON reports. An example is in
   `mcp-server/examples/`.
 
+### Dependencies
+- MCP server: moved from `@modelcontextprotocol/sdk` 1.x, which only gets fixes now, to the
+  split MCP SDK v2 (`@modelcontextprotocol/server`, `client`, `core`, `node` 2.4) and
+  `@modelcontextprotocol/ext-apps` 2.0. Clients see the same tools, transports and Claude Code
+  channel; the server still speaks the 2025 protocol revisions.
+
 ## [0.10.0] - 2026-11-09
 
 Fabric and NeoForge. 0.9.1 was never published; its fix ships here.
