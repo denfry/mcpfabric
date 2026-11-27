@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- `import_schematic` and `export_schematic`: Sponge schematics (`.schem` from WorldEdit and
+  FastAsyncWorldEdit; versions 1 to 3 read, version 2 written) to build plans and back, up to
+  64×64×64, blocks only. Files are read and written in one folder (`MCPFABRIC_SCHEMATICS_DIR`,
+  default `~/.mcpfabric/schematics`) by name, without paths. Neighbour-driven properties (fence
+  connections, stair corners) are left free on import.
+
 ## [0.10.0] - 2026-11-09
 
 Fabric and NeoForge. 0.9.1 was never published; its fix ships here.

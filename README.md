@@ -352,7 +352,7 @@ claude --dangerously-load-development-channels server:mcpfabric
 `goal_add`, `goal_update`, `goal_list`, `plan_craft`, `get_recipes`, `explore_next`,
 jobs `travel_to` / `explore` / `collect_blocks` / `craft_item` with `job_status` / `job_cancel`,
 `open_container` / `container_transfer` / `close_container`, building from a plan:
-`build_plan`, `build_verify`, `build_structure`; `open_dashboard` shows a live
+`build_plan`, `build_verify`, `build_structure`, `import_schematic` / `export_schematic` (WorldEdit `.schem` files up to 64×64×64, in `~/.mcpfabric/schematics`); `open_dashboard` shows a live
 panel (position, vitals, job, map, goals, inventory and a STOP button) in hosts that render
 [MCP Apps](https://modelcontextprotocol.io/extensions/apps), such as Claude
 

@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { z } from "zod";
 
@@ -208,6 +211,25 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.match(await tool("build_plan", { name: "hut" }), /^# plan hut/, "a saved plan is shown by name");
     const bad = await tool("build_plan", { ...HUT, name: "bad", layers: [["#D#"], ["###"]] });
     assert.match(bad, /oak_door @ 6 64 5: the cell above is not the upper half of the door/);
+  },
+  export_schematic: async ({ tool }) => {
+    process.env.MCPFABRIC_SCHEMATICS_DIR = mkdtempSync(join(tmpdir(), "schem-"));
+    await tool("build_plan", HUT);
+    assert.match(await tool("export_schematic", { name: "hut", file: "hut" }), /^wrote 3x3x3 \(width x height x length\) to .*hut\.schem$/);
+    await assert.rejects(tool("export_schematic", { name: "hut", file: "hut" }), /exists/);
+    await assert.rejects(tool("export_schematic", { name: "hut", file: "../hut" }), /not a schematic file name/);
+  },
+  import_schematic: async ({ world, tool }) => {
+    process.env.MCPFABRIC_SCHEMATICS_DIR = mkdtempSync(join(tmpdir(), "schem-"));
+    assert.match(await tool("import_schematic", {}), /^no \.schem files in /);
+    await tool("build_plan", HUT);
+    await tool("export_schematic", { name: "hut", file: "hut.schem" });
+    assert.match(await tool("import_schematic", {}), /schematics in .*:\nhut\.schem$/);
+    world.give("minecraft:oak_planks", 10);
+    const out = await tool("import_schematic", { file: "hut", name: "hut2", origin: { x: 5, y: 64, z: 5 }, air: "empty" });
+    assert.match(out, /^imported hut as plan hut2\n# plan hut2 · 3×3×3 \(x×y×z\) · 5 64 5 → 7 66 7 · 25 blocks · 2 must-be-empty/);
+    assert.match(out, /materials: oak_planks×23 oak_door×1/);
+    await assert.rejects(tool("import_schematic", { file: "hut" }), /needs name and origin/);
   },
   build_verify: async ({ world, tool }) => {
     await tool("build_plan", HUT);

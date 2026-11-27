@@ -141,6 +141,14 @@ the build must look like, so those become checkable.
   (stair shapes and fence connections follow the neighbours). It reports missing blocks, wrong
   blocks, wrong states (`facing=east (want north)`), obstructed empty cells, and for every spot
   whether it can be walked to. When it cannot, it names the fewest blocks in the way.
+- `import_schematic` turns a Sponge schematic (`.schem` from WorldEdit or FastAsyncWorldEdit,
+  versions 1 to 3, up to 64×64×64) into a saved plan; `export_schematic` writes a plan as a version 2
+  schematic that `//schem load` reads. Files live in one folder (`MCPFABRIC_SCHEMATICS_DIR`, default
+  `~/.mcpfabric/schematics`) and are named without a path. Only blocks are carried, not chest
+  contents, sign text or entities. Fence and wall connections, stair corners and similar
+  properties the game sets from the neighbours are left free on import. Air imports as "any block"
+  unless `air: "empty"`, which makes the build clear those cells. Structure voids are "any block"
+  both ways.
 - The walking check uses the client's blocks: feet and head cells must be passable (air, plants,
   carpets, ladders, wooden doors and gates, which can be opened), there must be something to stand
   on, a jump climbs one block but not a fence or wall, and a drop is at most three blocks.
@@ -262,6 +270,7 @@ these two tools. Other hosts get a short text summary from `open_dashboard`.
 |---|---|---|
 | `MCPFABRIC_AGENT` | on | `0` / `false` / `off` serves only the bridge tools |
 | `MCPFABRIC_DATA_DIR` | `~/.mcpfabric` | where `agent.db` lives |
+| `MCPFABRIC_SCHEMATICS_DIR` | `<data dir>/schematics` | the only folder `import_schematic` reads and `export_schematic` writes |
 | `MCPFABRIC_WORLD` | from the game | force a world id (e.g. to share memory between two saves) |
 | `MCPFABRIC_SCRIPTS` | on | `0` / `false` / `off` removes `run_script` and the skill tools |
 
