@@ -6,10 +6,11 @@
  * bridge, then serves them over stdio (default) or streamable HTTP. All diagnostic logging goes to
  * stderr so it never corrupts the stdio JSON-RPC stream.
  */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { CallToolResult, ServerNotification } from "@modelcontextprotocol/sdk/types.js";
+import { NodeStreamableHTTPServerTransport } from "@modelcontextprotocol/node";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { McpServer } from "@modelcontextprotocol/server";
+import type { CallToolResult, ServerNotification } from "@modelcontextprotocol/server";
+import { z } from "zod";
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
@@ -110,7 +111,7 @@ function registerTools(server: McpServer, bridge: BridgeClient, supervised: Supe
     const config = {
       title: def.title,
       description: def.description,
-      inputSchema: def.inputSchema,
+      inputSchema: z.object(def.inputSchema),
       ...(def.annotations ? { annotations: def.annotations } : {}),
     };
 
@@ -137,7 +138,7 @@ function registerAgentTools(server: McpServer, runtime: AgentRuntime, groups: Se
     const config = {
       title: def.title,
       description: def.description,
-      inputSchema: def.inputSchema,
+      inputSchema: z.object(def.inputSchema),
       ...(def.annotations ? { annotations: def.annotations } : {}),
     };
     const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
@@ -164,7 +165,7 @@ function registerScriptTools(server: McpServer, host: ScriptHost): () => void {
     const config = {
       title: def.title,
       description: def.description,
-      inputSchema: def.inputSchema,
+      inputSchema: z.object(def.inputSchema),
       annotations: def.annotations,
     };
     const handler = async (args: Record<string, unknown>): Promise<CallToolResult> => {
@@ -256,7 +257,7 @@ function startChannel(server: McpServer, bridge: BridgeClient, runtime: AgentRun
 
 async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, scripts: ScriptHost | undefined, cfg: ServerConfig): Promise<void> {
   // Stateful streamable-HTTP: one transport+server per session id.
-  const sessions = new Map<string, { server: McpServer; transport: StreamableHTTPServerTransport; lastSeen: number }>();
+  const sessions = new Map<string, { server: McpServer; transport: NodeStreamableHTTPServerTransport; lastSeen: number }>();
 
   // Close sessions whose client went away without DELETE; otherwise they would stay open forever.
   const sweep = setInterval(() => {
@@ -301,7 +302,7 @@ async function runHttp(bridge: BridgeClient, runtime: AgentRuntime | undefined, 
         res.writeHead(503, { "Content-Type": "text/plain" }).end("Too many open MCP sessions; close one (DELETE) or wait for idle ones to expire.");
         return;
       }
-      const transport = new StreamableHTTPServerTransport({
+      const transport = new NodeStreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (id: string) => {
           sessions.set(id, entry!);

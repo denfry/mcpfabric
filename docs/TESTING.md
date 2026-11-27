@@ -48,8 +48,9 @@ test("the shop sells a sword", async ({ step }) => {
   await step("buy the sword", async () => {
     const menu = await mc.container_state();
     expect(menu.title).toContain("Shop");
-    const sword = menu.slots.find((s) => s.id === "minecraft:diamond_sword");
+    const sword = menu.slots.find((s) => (s.name ?? "").includes("Diamond Sword"));
     expect(sword, "the sword in the shop").toBeDefined();
+    expect(sword.lore).toContain("Price: 10 emeralds");
     await mc.container_click({ slot: sword.slot });
   });
   await expect.poll(() => inventoryCount("diamond_sword")).toBe(1);
@@ -60,7 +61,7 @@ The game is reached through `mc`, exactly as in `run_script`: `mc.<tool name>(pa
 bridge tool of the catalogue (`mc.get_self()`, `mc.click_widget({ id })`, `mc.run_command(...)`),
 or `mc.call("<tool or method>", params)`. Parameters are checked like the MCP tools check them.
 Tests also get the menu methods the agent runtime uses: `mc.container_state()` (the open menu: title,
-size, non-empty slots with `slot`, `id`, `count`), `mc.container_click({ slot, mode, button })`
+size, non-empty slots with `slot`, `id`, `count`, and `name` and `lore` when the item has them), `mc.container_click({ slot, mode, button })`
 (`mode` pickup, quick_move, throw or swap), `mc.container_open({ x, y, z })` and
 `mc.container_close()`. Supervised methods are not available. The mod's capability locks
 (`enable*` in `mcpfabric.config.json`) apply as usual: menus need `enablePlayerControl`, buttons of
@@ -204,7 +205,5 @@ an agent drives the same game: both would move the same player.
 - `command()` needs a server with the mod: singleplayer, or a dedicated server running the mod. On
   a server without it (Paper, Spigot, another modded server), test through the client: chat,
   menus, the inventory, what the screen shows.
-- Menu slots carry the item id and count, not the item's custom name or lore yet, so tell shop
-  items apart by id or slot.
 - Waits read the mod's event buffer (the last 2000 events); a wait that falls far behind a very
   busy server can miss events.
