@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-27
+
+Fabric and NeoForge. The MCP server moves to the MCP SDK v2 and follows the mod to 1.0.0.
+
 ### Added
 - `enableMenuUiControl` (off by default, needs `enableUiControl`): `get_ui`, `click_widget` and
   `set_text_field` also work on the first-start accessibility screen, the world list and the create
