@@ -37,6 +37,75 @@ export const TOOL_GROUPS = [...new Set([...Object.values(METHOD_GROUPS), "agent"
  */
 export const READONLY = "readonly";
 
+/**
+ * Not a group but a filter for small models: only {@link COMPACT_TOOLS} are served, with short
+ * descriptions, and run_script and the dashboard are left out. It shrinks what the model reads
+ * before its first turn from about 16 000 tokens to a few thousand.
+ */
+export const COMPACT = "compact";
+
+/**
+ * The tools a small model gets: high-level jobs and memory rather than many low-level steps, plus
+ * the few direct actions they cannot do without. A tool whose group is not served stays out.
+ */
+export const COMPACT_TOOLS: ReadonlySet<string> = new Set([
+  "get_status",
+  "agent_brief",
+  "observe",
+  "surroundings",
+  "get_self",
+  "get_inventory",
+  "get_screen",
+  "close_screen",
+  "get_recent_chat",
+  "send_chat",
+  "show_message",
+  "travel_to",
+  "collect_blocks",
+  "craft_item",
+  "plan_craft",
+  "job_status",
+  "job_cancel",
+  "stop_movement",
+  "break_block",
+  "place_block_at",
+  "use_item",
+  "select_hotbar_slot",
+  "attack_entity",
+  "open_container",
+  "container_transfer",
+  "close_container",
+  "remember",
+  "recall",
+  "goal_add",
+  "goal_update",
+  "goal_list",
+]);
+
+/** Most characters of a description in compact mode. */
+export const COMPACT_DESCRIPTION_CHARS = 200;
+
+/** Whether this tool is served for these groups when compact mode is on (true when it is off). */
+export function servesCompact(groups: Set<string>, name: string): boolean {
+  return !groups.has(COMPACT) || COMPACT_TOOLS.has(name);
+}
+
+/**
+ * The description a model gets: in compact mode the first sentence, joined with the next one when
+ * the first is only a label ("Client-only."), cut at a word near {@link COMPACT_DESCRIPTION_CHARS}.
+ */
+export function describeFor(groups: Set<string>, description: string): string {
+  if (!groups.has(COMPACT)) return description;
+  // A sentence ends at . ! or ? followed by a space, so "1.21.1" and "e.g." inside words stay whole.
+  const sentences = description.trim().split(/(?<!\b(?:e\.g|i\.e)\.)(?<=[.!?])\s+/);
+  let out = (sentences[0] ?? "").trim();
+  for (let i = 1; i < sentences.length && out.length < 40; i++) out = `${out} ${sentences[i]!.trim()}`;
+  if (out.length <= COMPACT_DESCRIPTION_CHARS) return out;
+  const cut = out.slice(0, COMPACT_DESCRIPTION_CHARS - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${space > 80 ? cut.slice(0, space) : cut}…`;
+}
+
 /** Whether a tool with these hints is served for these groups (the group itself is checked apart). */
 export function servesHints(groups: Set<string>, annotations: { readOnlyHint: boolean }): boolean {
   return !groups.has(READONLY) || annotations.readOnlyHint;
@@ -66,10 +135,10 @@ export function parseToolsets(value: string | undefined): Set<string> {
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter((s) => s.length > 0);
-  // `readonly` is a filter on top of the other names: only tools that just read are served.
-  const readonly = names.includes(READONLY);
-  names = names.filter((n) => n !== READONLY);
-  if (names.length === 0) return new Set([...TOOL_GROUPS, ...(readonly ? [READONLY] : [])]);
+  // `readonly` and `compact` are filters on top of the other names.
+  const filters = [READONLY, COMPACT].filter((f) => names.includes(f));
+  names = names.filter((n) => !filters.includes(n));
+  if (names.length === 0) return new Set([...TOOL_GROUPS, ...filters]);
   const groups = new Set<string>(["info"]);
   for (const name of names) {
     const profile = TOOL_PROFILES[name];
@@ -79,11 +148,11 @@ export function parseToolsets(value: string | undefined): Set<string> {
       groups.add(name);
     } else {
       throw new Error(
-        `MCPFABRIC_TOOLSETS: unknown tool set "${name}". Profiles: ${Object.keys(TOOL_PROFILES).join(", ")}; groups: ${TOOL_GROUPS.join(", ")}; filter: ${READONLY}`,
+        `MCPFABRIC_TOOLSETS: unknown tool set "${name}". Profiles: ${Object.keys(TOOL_PROFILES).join(", ")}; groups: ${TOOL_GROUPS.join(", ")}; filters: ${READONLY}, ${COMPACT}`,
       );
     }
   }
-  if (readonly) groups.add(READONLY);
+  for (const f of filters) groups.add(f);
   return groups;
 }
 

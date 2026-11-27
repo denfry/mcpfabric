@@ -262,6 +262,12 @@ Tool sets only hide tools: the mod's `enable*` flags still decide what the game 
 `readonly` to serve only the tools that just read, e.g. `MCPFABRIC_TOOLSETS=readonly` or
 `MCPFABRIC_TOOLSETS=play,readonly`; pair it with the mod's read-only token (below).
 
+For small local models, add `compact` (e.g. `MCPFABRIC_TOOLSETS=compact` or `play,compact`). It serves
+31 core tools: the background jobs (`travel_to`, `collect_blocks`, `craft_item`), memory, goals,
+containers and a few direct actions. Each tool keeps only the first sentence of its description,
+and the server instructions shrink to one paragraph. `run_script` and the dashboard are left out.
+Tools and instructions then take about 4,000 tokens instead of about 16,000.
+
 ---
 
 ## 3. Connect to Claude

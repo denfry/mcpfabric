@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- `MCPFABRIC_TOOLSETS=compact` for small models: 31 core tools (jobs, memory, goals, containers
+  and a few direct actions) with first-sentence descriptions and a one-paragraph instruction, no
+  `run_script` and no dashboard. Tools and instructions take about 4,000 tokens instead of about
+  16,000. It combines with profiles and `readonly`, like `play,compact`.
+
 ## [0.10.0] - 2026-11-09
 
 Fabric and NeoForge. 0.9.1 was never published; its fix ships here.
