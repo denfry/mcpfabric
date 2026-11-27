@@ -37,7 +37,7 @@ A test file is JavaScript named `*.mctest.js`. It registers tests; the runner ru
 
 ```js
 beforeEach(async () => {
-  await command("clear @p");
+  await command("clear @p", { allowFail: true }); // fails when the inventory is already empty
 });
 
 test("the shop sells a sword", async ({ step }) => {
@@ -86,7 +86,7 @@ Calls are allowed only inside tests, steps and hooks. A file's top level only re
 | `waitForChat(textOrRegExp, { timeout, from })` | The next chat or system line containing the text (or matching the RegExp), as `{ text, type, sender }`. `from` limits it to one sender. |
 | `waitForEvent(type or [types], { where, timeout })` | The next game event of that type for which `where(event)` is true (`player_damage`, `self_death`, `mining_finished`, `player_join`, ...). |
 | `waitForScreen(kindOrTitle or fn, { timeout })` | Waits until `screen.get` shows that screen: a kind (`"none"`, `"container"`, `"death"`, ...), part of a screen title, or a predicate. |
-| `command(text)` | Runs a server command; throws with the game's output when it fails. Needs a server with the mod and `enableCommands`. |
+| `command(text, { allowFail })` | Runs a server command; throws with the game's output when it fails, unless `allowFail` is set (`clear` on an empty inventory fails). Needs a server with the mod and `enableCommands`. |
 | `inventoryCount(item)` | How many of an item (`"torch"` or `"minecraft:torch"`) the player holds, hotbar, main inventory and off hand together. |
 | `mark()` | The id of the newest game event, to pass as `since` to the waits. |
 | `sleep(ms)` | Waits. Prefer the waits above: they finish as soon as the game is ready. |
