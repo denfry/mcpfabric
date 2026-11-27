@@ -12,6 +12,8 @@ All notable changes to this project are documented here. The format is based on
   64×64×64, blocks only. Files are read and written in one folder (`MCPFABRIC_SCHEMATICS_DIR`,
   default `~/.mcpfabric/schematics`) by name, without paths. Neighbour-driven properties (fence
   connections, stair corners) are left free on import.
+- Block states in build plans must be a plain id with `name=value` properties; anything else
+  (spaces, braces, quotes) is refused, for plans written by the model and imported files alike.
 
 ## [0.10.0] - 2026-11-09
 

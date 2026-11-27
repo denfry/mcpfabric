@@ -18,6 +18,11 @@ import type { Pos } from "./format.js";
 export const MAX_SIZE = 64;
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const MAX_NBT_BYTES = 64 * 1024 * 1024;
+/**
+ * Most tags one file may hold. A list of a million empty compounds is a few megabytes unpacked but
+ * a million objects in memory, so the count is capped apart from the size (arrays count by element).
+ */
+const MAX_NBT_NODES = 2_000_000;
 /** The DataVersion written: Minecraft 1.21.1, the oldest version the mod supports. */
 const DATA_VERSION = 3955;
 const VOID = "minecraft:structure_void";
@@ -62,7 +67,13 @@ interface NbtCompound {
 
 class Reader {
   private pos = 0;
+  private nodes = 0;
   constructor(private readonly buf: Buffer) {}
+
+  private spend(n: number): void {
+    this.nodes += n;
+    if (this.nodes > MAX_NBT_NODES) throw new Error(`the schematic holds more than ${MAX_NBT_NODES} tags`);
+  }
 
   private need(n: number): void {
     if (this.pos + n > this.buf.length) throw new Error("the schematic is truncated");
@@ -98,6 +109,7 @@ class Reader {
 
   payload(type: number, depth: number): Nbt {
     if (depth > 64) throw new Error("the schematic nests too deeply");
+    this.spend(1);
     switch (type) {
       case 1:
         return this.byte();
@@ -136,6 +148,9 @@ class Reader {
         const t = this.byte();
         const n = this.count();
         if (t === 0 && n > 0) throw new Error("the schematic has a list of nothing");
+        // Every element takes at least one byte (an empty compound), so a count past the bytes left is a lie.
+        this.need(n);
+        this.spend(n);
         const out: Nbt[] = [];
         for (let i = 0; i < n; i++) out.push(this.payload(t, depth + 1));
         return out;
@@ -151,6 +166,7 @@ class Reader {
       }
       case 11: {
         const n = this.count();
+        this.spend(n);
         this.need(n * 4);
         const v = new Int32Array(n);
         for (let i = 0; i < n; i++) v[i] = this.int();
@@ -158,6 +174,7 @@ class Reader {
       }
       case 12: {
         const n = this.count();
+        this.spend(n);
         this.need(n * 8);
         const v = new BigInt64Array(n);
         for (let i = 0; i < n; i++) {

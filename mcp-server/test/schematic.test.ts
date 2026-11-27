@@ -151,3 +151,21 @@ test("schematic files stay in their folder", () => {
   assert.equal(schematicsDir({ MCPFABRIC_SCHEMATICS_DIR: "/s" }), "/s");
   assert.equal(schematicsDir({ MCPFABRIC_DATA_DIR: "/d" }), join("/d", "schematics"));
 });
+
+test("block states that are not plain ids and properties are refused", () => {
+  for (const bad of ['minecraft:stone{Lock:"x"}', "minecraft:stone run say hi", 'minecraft:chest[facing=north,x="y"]', "minecraft:stone[facing=north up]"]) {
+    assert.throws(() => schematicToPlan({ width: 1, height: 1, length: 1, blocks: [bad] }, { name: "x", origin }), /malformed/, bad);
+    assert.throws(() => compilePlan({ name: "x", origin, palette: { A: bad }, layers: [["A"]] }), /malformed/, bad);
+  }
+  assert.doesNotThrow(() => compilePlan({ name: "x", origin, palette: { A: "create:andesite_casing", B: "minecraft:oak_stairs[facing=north,half=top]" }, layers: [["AB"]] }));
+});
+
+test("a file with millions of tiny tags is refused before it fills the memory", () => {
+  // A list of 3,000,000 empty compounds: about 3 MB unpacked.
+  const count = 3_000_000;
+  const head = Buffer.alloc(5);
+  head.writeInt8(10, 0);
+  head.writeInt32BE(count, 1);
+  const file = nbt([compound("", [name(9, "Junk"), head, Buffer.alloc(count, 0)])]);
+  assert.throws(() => parseSchematic(file), /more than 2000000 tags/);
+});
