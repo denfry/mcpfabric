@@ -27,7 +27,7 @@ Runs *.mctest.js files (directories are searched; default: the current directory
 running game.
 
 options:
-  --grep <regex>       only tests whose "file > name" matches
+  --grep <text>        only tests whose "file > name" contains the text
   --list               list the tests without running them
   --retries <n>        run a failed test up to n more times (default 0)
   --timeout <ms>       time limit of a test (default 30000; test(name, fn, { timeout }) wins)
@@ -48,7 +48,7 @@ mcpfabric-test record <file.mctest.js> [--name <test name>]
 
 interface Cli {
   paths: string[];
-  grep?: RegExp;
+  grep?: string;
   list: boolean;
   retries: number;
   timeoutMs?: number;
@@ -86,11 +86,7 @@ export function parseArgs(argv: string[]): Cli {
       if (v === undefined) throw new UsageError(`${a} needs a value`);
       switch (a) {
         case "--grep":
-          try {
-            cli.grep = new RegExp(v);
-          } catch (err) {
-            throw new UsageError(`--grep: ${(err as Error).message}`);
-          }
+          cli.grep = v;
           break;
         case "--retries":
           cli.retries = int(a, v, 0);
@@ -247,7 +243,7 @@ export async function main(
       print(displayPath(file));
       const listed = await runner.list(file);
       for (const t of listed.tests) {
-        if (cli.grep && !cli.grep.test(`${displayPath(file)} > ${t.name}`)) continue;
+        if (cli.grep && !`${displayPath(file)} > ${t.name}`.includes(cli.grep)) continue;
         n++;
         print(`  ${t.name}${t.skip ? "  (skip)" : ""}${t.only ? "  (only)" : ""}`);
       }
