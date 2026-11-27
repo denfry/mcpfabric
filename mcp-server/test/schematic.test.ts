@@ -173,6 +173,7 @@ test("a file with millions of tiny tags is refused before it fills the memory", 
 
 test("paths shown to the model keep the home folder out", () => {
   assert.equal(shownPath("C:\\Users\\alice\\.mcpfabric\\schematics\\a.schem", "C:\\Users\\Alice"), "~\\.mcpfabric\\schematics\\a.schem");
+  assert.equal(shownPath("C:/Users/alice/s/a.schem", "C:\\Users\\alice"), "~/s/a.schem");
   assert.equal(shownPath("/home/alice/s/a.schem", "/home/alice"), "~/s/a.schem");
   assert.equal(shownPath("/srv/schematics/a.schem", "/home/alice"), "/srv/schematics/a.schem");
 });

@@ -36,7 +36,9 @@ export function schematicsDir(env: NodeJS.ProcessEnv = process.env): string {
 
 /** A path as the model is shown it: the home folder as "~", so the account name stays out. */
 export function shownPath(path: string, home: string = homedir()): string {
-  if (home.length > 3 && path.toLowerCase().startsWith(home.toLowerCase())) return "~" + path.slice(home.length);
+  // Either slash: MCPFABRIC_SCHEMATICS_DIR may be written with "/" on Windows.
+  const norm = (p: string) => p.replace(/\\/g, "/").toLowerCase();
+  if (home.length > 3 && norm(path).startsWith(norm(home))) return "~" + path.slice(home.length);
   return path;
 }
 
