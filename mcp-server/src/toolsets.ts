@@ -21,11 +21,13 @@ const METHOD_GROUPS: Record<string, string> = {
   interact: "player",
   inventory: "player",
   nav: "player",
+  recorder: "player",
   vision: "vision",
   screen: "session",
   session: "session",
   ui: "ui",
   supervised: "supervised",
+  dev: "devtools",
 };
 
 /** Every group a tool can belong to; `agent` holds the agent runtime tools, `script` run_script and the skills. */
@@ -33,7 +35,7 @@ export const TOOL_GROUPS = [...new Set([...Object.values(METHOD_GROUPS), "agent"
 
 /**
  * Not a group but a filter: with it, only tools whose readOnlyHint is true are served (pair it with
- * the mod's `readToken`, which may only call those).
+ * the mod's `readToken`, which may only call those). Reads that need the full token are left out too.
  */
 export const READONLY = "readonly";
 
@@ -107,8 +109,8 @@ export function describeFor(groups: Set<string>, description: string): string {
 }
 
 /** Whether a tool with these hints is served for these groups (the group itself is checked apart). */
-export function servesHints(groups: Set<string>, annotations: { readOnlyHint: boolean }): boolean {
-  return !groups.has(READONLY) || annotations.readOnlyHint;
+export function servesHints(groups: Set<string>, annotations: { readOnlyHint: boolean }, fullToken = false): boolean {
+  return !groups.has(READONLY) || (annotations.readOnlyHint && !fullToken);
 }
 
 /** Named profiles, each a union of groups. */

@@ -57,6 +57,12 @@ public final class Approvals {
 				&& params.get("message").isJsonPrimitive() && params.get("message").getAsString().startsWith("/")) {
 			return "command";
 		}
+		// dev.tick changes how the server runs (freeze, sprint, rate) like a /tick command; query only reads.
+		if ("dev.tick".equals(method)) {
+			boolean query = params == null || !params.has("action")
+					|| params.get("action").isJsonPrimitive() && "query".equalsIgnoreCase(params.get("action").getAsString());
+			return query ? null : "command";
+		}
 		return GROUP_OF.get(method);
 	}
 

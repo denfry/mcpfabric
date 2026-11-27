@@ -69,6 +69,12 @@ public final class McpConfig {
 	 * default. It is its own lock and does not need the flags above, so they can stay off.
 	 */
 	public boolean enableSupervisedControl = false;
+	/**
+	 * Tools for mod and server developers (dev.*): the game's logs and crash reports, loaded mods,
+	 * registries and the tick rate. Off by default: logs can hold chat, player names and whatever
+	 * other mods print.
+	 */
+	public boolean enableDevTools = false;
 	/** Save folders supervised_enter_world may open (disposable worlds). Empty: none. */
 	public List<String> supervisedWorlds = new ArrayList<>();
 	/** Command roots supervised_command may run; data ({...}) is refused in every command. */

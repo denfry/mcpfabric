@@ -83,6 +83,8 @@ public final class McpFabric {
 		PlayerAdminHandlers.register(router);
 		CommandHandlers.register(router);
 		SupervisedHandlers.register(router);
+		dev.mcpfabric.handlers.DevHandlers.register(router);
+		dev.mcpfabric.handlers.DevWorldHandlers.register(router);
 		dev.mcpfabric.handlers.ChatHandlers.registerCommon(router, eventBus);
 
 		// On a dedicated server, chat.send broadcasts. On a client the client entrypoint registers

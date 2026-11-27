@@ -183,6 +183,7 @@ stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writ
   "enableVision": true,
   "enableUiControl": false,
   "enableSupervisedControl": false,
+  "enableDevTools": false,
   "supervisedWorlds": [],
   "supervisedCommands": ["time", "weather"],
   "requireApproval": []
@@ -194,7 +195,12 @@ that starts off: it lets the model click buttons and type into text fields of ga
 (`get_ui`, `click_widget`, `set_text_field`), which reaches settings and actions the other tools
 never expose. Vanilla screens are limited to the pause, title, death, options, advancements,
 statistics, confirmation and container screens, but screens added by other mods are not restricted, so turn it on
-only when you need it, for example to test a mod's UI. It also needs `enablePlayerControl`. `requireAuth` (default `true`)
+only when you need it, for example to test a mod's UI. It also needs `enablePlayerControl`.
+`enableDevTools` (off) serves the developer tools: the game's log and crash reports, loaded mods,
+registries, the tick rate, block changes in a region and what a mob's AI is doing. Logs can hold chat, player names and whatever other mods print; IP
+and server addresses and the home folder are replaced, but not every way a mod might print a host
+name, so turn it on for development worlds; the read-only token cannot read logs or crash
+reports, and changing the tick rate asks for approval when `requireApproval` has `command`. `requireAuth` (default `true`)
 gates every request behind the bearer token — only set it to `false` if you understand that it
 removes the sole authentication on an operator-level bridge. Keep `host` on `127.0.0.1` unless you
 fully understand the consequences — the bridge grants operator-level power. `worldIdKey` turns a
@@ -256,7 +262,7 @@ Every tool takes up model context, and a model chooses better from 20 tools than
 | `build` | `world`, `vision`, `chat` | building with world edits |
 | `all`   | every group (the default) | |
 
-The other groups are `ui`, `supervised` and `script` (`run_script` and the skills), e.g. `MCPFABRIC_TOOLSETS=play,ui` or
+The other groups are `ui`, `supervised`, `devtools` and `script` (`run_script` and the skills), e.g. `MCPFABRIC_TOOLSETS=play,ui` or
 `MCPFABRIC_TOOLSETS=supervised`. `get_status` and `list_capabilities` (`info`) are always served.
 Tool sets only hide tools: the mod's `enable*` flags still decide what the game allows. Add
 `readonly` to serve only the tools that just read, e.g. `MCPFABRIC_TOOLSETS=readonly` or
@@ -348,8 +354,11 @@ claude --dangerously-load-development-channels server:mcpfabric
 **inventory (client)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
 **vision (client)** — `screenshot` (PNG for vision models; `marks: true` numbers the mobs and players in view and lists their uuids), `describe_scene`
 **navigation (client)** — `navigate_to` (A\*: walks, swims, climbs ladders, opens doors, digs through blocks and pillars up), `navigation_status`, `stop_navigation`
+
+**recording (client)** — `start_recording`, `stop_recording` (the player's own actions as steps and a draft `mcpfabric-test` file: show the agent a task instead of describing it), `recording_status`
 **session (client)** — `get_screen`, `close_screen` (pause menu, chat, container; respawns on the death screen), `list_worlds`, `join_world` (rejoin after a kick, a server restart or a game restart)
 **ui (client, off by default: `enableUiControl`)** — `get_ui` (widgets of the open screen), `click_widget`, `set_text_field`
+**devtools (off by default: `enableDevTools`)** — `list_mods`, `list_registry` (built-in registry ids by namespace or text), `read_log` (newest entries of latest.log by level or text, stack traces kept), `read_crash_report`, `tick_control` (freeze, step, sprint, tick rate; changing it also needs `enableCommands`), `watch_blocks` (which blocks in a region change, tick by tick, for up to 10 s), `inspect_mob_brain` (a mob's target, path, goals, brain activities and memories)
 **supervised (off by default: `enableSupervisedControl`)** ([docs/SUPERVISED.md](docs/SUPERVISED.md)) — `supervised_status`, `supervised_stop`, `supervised_input` (one key for up to 10 ticks), `supervised_read_block`, `supervised_set_block` (with a precondition), `supervised_command` (allowlisted roots), `supervised_enter_world` / `supervised_leave_world` (approved saves), `supervised_reconcile`
 **events** — `poll_events` (recent damage, deaths, chat, spawns, player join/leave; on the client also `self_health`, `self_death` and `left_world`)
 
@@ -358,7 +367,7 @@ claude --dangerously-load-development-channels server:mcpfabric
 `goal_add`, `goal_update`, `goal_list`, `plan_craft`, `get_recipes`, `explore_next`,
 jobs `travel_to` / `explore` / `collect_blocks` / `craft_item` with `job_status` / `job_cancel`,
 `open_container` / `container_transfer` / `close_container`, building from a plan:
-`build_plan`, `build_verify`, `build_structure`; `open_dashboard` shows a live
+`build_plan`, `build_verify`, `build_structure`, `import_schematic` / `export_schematic` (WorldEdit `.schem` files up to 64×64×64, in `~/.mcpfabric/schematics`); `open_dashboard` shows a live
 panel (position, vitals, job, map, goals, inventory and a STOP button) in hosts that render
 [MCP Apps](https://modelcontextprotocol.io/extensions/apps), such as Claude
 
@@ -376,6 +385,23 @@ Call `get_status` first — it reports which side you are on and which groups ar
 
 `mcpfabric-bench` scores agents on small tasks in a test world (collect logs, craft a stone pickaxe,
 find a chest, smelt iron, climb a ledge): see [docs/BENCH.md](docs/BENCH.md).
+
+## End-to-end tests
+
+`mcpfabric-test` runs `*.mctest.js` files against the game you have open, played by the real
+client: wait for chat lines, menus and game events, click menu slots, assert on what the client
+sees, and keep a screenshot and the game state when a test fails. It writes JUnit XML for CI and
+retries flaky tests. See [docs/TESTING.md](docs/TESTING.md).
+
+```js
+test("the shop sells a sword", async () => {
+  await mc.send_chat({ message: "/shop" });
+  await waitFor(async () => (await mc.container_state()).open);
+  const sword = (await mc.container_state()).slots.find((s) => s.id === "minecraft:diamond_sword");
+  await mc.container_click({ slot: sword.slot });
+  await expect.poll(() => inventoryCount("diamond_sword")).toBe(1);
+});
+```
 
 ---
 
@@ -427,7 +453,8 @@ on a dedicated server those groups are then refused.
 - `readToken` is a second bearer token that may only read the game (blocks, entities, players,
   chat history, events, perception, screenshots; each still behind its own lock): give it to a
   model or tool that should watch but not act, together with `MCPFABRIC_TOOLSETS=readonly`, which
-  serves only the read-only tools. Any other method is refused with `forbidden`.
+  serves only the read-only tools (without `read_log` and `read_crash_report`, which need the full
+token). Any other method is refused with `forbidden`.
 - Every call with a lasting effect (commands, block and entity edits, player admin, chat,
   interactions, screens, supervised actions) is recorded in `logs/mcpfabric-audit.jsonl` with its
   time, outcome and a short form of its params; movement, looking and reads are not. It rolls over
