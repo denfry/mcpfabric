@@ -197,7 +197,7 @@ never expose. Vanilla screens are limited to the pause, title, death, options, a
 statistics, confirmation and container screens, but screens added by other mods are not restricted, so turn it on
 only when you need it, for example to test a mod's UI. It also needs `enablePlayerControl`.
 `enableDevTools` (off) serves the developer tools: the game's log and crash reports, loaded mods,
-registries and the tick rate. Logs can hold chat, player names and whatever other mods print; IP
+registries, the tick rate, block changes in a region and what a mob's AI is doing. Logs can hold chat, player names and whatever other mods print; IP
 and server addresses and the home folder are replaced, but not every way a mod might print a host
 name, so turn it on for development worlds; the read-only token cannot read logs or crash
 reports, and changing the tick rate asks for approval when `requireApproval` has `command`. `requireAuth` (default `true`)
@@ -352,7 +352,7 @@ claude --dangerously-load-development-channels server:mcpfabric
 **recording (client)** — `start_recording`, `stop_recording` (the player's own actions as steps and a draft `mcpfabric-test` file: show the agent a task instead of describing it), `recording_status`
 **session (client)** — `get_screen`, `close_screen` (pause menu, chat, container; respawns on the death screen), `list_worlds`, `join_world` (rejoin after a kick, a server restart or a game restart)
 **ui (client, off by default: `enableUiControl`)** — `get_ui` (widgets of the open screen), `click_widget`, `set_text_field`
-**devtools (off by default: `enableDevTools`)** — `list_mods`, `list_registry` (built-in registry ids by namespace or text), `read_log` (newest entries of latest.log by level or text, stack traces kept), `read_crash_report`, `tick_control` (freeze, step, sprint, tick rate; changing it also needs `enableCommands`)
+**devtools (off by default: `enableDevTools`)** — `list_mods`, `list_registry` (built-in registry ids by namespace or text), `read_log` (newest entries of latest.log by level or text, stack traces kept), `read_crash_report`, `tick_control` (freeze, step, sprint, tick rate; changing it also needs `enableCommands`), `watch_blocks` (which blocks in a region change, tick by tick, for up to 10 s), `inspect_mob_brain` (a mob's target, path, goals, brain activities and memories)
 **supervised (off by default: `enableSupervisedControl`)** ([docs/SUPERVISED.md](docs/SUPERVISED.md)) — `supervised_status`, `supervised_stop`, `supervised_input` (one key for up to 10 ticks), `supervised_read_block`, `supervised_set_block` (with a precondition), `supervised_command` (allowlisted roots), `supervised_enter_world` / `supervised_leave_world` (approved saves), `supervised_reconcile`
 **events** — `poll_events` (recent damage, deaths, chat, spawns, player join/leave; on the client also `self_health`, `self_death` and `left_world`)
 
@@ -447,7 +447,8 @@ on a dedicated server those groups are then refused.
 - `readToken` is a second bearer token that may only read the game (blocks, entities, players,
   chat history, events, perception, screenshots; each still behind its own lock): give it to a
   model or tool that should watch but not act, together with `MCPFABRIC_TOOLSETS=readonly`, which
-  serves only the read-only tools. Any other method is refused with `forbidden`.
+  serves only the read-only tools (without `read_log` and `read_crash_report`, which need the full
+token). Any other method is refused with `forbidden`.
 - Every call with a lasting effect (commands, block and entity edits, player admin, chat,
   interactions, screens, supervised actions) is recorded in `logs/mcpfabric-audit.jsonl` with its
   time, outcome and a short form of its params; movement, looking and reads are not. It rolls over

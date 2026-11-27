@@ -109,6 +109,8 @@ const BRIDGE_TOOLS = {
   list_registry: { method: "dev.registry", args: { registry: "item", namespace: "create", contains: "gear", limit: 50 }, invalid: { limit: 0 } },
   read_log: { method: "dev.log", args: { level: "WARN", contains: "Exception", lines: 20 }, invalid: { level: "LOUD" } },
   read_crash_report: { method: "dev.crash", args: { index: 1, maxChars: 5000 }, invalid: { index: -1 } },
+  watch_blocks: { method: "dev.watch", args: { from: { x: 0, y: 60, z: 0 }, to: { x: 8, y: 64, z: 8 }, ticks: 20, maxChanges: 50 }, invalid: { from: { x: 0, y: 60, z: 0 }, to: { x: 1, y: 1, z: 1 }, ticks: 500 } },
+  inspect_mob_brain: { method: "dev.brain", args: { uuid: "00000000-0000-0000-0000-000000000001" } },
   tick_control: { method: "dev.tick", args: { action: "sprint", ticks: 1200 }, invalid: { action: "rewind" } },
   // supervised
   supervised_status: { method: "supervised.status", args: {} },
