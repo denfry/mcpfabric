@@ -14,6 +14,47 @@ All notable changes to this project are documented here. The format is based on
   connections, stair corners) are left free on import.
 - Block states in build plans must be a plain id with `name=value` properties; anything else
   (spaces, braces, quotes) is refused, for plans written by the model and imported files alike.
+- Developer tools behind a new flag, `enableDevTools` (off by default; capability group
+  `devtools`, tool set `devtools`): `list_mods` (`dev.mods`), `list_registry` (`dev.registry`,
+  built-in registry ids filtered by namespace or text), `read_log` (`dev.log`, the newest entries of
+  `logs/latest.log` or `debug.log` by minimum level or text, stack traces kept with their line),
+  `read_crash_report` (`dev.crash`) and `tick_control` (`dev.tick`: freeze, step, sprint, tick rate;
+  changing it also needs `enableCommands`, and it is in the audit log). Text from log and crash
+  files has IP and server addresses and the home folder replaced. The read-only token may list
+  mods and registries but not read logs or crash reports, and changing the tick rate goes through
+  `requireApproval` like a command. Fabric and NeoForge.
+- Two more developer tools behind `enableDevTools`: `watch_blocks` (`dev.watch`) samples a region of
+  up to 32x32x32 once per tick for up to 200 ticks (10 s of real time at most) and lists every block
+  that changed with its state before and after; `inspect_mob_brain` (`dev.brain`) shows a mob's
+  target, navigation, goals and target goals by priority, and for brain-driven mobs the active
+  activities, running behaviors and memories. On Fabric before 26.1, vanilla goal names are
+  intermediary class names. The `readonly` tool set leaves out `read_log` and `read_crash_report`,
+  which the read-only token cannot call.
+- `mcpfabric-test` (`docs/TESTING.md`): end-to-end tests for servers, mods and plugins, played by
+  the real client. `*.mctest.js` files register tests with hooks, steps and assertions
+  (`expect`, `expect.poll`), wait for chat lines, game events and screens, run server commands and
+  work menus (`container_state`, `container_click`, for tests only). Each test runs in a fresh
+  `run_script` sandbox; a failed attempt keeps a screenshot and a `context.json` with the player,
+  the screen and the events since the test began. Retries with flaky reporting, `--grep`,
+  `--bail`, `--world`, `--param`, JUnit XML and JSON reports. An example is in
+  `mcp-server/examples/`.
+- Recording the player (`recorder.start`, `recorder.stop`, `recorder.status`; tools
+  `start_recording`, `stop_recording`, `recording_status`; needs `enablePlayerControl`): the mod
+  watches the local player each tick and records waypoints, hotbar choices, blocks broken and
+  placed (with their state), blocks, items and entities used, containers opened with what the
+  inventory gained or lost, and the player's own chat. `stop_recording` returns the steps and a
+  draft test; `mcpfabric-test record <file>` writes that draft. The player is told in chat when it
+  starts and stops; it stops after 500 steps, 30 minutes or on leaving the world. Clicks inside
+  menus and typed commands are not recorded. New test helper `goTo(pos)`. Fabric and NeoForge.
+- Menu items with a custom name or lore (a plugin shop's "Buy: Diamond Sword"): the slots of
+  `container.state` carry `name` and `lore` as plain text, and `open_container` lists them,
+  marked as untrusted text from the game. Fabric and NeoForge.
+
+### Dependencies
+- MCP server: moved from `@modelcontextprotocol/sdk` 1.x, which only gets fixes now, to the
+  split MCP SDK v2 (`@modelcontextprotocol/server`, `client`, `core`, `node` 2.4) and
+  `@modelcontextprotocol/ext-apps` 2.0. Clients see the same tools, transports and Claude Code
+  channel; the server still speaks the 2025 protocol revisions.
 
 ## [0.10.0] - 2026-11-09
 

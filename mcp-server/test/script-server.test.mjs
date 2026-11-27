@@ -4,8 +4,8 @@ import http from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { Client } from "@modelcontextprotocol/client";
 
 // Runs against the compiled server: npm run build first (npm test does).
 import { SCRIPT_TOOLS } from "../dist/script/tools.js";

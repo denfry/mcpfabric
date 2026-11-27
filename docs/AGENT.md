@@ -237,6 +237,17 @@ and `agent_brief` names them. They are not the `skill` memory kind, which is a n
 bridge and is served even with `MCPFABRIC_AGENT=0` (then there are no jobs to clash with); the
 skill tools need the agent database and are only served with the runtime.
 
+## Learning by demonstration
+
+When a task is easier to show than to describe, the player can show it. `start_recording` starts
+the mod's recorder and tells the player in chat; the player does the task by hand; `stop_recording`
+returns the steps (waypoints, hotbar choices, blocks broken and placed with their state, blocks
+and items used, containers opened with what the inventory gained or lost, the player's chat) and a
+draft `mcpfabric-test` program that replays them. The model can follow the steps itself, turn them
+into a `run_script` program and keep it with `save_skill`, or hand the draft to the player as a
+test. The steps are marked untrusted: chat and block names in them come from the game. Clicks
+inside menus, typed commands and which entity was hit cannot be replayed from a recording.
+
 ## Dashboard
 
 `open_dashboard` is an [MCP App](https://modelcontextprotocol.io/extensions/apps): hosts that render

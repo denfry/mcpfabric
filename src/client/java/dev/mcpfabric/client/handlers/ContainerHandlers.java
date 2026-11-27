@@ -12,8 +12,10 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
@@ -21,6 +23,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ResultSlot;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.EnderChestBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -161,11 +164,27 @@ public final class ContainerHandlers {
 			s.addProperty("slot", slot.index);
 			s.addProperty("id", itemId(slot.getItem()));
 			s.addProperty("count", slot.getItem().getCount());
+			addNameAndLore(s, slot.getItem());
 			slots.add(s);
 		}
 		o.addProperty("size", size);
 		o.add("slots", slots);
 		return o;
+	}
+
+	/**
+	 * A custom name and lore lines, as plugins give menu items (a shop's "Buy: Diamond Sword").
+	 * Plain text; players and servers write it, so the MCP server hands it on as untrusted data.
+	 */
+	static void addNameAndLore(JsonObject o, ItemStack stack) {
+		Component name = stack.get(DataComponents.CUSTOM_NAME);
+		if (name != null) o.addProperty("name", name.getString());
+		ItemLore lore = stack.get(DataComponents.LORE);
+		if (lore != null && !lore.lines().isEmpty()) {
+			JsonArray lines = new JsonArray();
+			for (Component line : lore.lines()) lines.add(line.getString());
+			o.add("lore", lines);
+		}
 	}
 
 	/** The open screen. It moved from {@code Minecraft.screen} to {@code Gui.screen()} in 26.2. */
