@@ -135,7 +135,7 @@ knows.
 
 ```
 mcpfabric-test [files or directories...] [options]
-  --grep <regex>       only tests whose "file > name" matches
+  --grep <text>        only tests whose "file > name" contains the text
   --list               list the tests without running them
   --retries <n>        run a failed test up to n more times (default 0)
   --timeout <ms>       time limit of a test (default 30000; test(name, fn, { timeout }) wins)
