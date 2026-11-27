@@ -4,7 +4,7 @@
 // enablePlayerControl in config/mcpfabric.config.json.
 
 beforeEach(async () => {
-  await command("clear @p");
+  await command("clear @p", { allowFail: true }); // fails when the inventory is already empty
 });
 
 test("the player is in a world with no menu open", async () => {
