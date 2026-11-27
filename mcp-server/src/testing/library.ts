@@ -362,10 +362,13 @@ export const TEST_LIBRARY = String.raw`(function () {
     return s;
   };
 
-  /** Runs a server command; throws when the game reports that it failed. */
-  const command = async (text) => {
+  /**
+   * Runs a server command; throws when the game reports that it failed, unless allowFail is set
+   * (clear on an empty inventory, kill with no match: commands that fail when there is nothing to do).
+   */
+  const command = async (text, opts = {}) => {
     const r = await mc.call("command.run", { command: String(text) });
-    if (r && r.success === false) {
+    if (r && r.success === false && !(opts && opts.allowFail)) {
       const out = Array.isArray(r.output) && r.output.length > 0 ? ": " + r.output.join(" | ") : "";
       throw new Error("command failed: /" + String(text).replace(/^\//, "") + out);
     }

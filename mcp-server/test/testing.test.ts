@@ -301,8 +301,13 @@ test("slow", async () => { await sleep(10000); }, { timeout: 200 });
 test("a failing command is an error with the game's output; afterEach failures are reported", async () => {
   const { results } = await run(`
 test("bad command", async () => { await command("fail now"); });
+test("allowed to fail", async () => {
+  const r = await command("fail quietly", { allowFail: true });
+  expect(r.success).toBe(false);
+});
 `);
   assert.equal(lastError(byName(results, "bad command"))!.message, "command failed: /fail now: Unknown or incomplete command");
+  assert.equal(byName(results, "allowed to fail").status, "passed", JSON.stringify(lastError(byName(results, "allowed to fail"))));
 
   const after = await run(`
 afterEach(async () => { throw new Error("cleanup broke"); });
