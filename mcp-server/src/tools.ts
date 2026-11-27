@@ -869,4 +869,70 @@ export const TOOLS: ToolDef[] = [
     annotations: READ,
     untrusted: true,
   },
+
+  // ===== devtools (off by default: enableDevTools) ============================================
+  {
+    name: "list_mods",
+    method: "dev.mods",
+    title: "List loaded mods",
+    description: "Needs enableDevTools. The mods the loader has loaded (the game and the loader included): id, name and version, sorted by id.",
+    inputSchema: {},
+    annotations: READ,
+    untrusted: true,
+  },
+  {
+    name: "list_registry",
+    method: "dev.registry",
+    title: "List registry ids",
+    description:
+      "Needs enableDevTools. Without a registry: every built-in registry with its size. With one (item, block, entity_type, mymod:machine...): its ids, sorted, filtered by namespace (a mod id) and/or a substring. Data-driven registries (biomes, enchantments) are not included.",
+    inputSchema: {
+      registry: z.string().max(128).optional().describe('Registry id, e.g. "item" or "minecraft:block". Leave out to list the registries.'),
+      namespace: z.string().max(64).optional().describe('Only ids of this namespace, e.g. a mod id ("create").'),
+      contains: z.string().max(128).optional().describe("Only ids containing this text."),
+      limit: z.number().int().min(1).max(5000).optional().default(500),
+    },
+    annotations: READ,
+  },
+  {
+    name: "read_log",
+    method: "dev.log",
+    title: "Read the game log",
+    description:
+      "Needs enableDevTools. The newest entries of logs/latest.log (or debug.log) of this game: an entry is a log line with its stack trace. Filter by minimum level (WARN keeps WARN, ERROR and FATAL) and/or a substring. IP addresses, server addresses and the home folder are replaced; the log can still hold chat and player names.",
+    inputSchema: {
+      file: z.enum(["latest", "debug"]).optional().default("latest"),
+      level: z.enum(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"]).optional(),
+      contains: z.string().max(256).optional().describe('Only entries containing this text, e.g. a mod id or "Exception".'),
+      lines: z.number().int().min(1).max(1000).optional().default(100).describe("How many of the newest matching entries."),
+    },
+    annotations: READ,
+    untrusted: true,
+  },
+  {
+    name: "read_crash_report",
+    method: "dev.crash",
+    title: "Read a crash report",
+    description:
+      "Needs enableDevTools. The newest crash report of this game folder (index 0; 1 is the one before), with the list of the ten newest. Addresses and the home folder are replaced.",
+    inputSchema: {
+      index: z.number().int().min(0).optional().default(0),
+      maxChars: z.number().int().min(1000).max(200000).optional().default(20000),
+    },
+    annotations: READ,
+    untrusted: true,
+  },
+  {
+    name: "tick_control",
+    method: "dev.tick",
+    title: "Freeze, step or speed up the game",
+    description:
+      "Needs enableDevTools; changing it also needs enableCommands (it is what /tick does), and an integrated or dedicated server. query: rate, frozen, sprinting. freeze / unfreeze the world; step N ticks while frozen; sprint N ticks as fast as possible (crops grow, furnaces finish), stop_sprint; rate sets ticks per second (20 is normal). Affects every player on the server.",
+    inputSchema: {
+      action: z.enum(["query", "freeze", "unfreeze", "step", "sprint", "stop_sprint", "rate"]).optional().default("query"),
+      ticks: z.number().int().min(1).max(72000).optional().describe("For step and sprint."),
+      rate: z.number().min(1).max(10000).optional().describe("For rate: ticks per second."),
+    },
+    annotations: { ...WRITE, idempotentHint: true },
+  },
 ];

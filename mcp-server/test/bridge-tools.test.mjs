@@ -101,6 +101,12 @@ const BRIDGE_TOOLS = {
   set_text_field: { method: "ui.setText", args: { widget: 3, text: "diamond" }, invalid: { widget: 3, text: "x".repeat(257) } },
   // events
   poll_events: { method: "events.getRecent", args: { types: ["chat"], sinceId: 10 }, invalid: { sinceId: -1 } },
+  // devtools
+  list_mods: { method: "dev.mods", args: {} },
+  list_registry: { method: "dev.registry", args: { registry: "item", namespace: "create", contains: "gear", limit: 50 }, invalid: { limit: 0 } },
+  read_log: { method: "dev.log", args: { level: "WARN", contains: "Exception", lines: 20 }, invalid: { level: "LOUD" } },
+  read_crash_report: { method: "dev.crash", args: { index: 1, maxChars: 5000 }, invalid: { index: -1 } },
+  tick_control: { method: "dev.tick", args: { action: "sprint", ticks: 1200 }, invalid: { action: "rewind" } },
   // supervised
   supervised_status: { method: "supervised.status", args: {} },
   supervised_stop: { method: "supervised.stop", args: {} },

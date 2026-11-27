@@ -7,6 +7,7 @@ import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
 
 import java.nio.file.Path;
+import java.util.List;
 
 final class NeoForgePlatform implements Platform {
 	private final String modVersion;
@@ -44,5 +45,12 @@ final class NeoForgePlatform implements Platform {
 	@Override
 	public String modVersion() {
 		return modVersion;
+	}
+
+	@Override
+	public List<ModInfo> mods() {
+		return ModList.get().getMods().stream()
+				.map(m -> new ModInfo(m.getModId(), m.getDisplayName(), m.getVersion().toString()))
+				.toList();
 	}
 }

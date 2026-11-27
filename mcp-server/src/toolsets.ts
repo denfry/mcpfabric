@@ -26,6 +26,7 @@ const METHOD_GROUPS: Record<string, string> = {
   session: "session",
   ui: "ui",
   supervised: "supervised",
+  dev: "devtools",
 };
 
 /** Every group a tool can belong to; `agent` holds the agent runtime tools, `script` run_script and the skills. */

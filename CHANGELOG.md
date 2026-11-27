@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- Developer tools behind a new flag, `enableDevTools` (off by default; capability group
+  `devtools`, tool set `devtools`): `list_mods` (`dev.mods`), `list_registry` (`dev.registry`,
+  built-in registry ids filtered by namespace or text), `read_log` (`dev.log`, the newest entries of
+  `logs/latest.log` or `debug.log` by minimum level or text, stack traces kept with their line),
+  `read_crash_report` (`dev.crash`) and `tick_control` (`dev.tick`: freeze, step, sprint, tick rate;
+  changing it also needs `enableCommands`, and it is in the audit log). Text from log and crash
+  files has IP and server addresses and the home folder replaced. The reads are allowed for the
+  read-only token. Fabric and NeoForge.
+
 ## [0.10.0] - 2026-11-09
 
 Fabric and NeoForge. 0.9.1 was never published; its fix ships here.
