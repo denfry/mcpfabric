@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-27
+
+Fabric and NeoForge.
+
 ### Fixed
 - `click_widget` on a tab (the World tab of the create world screen) now switches to it: the click
   also focuses the widget in the containers above it, as a mouse click does. Fabric and NeoForge.
