@@ -23,63 +23,53 @@ as the local player, on a dedicated server when it should act as an operator, or
 
 ## Summary
 
-Give AI agents full control of Minecraft through MCP: 50+ tools for observation, movement, building,
-vision, and server administration on Fabric.
+Lets Claude or any other MCP client play Minecraft, build, and run a server. Fabric and NeoForge, Minecraft 1.21.1 to 26.3, 114 tools.
 
 ## Description
 
-**MCP Fabric is a local-first Fabric mod and Model Context Protocol server that lets AI agents
-observe, understand, and control Minecraft through 50+ structured tools.** Connect Claude or another
-MCP client to play as your character, inspect the world, or operate a server.
+MCP Fabric connects Minecraft to AI agents through the [Model Context Protocol](https://modelcontextprotocol.io). The mod runs a small HTTP bridge inside the game, and an MCP server turns it into tools that Claude Desktop, Claude Code or any other MCP client can call. The agent can play as your character, read the world, or act as an operator on a server.
 
-### What can an AI do with MCP Fabric?
+### What the agent can do
 
-An AI can move, look, navigate, mine, build, fight, manage inventory, inspect blocks and entities,
-capture screenshots, read live events, edit worlds, run commands, and administer players.
+On a client it walks and pathfinds, mines, places blocks, fights, crafts, opens chests and takes screenshots. It reads blocks, entities, chat and game events, and gets a short text description of what is in view. On a server it edits the world, runs commands, changes time and weather, and manages players.
 
-- **Natural-language gameplay:** movement, interaction, A* navigation, combat, and inventory.
-- **Structured observation:** blocks, entities, players, chat, events, status, and screenshots.
-- **Server operations:** world edits, commands, time/weather, entities, and player administration.
-- **Any MCP host:** designed for Claude Desktop, Claude Code, and other compatible clients.
-- **Local-first security:** loopback binding, bearer authentication, and capability gates.
+The MCP server adds an agent runtime on top. Memory, goals and a map of explored chunks are kept per world between sessions. Long actions such as travelling, exploring, gathering blocks, crafting a chain of recipes and building a structure run as background jobs. Builds can be imported from and exported to WorldEdit `.schem` files. For a long sequence of calls the agent can write one script and save it as a skill to reuse later.
 
-### Where does it run?
+New in 1.0.0:
 
-| Install location | What the AI can do |
+- `mcpfabric-test`, end-to-end tests for servers, mods and plugins played by the real client, with JUnit reports. Tests can be recorded by playing.
+- Developer tools: the game log, crash reports, loaded mods, registries, tick freeze and step, block changes in a region, and what a mob's AI is doing.
+- Shop menus from plugins: item names and lore are shown to the agent, marked as text from the game, not instructions.
+- Several games on one machine, and one MCP server that drives several bots at once.
+- A compact tool set of 31 tools for small local models.
+
+### Where to install it
+
+| Installed on | What the agent can do |
 | --- | --- |
-| Client | Play as the local player and use vision, control, interaction, inventory, and navigation |
-| Dedicated server | Operate the world, entities, commands, events, and players |
-| Both | Use all capabilities appropriate to the active side |
+| Client | Play as the local player: move, look, interact, inventory, navigation, screenshots |
+| Dedicated server | Operate the world, entities, commands, events and players |
+| Both | Everything the active side allows |
 
-Each supported Minecraft version has its own jar. MCP Fabric supports Minecraft 1.21.1–1.21.11 and
-26.1–26.3 on Fabric (Fabric Loader 0.19.5 or newer, and the matching Fabric API), and Minecraft
-1.21.1, 1.21.3–1.21.11 and 26.1.2–26.3 on NeoForge.
+There is a separate jar for every Minecraft version. Fabric: 1.21.1 to 1.21.11 and 26.1 to 26.3, with Fabric Loader 0.19.5 or newer and the matching Fabric API. NeoForge: 1.21.1, 1.21.3 to 1.21.11, and 26.1.2 to 26.3.
 
-### How do I install MCP Fabric?
+### Install
 
 1. Install Fabric Loader and Fabric API, or NeoForge.
-2. Download the MCP Fabric jar matching your exact Minecraft version and loader and place it in
-   `mods/`.
-3. Launch once and copy `token` from `config/mcpfabric.config.json`.
-4. Build the small Node.js MCP server and add it to your MCP host.
+2. Put the jar for your exact Minecraft version and loader in `mods/`.
+3. Start the game. The mod writes its address and token to `~/.mcpfabric/bridge.json`, readable only by you, and the MCP server finds the game through it, so there is no token to copy.
+4. Add the MCP server to your client: `npx -y mcpfabric-mcp-server`. The [quick start](https://github.com/denfry/mcpfabric#quick-start) has ready configs for Claude Desktop, Claude Code and others.
 
-Follow the [five-step quick start](https://github.com/denfry/mcpfabric#quick-start) for copy-ready
-commands and client configuration.
+> The bridge gives an AI operator-level control of the game. It listens on `127.0.0.1` only and needs a token. Anything the agent should not do can be switched off in `config/mcpfabric.config.json`, and generic UI control and the developer tools are off until you turn them on. Read the [security policy](https://github.com/denfry/mcpfabric/blob/main/SECURITY.md) before exposing it beyond your own machine.
 
-> MCP Fabric can grant operator-level control. Keep the bridge on `127.0.0.1`, keep authentication
-> enabled, and disable capability groups you do not need. Read the
-> [security policy](https://github.com/denfry/mcpfabric/blob/main/SECURITY.md) before exposing it
-> beyond your own machine.
+### Things to ask
 
-### Example prompts
+- "Look around and tell me what is nearby."
+- "Find iron, mine a stack and bring it back to the chest at home."
+- "Build a 7 by 7 cobblestone house with a door facing the river."
+- "Who is online, and what has been happening in chat?"
 
-- “Look around and describe what is nearby.”
-- “Walk to these coordinates and mine the nearest diamonds.”
-- “Tell me what is happening on the server.”
-- “Build a stone wall between these two points.”
-
-Source code, documentation, releases, and contribution guidelines are available on
-[GitHub](https://github.com/denfry/mcpfabric).
+Source, documentation and releases are on [GitHub](https://github.com/denfry/mcpfabric).
 
 ## Gallery plan
 
@@ -87,6 +77,6 @@ Upload at least three original screenshots with descriptive captions:
 
 1. **AI scene understanding** — Minecraft view beside the structured `describe_scene` result.
 2. **Natural-language building** — prompt, in-progress structure, and finished result.
-3. **50+ MCP tools** — MCP Inspector or client tool list with Minecraft visible in the background.
+3. **114 MCP tools** — MCP Inspector or client tool list with Minecraft visible in the background.
 
 Do not include bridge tokens, private paths, player chat, or server addresses in screenshots.
