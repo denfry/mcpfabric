@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `import_schematic` and `export_schematic`: Sponge schematics (`.schem` from WorldEdit and
+  FastAsyncWorldEdit; versions 1 to 3 read, version 2 written) to build plans and back, up to
+  64×64×64, blocks only. Files are read and written in one folder (`MCPFABRIC_SCHEMATICS_DIR`,
+  default `~/.mcpfabric/schematics`) by name, without paths. Neighbour-driven properties (fence
+  connections, stair corners) are left free on import.
+- Block states in build plans must be a plain id with `name=value` properties; anything else
+  (spaces, braces, quotes) is refused, for plans written by the model and imported files alike.
 - Developer tools behind a new flag, `enableDevTools` (off by default; capability group
   `devtools`, tool set `devtools`): `list_mods` (`dev.mods`), `list_registry` (`dev.registry`,
   built-in registry ids filtered by namespace or text), `read_log` (`dev.log`, the newest entries of
