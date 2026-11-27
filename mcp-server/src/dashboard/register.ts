@@ -5,8 +5,8 @@
  * panel calls them through the host, the model does not see them.
  */
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { McpServer, CallToolResult } from "@modelcontextprotocol/server";
+import { z } from "zod";
 
 import type { Bridge } from "../agent/body.js";
 import type { AgentRuntime } from "../agent/runtime.js";
@@ -48,7 +48,7 @@ export function registerDashboard(server: McpServer, rt: AgentRuntime, bridge: B
       title: "Open the agent dashboard",
       description:
         "Show the user a live panel of the agent: position, health and food, the running job, the explored map, the goal tree and the inventory, with a STOP button. It refreshes itself while open. In hosts without MCP Apps it returns a short text summary.",
-      inputSchema: {},
+      inputSchema: z.object({}),
       annotations: READ,
       _meta: { ui: { resourceUri: DASHBOARD_URI } },
     },
@@ -68,7 +68,7 @@ export function registerDashboard(server: McpServer, rt: AgentRuntime, bridge: B
     {
       title: "Dashboard state",
       description: "Current snapshot for the open dashboard (called by the panel).",
-      inputSchema: {},
+      inputSchema: z.object({}),
       annotations: READ,
       _meta: { ui: { resourceUri: DASHBOARD_URI, visibility: ["app"] } },
     },
@@ -88,7 +88,7 @@ export function registerDashboard(server: McpServer, rt: AgentRuntime, bridge: B
     {
       title: "Stop the agent",
       description: "The dashboard's STOP button: cancel the running job and release movement, navigation, mining and supervised input.",
-      inputSchema: {},
+      inputSchema: z.object({}),
       annotations: { ...ACT, idempotentHint: true },
       _meta: { ui: { resourceUri: DASHBOARD_URI, visibility: ["app"] } },
     },

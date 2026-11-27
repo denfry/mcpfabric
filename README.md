@@ -348,6 +348,8 @@ claude --dangerously-load-development-channels server:mcpfabric
 **inventory (client)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
 **vision (client)** — `screenshot` (PNG for vision models; `marks: true` numbers the mobs and players in view and lists their uuids), `describe_scene`
 **navigation (client)** — `navigate_to` (A\*: walks, swims, climbs ladders, opens doors, digs through blocks and pillars up), `navigation_status`, `stop_navigation`
+
+**recording (client)** — `start_recording`, `stop_recording` (the player's own actions as steps and a draft `mcpfabric-test` file: show the agent a task instead of describing it), `recording_status`
 **session (client)** — `get_screen`, `close_screen` (pause menu, chat, container; respawns on the death screen), `list_worlds`, `join_world` (rejoin after a kick, a server restart or a game restart)
 **ui (client, off by default: `enableUiControl`)** — `get_ui` (widgets of the open screen), `click_widget`, `set_text_field`
 **devtools (off by default: `enableDevTools`)** — `list_mods`, `list_registry` (built-in registry ids by namespace or text), `read_log` (newest entries of latest.log by level or text, stack traces kept), `read_crash_report`, `tick_control` (freeze, step, sprint, tick rate; changing it also needs `enableCommands`)
@@ -377,6 +379,23 @@ Call `get_status` first — it reports which side you are on and which groups ar
 
 `mcpfabric-bench` scores agents on small tasks in a test world (collect logs, craft a stone pickaxe,
 find a chest, smelt iron, climb a ledge): see [docs/BENCH.md](docs/BENCH.md).
+
+## End-to-end tests
+
+`mcpfabric-test` runs `*.mctest.js` files against the game you have open, played by the real
+client: wait for chat lines, menus and game events, click menu slots, assert on what the client
+sees, and keep a screenshot and the game state when a test fails. It writes JUnit XML for CI and
+retries flaky tests. See [docs/TESTING.md](docs/TESTING.md).
+
+```js
+test("the shop sells a sword", async () => {
+  await mc.send_chat({ message: "/shop" });
+  await waitFor(async () => (await mc.container_state()).open);
+  const sword = (await mc.container_state()).slots.find((s) => s.id === "minecraft:diamond_sword");
+  await mc.container_click({ slot: sword.slot });
+  await expect.poll(() => inventoryCount("diamond_sword")).toBe(1);
+});
+```
 
 ---
 

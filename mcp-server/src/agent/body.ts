@@ -109,6 +109,10 @@ export interface SlotItem {
   slot: number;
   id: string;
   count: number;
+  /** Custom name (plain text), as plugins name menu items. Written by players and servers. */
+  name?: string;
+  /** Lore lines (plain text). Written by players and servers. */
+  lore?: string[];
 }
 
 export interface ContainerState {
