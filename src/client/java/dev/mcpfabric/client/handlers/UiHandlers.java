@@ -160,6 +160,9 @@ public final class UiHandlers {
 			if (handled) w.mouseReleased(event);
 			*///?}
 			if (!handled) throw new RpcException("not_clickable", "Widget \"" + label + "\" did not take the click.");
+			// A real click also focuses the widget in every container above it, the way
+			// ContainerEventHandler.mouseClicked does; a tab bar switches tabs only then.
+			focusPath(screen, w);
 			return afterAction("clicked", label);
 		}));
 
@@ -233,6 +236,29 @@ public final class UiHandlers {
 		} else if (listener instanceof AbstractWidget w && w.visible) {
 			out.add(w);
 		}
+	}
+
+	/** Focuses {@code target} in its parent container, that container in its parent, up to the screen. */
+	private static void focusPath(ContainerEventHandler root, GuiEventListener target) {
+		List<ContainerEventHandler> path = new ArrayList<>();
+		if (!pathTo(root, target, path, Collections.newSetFromMap(new IdentityHashMap<>()))) return;
+		GuiEventListener child = target;
+		for (int i = path.size() - 1; i >= 0; i--) {
+			path.get(i).setFocused(child);
+			child = path.get(i);
+		}
+	}
+
+	/** Fills {@code path} with the containers from {@code from} down to the parent of {@code target}. */
+	private static boolean pathTo(ContainerEventHandler from, GuiEventListener target, List<ContainerEventHandler> path, Set<GuiEventListener> seen) {
+		if (!seen.add(from)) return false;
+		path.add(from);
+		for (GuiEventListener child : from.children()) {
+			if (child == target) return true;
+			if (child instanceof ContainerEventHandler c && pathTo(c, target, path, seen)) return true;
+		}
+		path.remove(path.size() - 1);
+		return false;
 	}
 
 	private static AbstractWidget find(Screen screen, RpcContext ctx) throws RpcException {
