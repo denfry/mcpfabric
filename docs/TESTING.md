@@ -87,6 +87,7 @@ Calls are allowed only inside tests, steps and hooks. A file's top level only re
 | `waitForEvent(type or [types], { where, timeout })` | The next game event of that type for which `where(event)` is true (`player_damage`, `self_death`, `mining_finished`, `player_join`, ...). |
 | `waitForScreen(kindOrTitle or fn, { timeout })` | Waits until `screen.get` shows that screen: a kind (`"none"`, `"container"`, `"death"`, ...), part of a screen title, or a predicate. |
 | `command(text, { allowFail })` | Runs a server command; throws with the game's output when it fails, unless `allowFail` is set (`clear` on an empty inventory fails). Needs a server with the mod and `enableCommands`. |
+| `goTo({ x, y, z }, { timeout, reach })` | Walks the player there with the bot's pathfinder and waits; throws when it ends any other way (stuck, no path, timeout). Default 60 s, within 1 block. |
 | `inventoryCount(item)` | How many of an item (`"torch"` or `"minecraft:torch"`) the player holds, hotbar, main inventory and off hand together. |
 | `mark()` | The id of the newest game event, to pass as `since` to the waits. |
 | `sleep(ms)` | Waits. Prefer the waits above: they finish as soon as the game is ready. |
@@ -132,6 +133,37 @@ flaky attempts as `flakyFailure`, kept screenshots as `[[ATTACHMENT|path]]` in `
 which CI systems and JUnit report actions read. `--json file.json` writes everything the runner
 knows.
 
+## Recording a test
+
+Play the part you want to test and let the mod write it down:
+
+```
+npx mcpfabric-test record smelting.mctest.js --name "smelt raw iron"
+```
+
+Then play in the game; press Enter in the terminal when you are done. The mod watches the player
+each tick and records where you walk (waypoints), which hotbar slot you pick, the blocks you break
+and place (with their state, so stairs keep their facing), blocks you use (levers, doors), items
+used on their own, entities you hit or use, the containers you open with what your inventory
+gained or lost, and your own chat. The player is told in chat when recording starts and stops.
+It needs `enablePlayerControl` and stops by itself after 500 steps, 30 minutes or on leaving the
+world.
+
+The file it writes is a draft, one test that replays the steps with `goTo`, `break_block`,
+`place_block_at`, `container_open` and the other tools, and ends by checking the inventory items
+whose count changed. Read it before you trust it:
+
+- Give the player the starting items first (the draft lists them in a comment), for example in
+  `beforeEach` with `command("give @p ...")`, and put the player back where the recording began.
+- Clicks inside menus are not recorded; the draft says what the inventory gained or lost there,
+  and you add `container_click` steps.
+- Entities differ between runs, so hits and uses on entities are left as comments.
+- Commands you type in chat are not recorded, and a recorded chat line that starts with `/` is
+  left as a comment instead of being sent again.
+
+An agent can record too: `start_recording` and `stop_recording` (see the README) return the same
+steps and the draft, so the player can show the agent a task instead of describing it.
+
 ## Command line
 
 ```
@@ -150,6 +182,8 @@ mcpfabric-test [files or directories...] [options]
   --no-artifacts       keep nothing for failed tests
   --no-screenshots     keep context.json but no screenshot
   --bail               stop after the first failed test
+
+mcpfabric-test record <file.mctest.js> [--name <test name>]
 ```
 
 Directories are searched for `*.mctest.js` (skipping `node_modules` and dot folders); without

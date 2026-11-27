@@ -89,6 +89,9 @@ const BRIDGE_TOOLS = {
   // navigation
   navigate_to: { method: "nav.pathTo", args: { ...pos, sprint: true, allowDig: false, allowPillar: true, allowSwim: false }, invalid: { ...pos, reachRadius: 17 } },
   navigation_status: { method: "nav.status", args: {} },
+  start_recording: { method: "recorder.start", args: {} },
+  stop_recording: { method: "recorder.stop", args: { name: "smelt iron" }, invalid: { name: 5 } },
+  recording_status: { method: "recorder.status", args: {} },
   stop_navigation: { method: "nav.stop", args: {} },
   // session and menus
   get_screen: { method: "screen.get", args: {} },

@@ -21,6 +21,7 @@ const METHOD_GROUPS: Record<string, string> = {
   interact: "player",
   inventory: "player",
   nav: "player",
+  recorder: "player",
   vision: "vision",
   screen: "session",
   session: "session",
