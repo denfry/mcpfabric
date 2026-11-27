@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Several games on one machine: a client whose bridge port is taken binds the next free one (up to
+  nine after it; a dedicated server keeps its port), and every game also writes
+  `~/.mcpfabric/bridges/<pid>.json` with a name (new config `instanceName`, else the account name,
+  else the game folder). `MCPFABRIC_INSTANCE` makes the MCP server connect to that game; without it
+  nothing changes. Fabric and NeoForge.
 - `MCPFABRIC_TOOLSETS=compact` for small models: 31 core tools (jobs, memory, goals, containers
   and a few direct actions) with first-sentence descriptions and a one-paragraph instruction, no
   `run_script` and no dashboard. Tools and instructions take about 4,000 tokens instead of about

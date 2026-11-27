@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -66,5 +66,36 @@ test("the bridge client sends the discovered token to the discovered address, an
     await assert.rejects(nothing.call("info.status"), /127\.0\.0\.1:9/);
   } finally {
     server.close();
+  }
+});
+
+test("MCPFABRIC_INSTANCE picks one of several running games by name, player, folder or pid", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mcpfabric-instances-"));
+  try {
+    const file = join(dir, "bridge.json");
+    const bridges = join(dir, "bridges");
+    mkdirSync(bridges);
+    // Two live games (this process and its parent) and one that crashed.
+    const game = (pid, port, extra) => {
+      const f = join(bridges, `${pid}.json`);
+      writeFileSync(f, JSON.stringify({ url: `http://127.0.0.1:${port}`, token: `t${port}`, pid, ...extra }));
+      return f;
+    };
+    touch(game(process.pid, 25599, { name: "Builder", player: "Builder", gameDir: "pack-a" }), new Date(Date.now() - 5000));
+    game(process.ppid, 25600, { name: "miner-bot", player: "Steve", gameDir: "pack-b" });
+    game(2 ** 30, 25601, { name: "ghost" });
+    writeFileSync(file, JSON.stringify({ url: "http://127.0.0.1:25600", token: "t25600", pid: process.ppid }));
+
+    assert.equal(new Discovery(file, "builder").read()?.url, "http://127.0.0.1:25599", "by name, any case");
+    assert.equal(new Discovery(file, "Steve").read()?.url, "http://127.0.0.1:25600", "by player");
+    assert.equal(new Discovery(file, "pack-a").read()?.token, "t25599", "by game folder");
+    assert.equal(new Discovery(file, String(process.ppid)).read()?.url, "http://127.0.0.1:25600", "by pid");
+    assert.equal(new Discovery(file, "ghost").read(), undefined, "a game that is gone is not offered");
+    assert.equal(new Discovery(file, "nobody").read(), undefined);
+    // Without a name: the newest game's shared file, as before.
+    assert.equal(new Discovery(file).read()?.url, "http://127.0.0.1:25600");
+    assert.deepEqual(new Discovery(file).instances().map((i) => i.name), ["miner-bot", "Builder"], "newest first");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

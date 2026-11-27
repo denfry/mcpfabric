@@ -97,18 +97,23 @@ public final class McpFabric {
 		httpServer = new HttpBridgeServer(config, router, eventBus, sseHub);
 		try {
 			httpServer.start();
-			DiscoveryFile.write(config);
+			DiscoveryFile.write(config, httpServer.port());
 		} catch (Exception e) {
 			LOGGER.error("[mcpfabric] failed to start HTTP bridge on {}:{}", config.host, config.port, e);
 		}
 
 		if (config.requireAuth) {
 			LOGGER.info("[mcpfabric] ready ({}) — bridge http://{}:{} (token: {})", platform.loader(),
-					config.host, config.port, config.source);
+					config.host, bridgePort(), config.source);
 		} else {
 			LOGGER.warn("[mcpfabric] ready ({}) — bridge http://{}:{} (authentication disabled)",
-					platform.loader(), config.host, config.port);
+					platform.loader(), config.host, bridgePort());
 		}
+	}
+
+	/** The port the bridge listens on; the configured one until it has started. */
+	public static int bridgePort() {
+		return httpServer != null && httpServer.port() > 0 ? httpServer.port() : config.port;
 	}
 
 	/** The running server (dedicated or integrated) finished starting. */
