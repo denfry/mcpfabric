@@ -182,6 +182,7 @@ stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writ
   "enablePlayerControl": true,
   "enableVision": true,
   "enableUiControl": false,
+  "enableMenuUiControl": false,
   "enableSupervisedControl": false,
   "supervisedWorlds": [],
   "supervisedCommands": ["time", "weather"],
@@ -194,7 +195,11 @@ that starts off: it lets the model click buttons and type into text fields of ga
 (`get_ui`, `click_widget`, `set_text_field`), which reaches settings and actions the other tools
 never expose. Vanilla screens are limited to the pause, title, death, options, advancements,
 statistics, confirmation and container screens, but screens added by other mods are not restricted, so turn it on
-only when you need it, for example to test a mod's UI. It also needs `enablePlayerControl`. `requireAuth` (default `true`)
+only when you need it, for example to test a mod's UI. It also needs `enablePlayerControl`.
+`enableMenuUiControl` (off by default, needs `enableUiControl`) adds the menus before a world is open:
+the first-start screen (narrator, language, accessibility settings), the world list and the create
+world screen, so a fresh dev client can be set up without a person at the keyboard. Deleting,
+editing and re-creating worlds stay refused. `requireAuth` (default `true`)
 gates every request behind the bearer token — only set it to `false` if you understand that it
 removes the sole authentication on an operator-level bridge. Keep `host` on `127.0.0.1` unless you
 fully understand the consequences — the bridge grants operator-level power. `worldIdKey` turns a

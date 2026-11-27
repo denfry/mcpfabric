@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- `enableMenuUiControl` (off by default, needs `enableUiControl`): `get_ui`, `click_widget` and
+  `set_text_field` also work on the first-start accessibility screen, the world list and the create
+  world screen, so a fresh client can be set up and a new world made without a person. The delete,
+  edit and re-create buttons of the world list stay refused; `info.capabilities` and `info.status`
+  report it as `ui_menus`.
+  Fabric and NeoForge.
+
 ## [0.10.0] - 2026-11-09
 
 Fabric and NeoForge. 0.9.1 was never published; its fix ships here.

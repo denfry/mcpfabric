@@ -65,6 +65,12 @@ public final class McpConfig {
 	/** Generic control of game screens (ui.*). Off by default; also needs enablePlayerControl. */
 	public boolean enableUiControl = false;
 	/**
+	 * With enableUiControl: also the menus before a world is open, the first-start accessibility screen
+	 * (narrator, language), the world list and the create world screen. Off by default. Deleting,
+	 * editing and re-creating worlds stay refused.
+	 */
+	public boolean enableMenuUiControl = false;
+	/**
 	 * Supervised mode (supervised.*): one narrow action per call under short-lived authority. Off by
 	 * default. It is its own lock and does not need the flags above, so they can stay off.
 	 */
