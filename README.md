@@ -371,6 +371,23 @@ Call `get_status` first — it reports which side you are on and which groups ar
 `mcpfabric-bench` scores agents on small tasks in a test world (collect logs, craft a stone pickaxe,
 find a chest, smelt iron, climb a ledge): see [docs/BENCH.md](docs/BENCH.md).
 
+## End-to-end tests
+
+`mcpfabric-test` runs `*.mctest.js` files against the game you have open, played by the real
+client: wait for chat lines, menus and game events, click menu slots, assert on what the client
+sees, and keep a screenshot and the game state when a test fails. It writes JUnit XML for CI and
+retries flaky tests. See [docs/TESTING.md](docs/TESTING.md).
+
+```js
+test("the shop sells a sword", async () => {
+  await mc.send_chat({ message: "/shop" });
+  await waitFor(async () => (await mc.container_state()).open);
+  const sword = (await mc.container_state()).slots.find((s) => s.id === "minecraft:diamond_sword");
+  await mc.container_click({ slot: sword.slot });
+  await expect.poll(() => inventoryCount("diamond_sword")).toBe(1);
+});
+```
+
 ---
 
 ## Example prompts

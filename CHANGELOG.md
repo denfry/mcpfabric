@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- `mcpfabric-test` (`docs/TESTING.md`): end-to-end tests for servers, mods and plugins, played by
+  the real client. `*.mctest.js` files register tests with hooks, steps and assertions
+  (`expect`, `expect.poll`), wait for chat lines, game events and screens, run server commands and
+  work menus (`container_state`, `container_click`, for tests only). Each test runs in a fresh
+  `run_script` sandbox; a failed attempt keeps a screenshot and a `context.json` with the player,
+  the screen and the events since the test began. Retries with flaky reporting, `--grep`,
+  `--bail`, `--world`, `--param`, JUnit XML and JSON reports. An example is in
+  `mcp-server/examples/`.
+
 ## [0.10.0] - 2026-11-09
 
 Fabric and NeoForge. 0.9.1 was never published; its fix ships here.
