@@ -15,6 +15,9 @@ All notable changes to this project are documented here. The format is based on
   the screen and the events since the test began. Retries with flaky reporting, `--grep`,
   `--bail`, `--world`, `--param`, JUnit XML and JSON reports. An example is in
   `mcp-server/examples/`.
+- Menu items with a custom name or lore (a plugin shop's "Buy: Diamond Sword"): the slots of
+  `container.state` carry `name` and `lore` as plain text, and `open_container` lists them,
+  marked as untrusted text from the game. Fabric and NeoForge.
 
 ## [0.10.0] - 2026-11-09
 
