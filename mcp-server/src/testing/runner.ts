@@ -65,7 +65,7 @@ export interface TestResult {
 
 export interface RunOptions {
   /** Only tests whose "file > name" matches. */
-  grep?: RegExp;
+  grep?: string;
   /** Extra attempts for a failed test. */
   retries?: number;
   /** Default time limit of one test, ms (a test's own `timeout` option wins). */
@@ -250,7 +250,7 @@ export class TestRunner {
       let skipReason: string | undefined;
       if (t.skip) skipReason = "test.skip";
       else if (anyOnly && !t.only) skipReason = "another test in the file is test.only";
-      else if (this.opts.grep && !this.opts.grep.test(`${shown} > ${t.name}`)) skipReason = "--grep";
+      else if (this.opts.grep && !`${shown} > ${t.name}`.includes(this.opts.grep)) skipReason = "--grep";
       return { ...t, index, skipReason };
     });
     // Tests filtered out by --grep are left out of the report entirely, like other runners do.

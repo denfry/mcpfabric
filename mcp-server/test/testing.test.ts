@@ -332,7 +332,7 @@ test("test.only, test.skip, --grep and --bail pick what runs", async () => {
     ],
   );
 
-  const grep = await run('test("alpha", async () => {});\ntest("beta", async () => {});', { grep: /beta/ });
+  const grep = await run('test("alpha", async () => {});\ntest("beta", async () => {});', { grep: "beta" });
   assert.deepEqual(grep.results.map((r) => r.name), ["beta"]);
 
   const bail = await run('test("a", async () => { assert.fail("no"); });\ntest("b", async () => { await command("b"); });', { bail: true });
