@@ -53,6 +53,11 @@ test("lint finds a blocked doorway, a torch on nothing and a stair without facin
   assert.ok(warnings.includes("oak_stairs @ 0 0 1: no facing — it will face wherever the player looks"));
   const hanging = lint(compilePlan({ name: "p", origin: { x: 0, y: 0, z: 0 }, palette: { T: "wall_torch[facing=east]" }, layers: [[".T"]] }));
   assert.deepEqual(hanging, ["wall_torch @ 1 0 0: hangs on an empty cell (west of it)"]);
+  // A hanging lantern needs the block above it, not below; a standing one the block below.
+  const lantern = (layers: string[][]) =>
+    lint(compilePlan({ name: "p", origin: { x: 0, y: 0, z: 0 }, palette: { L: "lantern[hanging=true]", S: "stone" }, layers }));
+  assert.deepEqual(lantern([["."], ["L"], ["S"]]), []);
+  assert.deepEqual(lantern([["S"], ["L"], ["."]]), ["lantern @ 0 1 0: hangs from an empty cell"]);
 });
 
 test("lint finds a roof slope built upside down", () => {

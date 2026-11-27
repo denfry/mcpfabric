@@ -270,6 +270,10 @@ export function lint(c: Compiled): string[] {
     if (WALL_MOUNTED.test(w.id) && w.props.facing && STEP[w.props.facing]) {
       const support = at(add(cell, STEP[OPPOSITE[w.props.facing]!]!));
       if (support && !solid(support)) out.push(`${name}: hangs on ${support.want ? shortId(support.want.id) : "an empty cell"} (${OPPOSITE[w.props.facing]} of it)`);
+    } else if (/lantern$/.test(w.id) && w.props.hanging === "true") {
+      // A hanging lantern needs the block above it.
+      const above = at(add(cell, STEP.up!));
+      if (above && !above.want) out.push(`${name}: hangs from an empty cell`);
     } else if (FLOOR_MOUNTED.test(w.id) && !(/_door$/.test(w.id) && w.props.half === "upper")) {
       const below = at(add(cell, STEP.down!));
       if (below && !below.want) out.push(`${name}: stands on an empty cell`);
