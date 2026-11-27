@@ -64,6 +64,8 @@ public final class InfoHandlers {
 			groups.addProperty("crafting", client && McpFabric.config().enablePlayerControl);
 			groups.addProperty("session", client && McpFabric.config().enablePlayerControl);
 			groups.addProperty("ui", client && McpFabric.config().enablePlayerControl && McpFabric.config().enableUiControl);
+			groups.addProperty("ui_menus", client && McpFabric.config().enablePlayerControl && McpFabric.config().enableUiControl
+					&& McpFabric.config().enableMenuUiControl);
 			groups.addProperty("supervised", McpFabric.config().enableSupervisedControl);
 			groups.addProperty("events", true);
 			groups.addProperty("devtools", McpFabric.config().enableDevTools);
@@ -102,6 +104,7 @@ public final class InfoHandlers {
 				a.add("crafting");
 				a.add("session");
 				if (McpFabric.config().enableUiControl) a.add("ui");
+				if (McpFabric.config().enableUiControl && McpFabric.config().enableMenuUiControl) a.add("ui_menus");
 			}
 			if (McpFabric.config().enableVision) {
 				a.add("vision");

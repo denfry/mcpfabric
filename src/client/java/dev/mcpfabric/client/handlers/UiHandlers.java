@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.bridge.RpcContext;
 import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.bridge.RpcRouter;
@@ -19,6 +20,7 @@ import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
 import net.minecraft.client.gui.screens.AlertScreen;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
@@ -43,6 +45,7 @@ import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
 import net.minecraft.client.gui.screens.packs.PackSelectionScreen;
 import net.minecraft.client.gui.screens.social.SocialInteractionsScreen;
+import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.client.gui.screens.worldselection.EditWorldScreen;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 //? if >=1.21.9 {
@@ -67,7 +70,8 @@ import java.util.Set;
  * command blocks cannot be driven, and a vanilla screen added in a later version is refused until it
  * is reviewed. Screens of other mods are allowed unless they extend one of the refused vanilla
  * screens. Chat and the server and world menus have their own tools ({@code send_chat},
- * {@code join_world}).
+ * {@code join_world}). With {@code enableMenuUiControl} the menus before a world is open are allowed
+ * too: the first-start accessibility screen, the world list and the create world screen.
  * <p>
  * Only widgets (buttons, checkboxes, cycle buttons, sliders, text fields, labels) are listed;
  * custom-drawn parts of a screen such as inventory slots or creative tabs are not.
@@ -99,8 +103,16 @@ public final class UiHandlers {
 			AdvancementsScreen.class, StatsScreen.class, AbstractContainerScreen.class, ConfirmScreen.class,
 			AlertScreen.class);
 
-	/** Buttons that quit the game (and with it the bridge), open Realms or delete the demo world. */
-	private static final Set<String> REFUSED_BUTTONS = Set.of("menu.quit", "menu.online", "menu.resetdemo");
+	/** Allowed only with enableMenuUiControl, before the refused screens are checked. */
+	private static final List<Class<?>> MENUS = List.of(
+			AccessibilityOnboardingScreen.class, SelectWorldScreen.class, CreateWorldScreen.class);
+
+	/**
+	 * Buttons that quit the game (and with it the bridge), open Realms or delete the demo world, and the
+	 * world list's delete, edit and re-create buttons.
+	 */
+	private static final Set<String> REFUSED_BUTTONS = Set.of("menu.quit", "menu.online", "menu.resetdemo",
+			"selectWorld.delete", "selectWorld.edit", "selectWorld.recreate");
 
 	public static void register(RpcRouter router) {
 		router.register("ui.widgets", ctx -> ClientMc.call(() -> {
@@ -130,7 +142,7 @@ public final class UiHandlers {
 			AbstractWidget w = find(screen, ctx);
 			if (w.getMessage().getContents() instanceof TranslatableContents t && REFUSED_BUTTONS.contains(t.getKey())) {
 				throw new RpcException("ui_refused", "This button (" + w.getMessage().getString()
-						+ ") quits the game, opens Realms or deletes the demo world, so it cannot be clicked from here.");
+						+ ") quits the game, opens Realms, or deletes or changes a world, so it cannot be clicked from here.");
 			}
 			if (!w.isActive()) throw new RpcException("inactive", "Widget \"" + w.getMessage().getString() + "\" is disabled.");
 			double fraction = Math.max(0, Math.min(1, ctx.optDouble("fraction", 0.5)));
@@ -180,6 +192,11 @@ public final class UiHandlers {
 	}
 
 	private static void requireAllowed(Screen screen) throws RpcException {
+		if (McpFabric.config().enableMenuUiControl) {
+			for (Class<?> menu : MENUS) {
+				if (menu.isInstance(screen)) return;
+			}
+		}
 		for (Class<?> refused : REFUSED) {
 			if (refused.isInstance(screen)) throw refusedScreen(screen);
 		}

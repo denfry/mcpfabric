@@ -746,7 +746,7 @@ export const TOOLS: ToolDef[] = [
     method: "ui.widgets",
     title: "List the widgets of the open screen",
     description:
-      "Client-only, needs enableUiControl. List the widgets of the open screen in focus order: id, type (button, checkbox, cycle, slider, text_field, text, other), text, active, checked (checkboxes), value (text fields) and position in GUI coordinates. Works on the pause, title, death, options, advancements, statistics and confirmation screens, container screens and screens added by other mods; the world, server, chat, link, command block and other sensitive screens are refused (ui_refused). Custom-drawn parts such as inventory slots are not widgets: use the container tools for those.",
+      "Client-only, needs enableUiControl. List the widgets of the open screen in focus order: id, type (button, checkbox, cycle, slider, text_field, text, other), text, active, checked (checkboxes), value (text fields) and position in GUI coordinates. Works on the pause, title, death, options, advancements, statistics and confirmation screens, container screens and screens added by other mods; with enableMenuUiControl also on the first-start accessibility screen, the world list and the create world screen. The server, chat, link, command block and other sensitive screens are refused (ui_refused). Custom-drawn parts such as inventory slots are not widgets: use the container tools for those.",
     inputSchema: {},
     annotations: READ,
     untrusted: true,
@@ -756,7 +756,7 @@ export const TOOLS: ToolDef[] = [
     method: "ui.click",
     title: "Click a widget",
     description:
-      "Client-only, needs enableUiControl. Left-click a widget of the open screen, by id from get_ui or by its exact label (case-insensitive, must be unique). Returns the screen after the click. Refuses disabled widgets and the Quit Game, Realms and Reset Demo World buttons. For sliders, fraction picks the position (0 = left, 1 = right).",
+      "Client-only, needs enableUiControl. Left-click a widget of the open screen, by id from get_ui or by its exact label (case-insensitive, must be unique). Returns the screen after the click. Refuses disabled widgets and the Quit Game, Realms and Reset Demo World buttons, and the world list's Delete, Edit and Re-Create. For sliders, fraction picks the position (0 = left, 1 = right).",
     inputSchema: {
       widget: z.union([z.number().int().min(0), z.string()]).describe("Widget id from get_ui, or its exact label."),
       fraction: z.number().min(0).max(1).optional().describe("Where to click across the widget, 0..1 (default 0.5); sets a slider's value."),

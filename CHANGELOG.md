@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `enableMenuUiControl` (off by default, needs `enableUiControl`): `get_ui`, `click_widget` and
+  `set_text_field` also work on the first-start accessibility screen, the world list and the create
+  world screen, so a fresh client can be set up and a new world made without a person. The delete,
+  edit and re-create buttons of the world list stay refused; `info.capabilities` and `info.status`
+  report it as `ui_menus`.
+  Fabric and NeoForge.
 - Several games on one machine: a client whose bridge port is taken binds the next free one (up to
   nine after it; a dedicated server keeps its port), and every game also writes
   `~/.mcpfabric/bridges/<pid>.json` with a name (new config `instanceName`, else the account name,

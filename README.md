@@ -197,6 +197,7 @@ dashboard and the channel follow the default game.
   "enablePlayerControl": true,
   "enableVision": true,
   "enableUiControl": false,
+  "enableMenuUiControl": false,
   "enableSupervisedControl": false,
   "enableDevTools": false,
   "supervisedWorlds": [],
@@ -211,6 +212,10 @@ that starts off: it lets the model click buttons and type into text fields of ga
 never expose. Vanilla screens are limited to the pause, title, death, options, advancements,
 statistics, confirmation and container screens, but screens added by other mods are not restricted, so turn it on
 only when you need it, for example to test a mod's UI. It also needs `enablePlayerControl`.
+`enableMenuUiControl` (off by default, needs `enableUiControl`) adds the menus before a world is open:
+the first-start screen (narrator, language, accessibility settings), the world list and the create
+world screen, so a fresh dev client can be set up without a person at the keyboard. Deleting,
+editing and re-creating worlds stay refused.
 `enableDevTools` (off) serves the developer tools: the game's log and crash reports, loaded mods,
 registries, the tick rate, block changes in a region and what a mob's AI is doing. Logs can hold chat, player names and whatever other mods print; IP
 and server addresses and the home folder are replaced, but not every way a mod might print a host
